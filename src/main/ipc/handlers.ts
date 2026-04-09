@@ -1,0 +1,456 @@
+import { ipcMain, dialog, app, BrowserWindow } from 'electron'
+import path from 'path'
+import fs from 'fs/promises'
+import { IPC_CHANNELS } from './channels.js'
+import type { DatabaseManager } from '../database/DatabaseManager.js'
+import type { AbbeyManager } from '../abbey/AbbeyManager.js'
+import { getMainWindow } from '../index.js'
+import { LLMProcessManager } from '../agent/LLMProcessManager.js'
+import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
+
+// Agent state
+let llmProcessManager: LLMProcessManager | null = null
+let currentAgentLoop: AgentLoop | null = null
+
+export function setupIpcHandlers(
+  dbManager: DatabaseManager,
+  abbeyManager: AbbeyManager | null
+): void {
+  // Abbey: Select folder dialog
+  ipcMain.handle(IPC_CHANNELS.ABBEY_SELECT_FOLDER, async () => {
+    const mainWindow = getMainWindow()
+    if (!mainWindow) {
+      throw new Error('No main window available')
+    }
+    
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory', 'createDirectory'],
+      buttonLabel: 'Select Abbey',
+      message: 'Choose a folder for your Scriptorium Abbey',
+    })
+    
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+    
+    return result.filePaths[0]
+  })
+
+  // Abbey: Create new abbey
+  ipcMain.handle(IPC_CHANNELS.ABBEY_CREATE, async (_, abbeyPath: string) => {
+    try {
+      // Create abbey structure
+      await fs.mkdir(path.join(abbeyPath, '_folios'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '_epistles'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
+      
+      // Create default folders
+      await fs.mkdir(path.join(abbeyPath, 'Projects'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, 'People'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, 'Ideas'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, 'Journal'), { recursive: true })
+      
+      // Create default wilfred.md persona
+      const wilfredPersona = `# Wilfred's Persona
+
+You are Wilfred, a diligent monk in the Scriptorium. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
+
+Your character:
+- Methodical. You work through tasks step by step.
+- Humble. When you do not know where something belongs, you ask.
+- Brief. Your epistles are clear and concise — a monk does not ramble.
+- Faithful. You do exactly what the Rule asks, no more, no less.
+`
+      await fs.writeFile(path.join(abbeyPath, '.scriptorium', 'wilfred.md'), wilfredPersona, 'utf-8')
+      
+      // Create abbey config
+      const config = {
+        createdAt: new Date().toISOString(),
+        version: '0.1.0',
+      }
+      await fs.writeFile(
+        path.join(abbeyPath, '.scriptorium', 'config.json'),
+        JSON.stringify(config, null, 2),
+        'utf-8'
+      )
+      
+      // Save abbey path to database
+      dbManager.setSetting('abbeyPath', abbeyPath)
+      
+      return { success: true, path: abbeyPath }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Abbey: Open existing abbey
+  ipcMain.handle(IPC_CHANNELS.ABBEY_OPEN, async (_, abbeyPath: string) => {
+    try {
+      // Verify it's a valid abbey
+      const scriptoriumPath = path.join(abbeyPath, '.scriptorium')
+      const stat = await fs.stat(scriptoriumPath).catch(() => null)
+
+      if (!stat?.isDirectory()) {
+        return { success: false, needsInit: true, error: 'This folder has not been set up as an abbey yet.' }
+      }
+
+      // Save abbey path to database
+      dbManager.setSetting('abbeyPath', abbeyPath)
+
+      return { success: true, path: abbeyPath }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Abbey: Initialise an existing folder as an abbey (creates .scriptorium only)
+  ipcMain.handle(IPC_CHANNELS.ABBEY_INIT, async (_, abbeyPath: string) => {
+    try {
+      await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
+
+      const wilfredPersona = `# Wilfred's Persona
+
+You are Wilfred, a diligent monk in the Scriptorium. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
+
+Your character:
+- Methodical. You work through tasks step by step.
+- Humble. When you do not know where something belongs, you ask.
+- Brief. Your epistles are clear and concise — a monk does not ramble.
+- Faithful. You do exactly what the Rule asks, no more, no less.
+`
+      await fs.writeFile(path.join(abbeyPath, '.scriptorium', 'wilfred.md'), wilfredPersona, 'utf-8')
+
+      const config = {
+        createdAt: new Date().toISOString(),
+        version: '0.1.0',
+      }
+      await fs.writeFile(
+        path.join(abbeyPath, '.scriptorium', 'config.json'),
+        JSON.stringify(config, null, 2),
+        'utf-8'
+      )
+
+      dbManager.setSetting('abbeyPath', abbeyPath)
+
+      return { success: true, path: abbeyPath }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Abbey: Get info
+  ipcMain.handle(IPC_CHANNELS.ABBEY_GET_INFO, async () => {
+    const abbeyPath = dbManager.getSetting('abbeyPath') as string | null
+    if (!abbeyPath) {
+      return null
+    }
+    
+    return {
+      path: abbeyPath,
+      name: path.basename(abbeyPath),
+    }
+  })
+
+  // Files: List directory
+  ipcMain.handle(IPC_CHANNELS.FILES_LIST, async (_, dirPath: string) => {
+    if (!abbeyManager) {
+      throw new Error('No abbey initialized')
+    }
+    
+    const fullPath = path.join(abbeyManager.abbeyPath, dirPath)
+    const entries = await fs.readdir(fullPath, { withFileTypes: true })
+    
+    return entries
+      .filter(entry => !entry.name.startsWith('.') || entry.name === '.scriptorium')
+      .map(entry => ({
+        name: entry.name,
+        path: path.join(dirPath, entry.name),
+        isDirectory: entry.isDirectory(),
+      }))
+      .sort((a, b) => {
+        if (a.isDirectory === b.isDirectory) {
+          return a.name.localeCompare(b.name)
+        }
+        return a.isDirectory ? -1 : 1
+      })
+  })
+
+  // Files: Read file
+  ipcMain.handle(IPC_CHANNELS.FILES_READ, async (_, filePath: string) => {
+    if (!abbeyManager) {
+      throw new Error('No abbey initialized')
+    }
+    
+    const fullPath = path.join(abbeyManager.abbeyPath, filePath)
+    const content = await fs.readFile(fullPath, 'utf-8')
+    return { content, path: filePath }
+  })
+
+  // Files: Write file
+  ipcMain.handle(IPC_CHANNELS.FILES_WRITE, async (_, filePath: string, content: string) => {
+    if (!abbeyManager) {
+      throw new Error('No abbey initialized')
+    }
+    
+    const fullPath = path.join(abbeyManager.abbeyPath, filePath)
+    await fs.writeFile(fullPath, content, 'utf-8')
+    return { success: true }
+  })
+
+  // Settings: Get
+  ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, async (_, key: string) => {
+    return dbManager.getSetting(key)
+  })
+
+  // Settings: Set
+  ipcMain.handle(IPC_CHANNELS.SETTINGS_SET, async (_, key: string, value: unknown) => {
+    dbManager.setSetting(key, value)
+    return { success: true }
+  })
+
+  // LLM: Get status
+  ipcMain.handle(IPC_CHANNELS.LLM_GET_STATUS, async () => {
+    // TODO: Implement actual LLM status checking in Phase 2
+    return { connected: false, model: null }
+  })
+
+  // LLM: Test connection
+  ipcMain.handle(IPC_CHANNELS.LLM_TEST_CONNECTION, async (_, config: { baseUrl: string; model: string; apiKey?: string }) => {
+    try {
+      const response = await fetch(`${config.baseUrl}/models`, {
+        headers: config.apiKey ? { 'Authorization': `Bearer ${config.apiKey}` } : {},
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      const hasModel = data.data?.some((m: { id: string }) => m.id === config.model) ?? false
+      
+      return { 
+        success: true, 
+        available: true,
+        hasModel,
+        models: data.data?.map((m: { id: string }) => m.id) ?? [],
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: (error as Error).message,
+      }
+    }
+  })
+
+  // Comments: Get
+  ipcMain.handle(IPC_CHANNELS.COMMENTS_GET, async (_, filePath: string) => {
+    return dbManager.getComments(filePath)
+  })
+
+  // Comments: Add
+  ipcMain.handle(IPC_CHANNELS.COMMENTS_ADD, async (_, filePath: string, line: number, content: string, type: string) => {
+    const validTypes = ['question', 'suggestion', 'note'] as const
+    if (!validTypes.includes(type as typeof validTypes[number])) {
+      throw new Error('Invalid comment type')
+    }
+    return dbManager.addComment(filePath, line, content, type as typeof validTypes[number])
+  })
+
+  // Comments: Dismiss
+  ipcMain.handle(IPC_CHANNELS.COMMENTS_DISMISS, async (_, id: number) => {
+    dbManager.dismissComment(id)
+    return { success: true }
+  })
+
+  // App: Get version
+  ipcMain.handle(IPC_CHANNELS.APP_GET_VERSION, async () => {
+    return app.getVersion()
+  })
+
+  // LLM: Start server
+  ipcMain.handle(IPC_CHANNELS.LLM_START_SERVER, async (_, config: { model: string; port?: number }) => {
+    if (llmProcessManager) {
+      return { success: false, error: 'Server already running' }
+    }
+
+    llmProcessManager = new LLMProcessManager(config)
+    
+    llmProcessManager.on('status', (status) => {
+      // TODO: Send status update to renderer via IPC or EventEmitter
+      console.log('LLM status:', status)
+    })
+    
+    llmProcessManager.on('log', (log) => {
+      console.log(`[LLM ${log.level}]`, log.message)
+    })
+    
+    llmProcessManager.on('error', (error) => {
+      console.error('[LLM error]', error)
+    })
+
+    const started = await llmProcessManager.start()
+    
+    if (started) {
+      return { success: true, url: llmProcessManager.getUrl() }
+    } else {
+      llmProcessManager = null
+      return { success: false, error: 'Failed to start server' }
+    }
+  })
+
+  // LLM: Stop server
+  ipcMain.handle(IPC_CHANNELS.LLM_STOP_SERVER, async () => {
+    llmProcessManager?.stop()
+    llmProcessManager = null
+    return { success: true }
+  })
+
+  // LLM: Get status (updated)
+  ipcMain.handle(IPC_CHANNELS.LLM_GET_STATUS, async () => {
+    return {
+      running: llmProcessManager?.isRunning() ?? false,
+      url: llmProcessManager?.getUrl() ?? null,
+      managed: llmProcessManager !== null,
+    }
+  })
+
+  // Agent: Run task
+  ipcMain.handle(IPC_CHANNELS.AGENT_RUN_TASK, async (_, taskName: string, instruction: string) => {
+    if (!abbeyManager) {
+      return { success: false, error: 'No abbey initialized' }
+    }
+
+    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    if (!llmConfig) {
+      return { success: false, error: 'LLM not configured' }
+    }
+
+    // Load Wilfred's persona
+    let persona = ''
+    try {
+      const personaPath = path.join(abbeyManager.abbeyPath, '.scriptorium', 'wilfred.md')
+      persona = await fs.readFile(personaPath, 'utf-8')
+    } catch {
+      persona = 'You are Wilfred, a diligent monk in the Scriptorium.'
+    }
+
+    currentAgentLoop = new AgentLoop(
+      {
+        abbeyPath: abbeyManager.abbeyPath,
+        dbManager,
+        llmConfig,
+        persona,
+      },
+      (run) => {
+        // Task updates logged to database
+        if (run.status !== 'running') {
+          dbManager.logTaskRun({
+            task_name: run.taskName,
+            started_at: run.startedAt,
+            ended_at: run.endedAt || Date.now(),
+            status: run.status,
+            summary: run.summary || '',
+            tool_calls: run.toolCalls,
+          })
+        }
+      }
+    )
+
+    const result = await currentAgentLoop.runTask(taskName, instruction)
+    currentAgentLoop = null
+
+    return { success: result.status === 'done', result }
+  })
+
+  // Agent: Abort task
+  ipcMain.handle(IPC_CHANNELS.AGENT_ABORT_TASK, async () => {
+    currentAgentLoop?.abort()
+    return { success: true }
+  })
+
+  // Agent: Get recent tasks
+  ipcMain.handle(IPC_CHANNELS.AGENT_GET_TASKS, async () => {
+    return dbManager.getRecentTaskRuns(20)
+  })
+
+  // Epistles: List
+  ipcMain.handle(IPC_CHANNELS.EPISTLES_LIST, async () => {
+    if (!abbeyManager) {
+      return []
+    }
+
+    try {
+      const epistlesPath = path.join(abbeyManager.abbeyPath, '_epistles')
+      const entries = await fs.readdir(epistlesPath, { withFileTypes: true })
+      
+      const epistles = await Promise.all(
+        entries
+          .filter(e => e.isFile() && e.name.endsWith('.md'))
+          .map(async (e) => {
+            const filePath = path.join(epistlesPath, e.name)
+            const content = await fs.readFile(filePath, 'utf-8')
+            
+            // Parse frontmatter quickly
+            const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/)
+            const frontmatter: Record<string, unknown> = {}
+            
+            if (frontmatterMatch) {
+              const lines = frontmatterMatch[1].split('\n')
+              for (const line of lines) {
+                const colonIndex = line.indexOf(':')
+                if (colonIndex > 0) {
+                  const key = line.slice(0, colonIndex).trim()
+                  const value = line.slice(colonIndex + 1).trim()
+                  try {
+                    frontmatter[key] = JSON.parse(value)
+                  } catch {
+                    frontmatter[key] = value
+                  }
+                }
+              }
+            }
+
+            return {
+              id: e.name,
+              path: `_epistles/${e.name}`,
+              title: content.match(/^# (.+)$/m)?.[1] ?? e.name,
+              type: frontmatter.type ?? 'insight',
+              created: frontmatter.created ?? new Date().toISOString(),
+              status: frontmatter.status ?? 'unread',
+            }
+          })
+      )
+
+      return epistles.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+    } catch {
+      return []
+    }
+  })
+
+  // Epistles: Read
+  ipcMain.handle(IPC_CHANNELS.EPISTLES_READ, async (_, filename: string) => {
+    if (!abbeyManager) {
+      throw new Error('No abbey initialized')
+    }
+
+    const filePath = path.join(abbeyManager.abbeyPath, '_epistles', filename)
+    const content = await fs.readFile(filePath, 'utf-8')
+    return { content, path: `_epistles/${filename}` }
+  })
+
+  // Epistles: Mark read
+  ipcMain.handle(IPC_CHANNELS.EPISTLES_MARK_READ, async (_, filename: string) => {
+    if (!abbeyManager) {
+      throw new Error('No abbey initialized')
+    }
+
+    const filePath = path.join(abbeyManager.abbeyPath, '_epistles', filename)
+    let content = await fs.readFile(filePath, 'utf-8')
+    
+    // Replace status: unread with status: read
+    content = content.replace(/status: unread/, 'status: read')
+    
+    await fs.writeFile(filePath, content, 'utf-8')
+    return { success: true }
+  })
+}
