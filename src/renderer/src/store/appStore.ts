@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 
+export type ThemeId = 'parchment' | 'midnight' | 'forest' | 'slate' | 'rose'
+
 export interface AbbeyInfo {
   path: string
   name: string
@@ -47,6 +49,8 @@ interface AppState {
   toggleSidebar: () => void
   showSystemFolders: boolean
   setShowSystemFolders: (show: boolean) => void
+  theme: ThemeId
+  setTheme: (theme: ThemeId) => void
 
   // Inbox
   unreadInbox: number
@@ -104,6 +108,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   showSystemFolders: false,
   setShowSystemFolders: (show) => set({ showSystemFolders: show }),
+  theme: 'parchment' as ThemeId,
+  setTheme: (theme) => {
+    set({ theme })
+    document.documentElement.dataset.theme = theme
+    window.electronAPI.setSetting('theme', theme)
+  },
 
   // Inbox
   unreadInbox: 0,

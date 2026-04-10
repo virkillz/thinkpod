@@ -74,7 +74,7 @@ export function WilfredChatPanel({ isOpen, onClose }: WilfredChatPanelProps) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed bottom-24 right-6 z-40 w-96 bg-white rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-200">
+    <div className="fixed bottom-24 right-6 z-40 w-96 bg-parchment-card rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-200">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-accent text-white">
         <div className="flex items-center gap-2">

@@ -116,7 +116,7 @@ export function TasksView() {
                 {activeSchedules.map(s => (
                   <div
                     key={s.id}
-                    className="bg-white rounded-xl p-5 border border-parchment-dark flex items-center justify-between"
+                    className="bg-parchment-card rounded-xl p-5 border border-parchment-dark flex items-center justify-between"
                   >
                     <div>
                       <h4 className="font-medium text-ink-primary">{s.name}</h4>
@@ -184,7 +184,7 @@ export function TasksView() {
                 {tasks.map(task => (
                   <div
                     key={task.id}
-                    className="bg-white rounded-xl p-5 border border-parchment-dark"
+                    className="bg-parchment-card rounded-xl p-5 border border-parchment-dark"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-3">

@@ -75,7 +75,7 @@ function ProfileTab() {
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       {/* Preview */}
-      <div className="bg-white rounded-xl p-6 border border-parchment-dark flex items-center gap-5">
+      <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark flex items-center gap-5">
         <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center text-3xl flex-shrink-0">
           {profile.avatar}
         </div>
@@ -93,7 +93,7 @@ function ProfileTab() {
           value={profile.name}
           onChange={(e) => setProfile({ ...profile, name: e.target.value })}
           placeholder="Agent name"
-          className="w-full px-4 py-3 bg-white border border-parchment-dark rounded-xl focus:outline-none focus:border-accent text-ink-primary"
+          className="w-full px-4 py-3 bg-parchment-card border border-parchment-dark rounded-xl focus:outline-none focus:border-accent text-ink-primary"
         />
       </section>
 
@@ -108,7 +108,7 @@ function ProfileTab() {
               className={`h-10 w-10 rounded-lg text-xl flex items-center justify-center transition-all ${
                 profile.avatar === emoji
                   ? 'bg-accent/15 ring-2 ring-accent'
-                  : 'bg-white border border-parchment-dark hover:border-accent hover:bg-accent/5'
+                  : 'bg-parchment-card border border-parchment-dark hover:border-accent hover:bg-accent/5'
               }`}
             >
               {emoji}
@@ -124,7 +124,7 @@ function ProfileTab() {
           value={profile.systemPrompt}
           onChange={(e) => setProfile({ ...profile, systemPrompt: e.target.value })}
           rows={10}
-          className="w-full px-4 py-3 bg-white border border-parchment-dark rounded-xl focus:outline-none focus:border-accent text-ink-primary text-sm font-mono resize-none"
+          className="w-full px-4 py-3 bg-parchment-card border border-parchment-dark rounded-xl focus:outline-none focus:border-accent text-ink-primary text-sm font-mono resize-none"
         />
       </section>
 
@@ -223,7 +223,7 @@ function TasksTab() {
           <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Run Now</h3>
           <div className="space-y-3">
             {activeSchedules.map(s => (
-              <div key={s.id} className="bg-white rounded-xl p-5 border border-parchment-dark flex items-center justify-between">
+              <div key={s.id} className="bg-parchment-card rounded-xl p-5 border border-parchment-dark flex items-center justify-between">
                 <div>
                   <h4 className="font-medium text-ink-primary">{s.name}</h4>
                   <p className="text-sm text-ink-muted mt-0.5">{s.schedule}</p>
@@ -272,7 +272,7 @@ function TasksTab() {
         ) : (
           <div className="space-y-3">
             {tasks.map(task => (
-              <div key={task.id} className="bg-white rounded-xl p-5 border border-parchment-dark">
+              <div key={task.id} className="bg-parchment-card rounded-xl p-5 border border-parchment-dark">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
                     {getStatusIcon(task.status)}
@@ -334,7 +334,7 @@ function SchedulesTab() {
         <div className="text-center py-16 text-ink-muted">No scheduled tasks defined.</div>
       ) : (
         schedules.map((s) => (
-          <div key={s.id} className="bg-white rounded-xl p-6 border border-parchment-dark hover:border-accent transition-colors">
+          <div key={s.id} className="bg-parchment-card rounded-xl p-6 border border-parchment-dark hover:border-accent transition-colors">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <h3 className="font-medium text-ink-primary">{s.name}</h3>

@@ -59,7 +59,7 @@ export function ScheduleView() {
             schedules.map((s) => (
               <div
                 key={s.id}
-                className="bg-white rounded-xl p-6 border border-parchment-dark hover:border-accent transition-colors"
+                className="bg-parchment-card rounded-xl p-6 border border-parchment-dark hover:border-accent transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">

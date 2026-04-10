@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download, Wrench, Zap } from 'lucide-react'
+import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download, Wrench, Zap, Palette } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
+import type { ThemeId } from '../../store/appStore.js'
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
 type VoiceDownloadState = 'idle' | 'downloading' | 'error'
 type VoiceConfig = { modelName: string; language: 'en' | 'auto' }
-type SettingsTab = 'general' | 'inference' | 'voice' | 'advanced'
+type SettingsTab = 'general' | 'appearance' | 'inference' | 'voice' | 'advanced'
 
 const VOICE_TIER_MODELS = [
   { name: 'small.en',       label: 'Fast · English',         sizeMb: 466  },
@@ -17,11 +18,113 @@ const VOICE_TIER_MODELS = [
 ]
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
-  { id: 'general',   label: 'General',   icon: Folder   },
-  { id: 'inference', label: 'Inference', icon: Zap      },
-  { id: 'voice',     label: 'Voice',     icon: Mic      },
-  { id: 'advanced',  label: 'Advanced',  icon: Wrench   },
+  { id: 'general',    label: 'General',    icon: Folder  },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'inference',  label: 'Inference',  icon: Zap     },
+  { id: 'voice',      label: 'Voice',      icon: Mic     },
+  { id: 'advanced',   label: 'Advanced',   icon: Wrench  },
 ]
+
+// ─── Theme definitions (UI metadata) ─────────────────────────────────────────
+
+const THEMES: {
+  id: ThemeId
+  name: string
+  description: string
+  swatches: string[]
+  dark: boolean
+}[] = [
+  {
+    id: 'parchment',
+    name: 'Parchment',
+    description: 'Warm amber & serif — the classic scriptorium look',
+    swatches: ['#F5F0E8', '#EDE8DC', '#8B6914', '#1C1917'],
+    dark: false,
+  },
+  {
+    id: 'midnight',
+    name: 'Midnight',
+    description: 'Deep indigo with a crisp sans-serif',
+    swatches: ['#1A1B2E', '#22243A', '#818CF8', '#E2E8F0'],
+    dark: true,
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    description: 'Mossy greens with a warm editor font',
+    swatches: ['#1C2616', '#243020', '#6DB33F', '#D4E6B5'],
+    dark: true,
+  },
+  {
+    id: 'slate',
+    name: 'Slate',
+    description: 'Clean cool-gray with blue accents',
+    swatches: ['#F8FAFC', '#F1F5F9', '#3B82F6', '#0F172A'],
+    dark: false,
+  },
+  {
+    id: 'rose',
+    name: 'Rose',
+    description: 'Soft pink warmth with a classic serif',
+    swatches: ['#FFF1F2', '#FFE4E6', '#E11D48', '#1C0A0B'],
+    dark: false,
+  },
+]
+
+// ─── Appearance Tab ───────────────────────────────────────────────────────────
+
+function AppearanceTab() {
+  const { theme, setTheme } = useAppStore()
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-8">
+      <section>
+        <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Theme</h3>
+        <div className="grid grid-cols-1 gap-3">
+          {THEMES.map((t) => {
+            const active = theme === t.id
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTheme(t.id)}
+                className={`flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${
+                  active
+                    ? 'border-accent bg-accent/5'
+                    : 'border-parchment-dark bg-parchment-card hover:border-ink-light'
+                }`}
+              >
+                {/* Swatches */}
+                <div className="flex gap-1 flex-shrink-0">
+                  {t.swatches.map((color, i) => (
+                    <span
+                      key={i}
+                      className="w-6 h-6 rounded-full border border-black/10 flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm text-ink-primary">{t.name}</span>
+                    {t.dark && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-ink-light/20 text-ink-muted">Dark</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-ink-muted mt-0.5">{t.description}</p>
+                </div>
+
+                {/* Selected indicator */}
+                {active && <Check className="w-4 h-4 text-accent flex-shrink-0" />}
+              </button>
+            )
+          })}
+        </div>
+      </section>
+    </div>
+  )
+}
 
 // ─── General Tab ──────────────────────────────────────────────────────────────
 
@@ -32,7 +135,7 @@ function GeneralTab() {
     <div className="max-w-2xl mx-auto space-y-8">
       <section>
         <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Abbey</h3>
-        <div className="bg-white rounded-xl p-6 border border-parchment-dark">
+        <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark">
           <div className="flex items-center gap-3 mb-4">
             <Folder className="w-5 h-5 text-accent" />
             <span className="font-medium text-ink-primary">Vault Path</span>
@@ -48,7 +151,7 @@ function GeneralTab() {
 
       <section>
         <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Notes</h3>
-        <div className="bg-white rounded-xl p-6 border border-parchment-dark">
+        <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark">
           <label className="flex items-center justify-between cursor-pointer">
             <div>
               <span className="font-medium text-ink-primary text-sm">Show system folders</span>
@@ -123,7 +226,7 @@ function InferenceTab() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-xl p-6 border border-parchment-dark space-y-6">
+      <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark space-y-6">
         <div>
           <label className="block text-sm font-medium text-ink-primary mb-2">Base URL</label>
           <input
@@ -250,7 +353,7 @@ function VoiceTab() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-xl p-6 border border-parchment-dark space-y-4">
+      <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark space-y-4">
         {voiceConfig && !voiceShowPicker && (
           <div className="flex items-center gap-3">
             <Mic className="w-5 h-5 text-accent flex-shrink-0" />
@@ -422,7 +525,7 @@ function AdvancedTab() {
     <div className="max-w-2xl mx-auto space-y-8">
       <section>
         <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Tools</h3>
-        <div className="bg-white rounded-xl p-6 border border-parchment-dark">
+        <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark">
           <p className="text-sm text-ink-muted">
             Tool management will be available in a future update.
             Currently, the agent has access to: read_file, write_file, move_file,
@@ -433,7 +536,7 @@ function AdvancedTab() {
 
       <section>
         <h3 className="text-sm font-medium text-red-500 uppercase tracking-wide mb-4">Danger Zone</h3>
-        <div className="bg-white rounded-xl p-6 border border-red-200">
+        <div className="bg-parchment-card rounded-xl p-6 border border-red-200">
           <div className="flex items-start gap-4">
             <div className="flex-1">
               <span className="font-medium text-ink-primary text-sm">Reset Abbey</span>
@@ -525,10 +628,11 @@ export function SettingsView() {
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {activeTab === 'general'   && <GeneralTab />}
-        {activeTab === 'inference' && <InferenceTab />}
-        {activeTab === 'voice'     && <VoiceTab />}
-        {activeTab === 'advanced'  && <AdvancedTab />}
+        {activeTab === 'general'    && <GeneralTab />}
+        {activeTab === 'appearance' && <AppearanceTab />}
+        {activeTab === 'inference'  && <InferenceTab />}
+        {activeTab === 'voice'      && <VoiceTab />}
+        {activeTab === 'advanced'   && <AdvancedTab />}
       </div>
     </div>
   )

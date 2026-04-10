@@ -34,7 +34,7 @@ export function WilfredFAB() {
       <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
         {/* Greeting bubble */}
         {showGreeting && (
-          <div className="bg-white rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="bg-parchment-card rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted animate-in fade-in slide-in-from-bottom-2 duration-500">
             "Good morning. Your folios are resting quietly."
           </div>
         )}

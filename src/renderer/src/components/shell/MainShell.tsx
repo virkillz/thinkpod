@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../../store/appStore.js'
+import type { ThemeId } from '../../store/appStore.js'
 import { Sidebar } from './Sidebar.js'
 import { NotesView } from '../views/NotesView.js'
 import { InboxView } from '../views/InboxView.js'
@@ -9,11 +10,19 @@ import { SettingsView } from '../views/SettingsView.js'
 import { WilfredFAB } from './WilfredFAB.js'
 
 export function MainShell() {
-  const { currentView, refreshFileTree } = useAppStore()
+  const { currentView, refreshFileTree, setTheme } = useAppStore()
 
   useEffect(() => {
     refreshFileTree()
   }, [refreshFileTree])
+
+  useEffect(() => {
+    window.electronAPI.getSetting('theme').then((saved) => {
+      const theme = (saved as ThemeId) || 'parchment'
+      document.documentElement.dataset.theme = theme
+      setTheme(theme)
+    })
+  }, [])
 
   const renderView = () => {
     switch (currentView) {

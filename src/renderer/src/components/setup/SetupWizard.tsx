@@ -125,7 +125,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         </div>
 
         {/* Step content */}
-        <div className="bg-white rounded-2xl shadow-lg p-12 min-h-[500px]">
+        <div className="bg-parchment-card rounded-2xl shadow-lg p-12 min-h-[500px]">
           {currentStep === 'welcome' && (
             <StepWelcome onContinue={handleStepComplete} />
           )}
@@ -156,22 +156,22 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         {/* Wilfred avatar (decorative) */}
         <div className="fixed bottom-8 right-8 flex items-end gap-4">
           {currentStep === 'welcome' && (
-            <div className="bg-white rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted animate-breathe">
+            <div className="bg-parchment-card rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted animate-breathe">
               "Welcome to the Scriptorium. I am Wilfred, your faithful monk."
             </div>
           )}
           {currentStep === 'abbey' && selectedAbbeyPath && (
-            <div className="bg-white rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
+            <div className="bg-parchment-card rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
               "A fine choice."
             </div>
           )}
           {currentStep === 'llm' && (
-            <div className="bg-white rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
+            <div className="bg-parchment-card rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
               "Tell me where to find the words."
             </div>
           )}
           {currentStep === 'voice' && (
-            <div className="bg-white rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
+            <div className="bg-parchment-card rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
               "Speak, and I shall transcribe."
             </div>
           )}

@@ -215,7 +215,7 @@ export function CaptureSheet({ isOpen, onClose, onOpenSettings }: CaptureSheetPr
       />
 
       {/* Sheet */}
-      <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl pointer-events-auto animate-in slide-in-from-bottom-4">
+      <div className="relative w-full max-w-3xl bg-parchment-card rounded-2xl shadow-2xl pointer-events-auto animate-in slide-in-from-bottom-4">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
           <h3 className="font-serif font-medium text-lg text-ink-primary">New Draft</h3>

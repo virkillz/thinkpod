@@ -73,7 +73,7 @@ export function CommentPanel({ filePath }: CommentPanelProps) {
   }
 
   return (
-    <div className="w-72 border-l border-parchment-dark bg-white flex flex-col">
+    <div className="w-72 border-l border-parchment-dark bg-parchment-card flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-parchment-dark">
         <div className="flex items-center gap-2">

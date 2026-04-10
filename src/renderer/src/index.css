@@ -2,15 +2,134 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Theme: Parchment (default) ─────────────────────────────────────────── */
+:root,
+[data-theme="parchment"] {
+  color-scheme: light;
+  --color-parchment-base:    #F5F0E8;
+  --color-parchment-sidebar: #EDE8DC;
+  --color-parchment-dark:    #E5DDD0;
+  --color-parchment-card:    #FFFFFF;
+  --color-ink-primary:       #1C1917;
+  --color-ink-muted:         #78716C;
+  --color-ink-light:         #A8A29E;
+  --color-accent-rgb:        139 105 20;
+  --color-accent-hover:      #6B5110;
+  --color-accent-light:      #D4B896;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             'Lora', Georgia, serif;
+  --cm-bg:                   #F5F0E8;
+  --cm-gutter-border:        #E5DDD0;
+  --cm-activeline-gutter:    #EDE8DC;
+  --cm-activeline:           rgba(237, 232, 220, 0.5);
+  --scrollbar-track:         #EDE8DC;
+  --scrollbar-thumb:         #D4B896;
+  --scrollbar-thumb-hover:   #C4A886;
+}
+
+/* ─── Theme: Midnight ─────────────────────────────────────────────────────── */
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --color-parchment-base:    #1A1B2E;
+  --color-parchment-sidebar: #13141F;
+  --color-parchment-dark:    #2D2E4A;
+  --color-parchment-card:    #22243A;
+  --color-ink-primary:       #E2E8F0;
+  --color-ink-muted:         #94A3B8;
+  --color-ink-light:         #475569;
+  --color-accent-rgb:        129 140 248;
+  --color-accent-hover:      #6366F1;
+  --color-accent-light:      #312E81;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             'Inter', system-ui, sans-serif;
+  --cm-bg:                   #1E2038;
+  --cm-gutter-border:        #2D2E4A;
+  --cm-activeline-gutter:    #22243A;
+  --cm-activeline:           rgba(45, 46, 74, 0.5);
+  --scrollbar-track:         #13141F;
+  --scrollbar-thumb:         #2D2E4A;
+  --scrollbar-thumb-hover:   #3D3F5A;
+}
+
+/* ─── Theme: Forest ───────────────────────────────────────────────────────── */
+[data-theme="forest"] {
+  color-scheme: dark;
+  --color-parchment-base:    #1C2616;
+  --color-parchment-sidebar: #161E10;
+  --color-parchment-dark:    #2D3D22;
+  --color-parchment-card:    #243020;
+  --color-ink-primary:       #D4E6B5;
+  --color-ink-muted:         #7EA856;
+  --color-ink-light:         #4A6B30;
+  --color-accent-rgb:        109 179 63;
+  --color-accent-hover:      #5A9532;
+  --color-accent-light:      #2D4A15;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             'Lora', Georgia, serif;
+  --cm-bg:                   #1C2616;
+  --cm-gutter-border:        #2D3D22;
+  --cm-activeline-gutter:    #243020;
+  --cm-activeline:           rgba(45, 61, 34, 0.5);
+  --scrollbar-track:         #161E10;
+  --scrollbar-thumb:         #2D3D22;
+  --scrollbar-thumb-hover:   #3D5230;
+}
+
+/* ─── Theme: Slate ────────────────────────────────────────────────────────── */
+[data-theme="slate"] {
+  color-scheme: light;
+  --color-parchment-base:    #F8FAFC;
+  --color-parchment-sidebar: #F1F5F9;
+  --color-parchment-dark:    #E2E8F0;
+  --color-parchment-card:    #FFFFFF;
+  --color-ink-primary:       #0F172A;
+  --color-ink-muted:         #64748B;
+  --color-ink-light:         #94A3B8;
+  --color-accent-rgb:        59 130 246;
+  --color-accent-hover:      #2563EB;
+  --color-accent-light:      #BFDBFE;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             'Inter', system-ui, sans-serif;
+  --cm-bg:                   #F8FAFC;
+  --cm-gutter-border:        #E2E8F0;
+  --cm-activeline-gutter:    #F1F5F9;
+  --cm-activeline:           rgba(226, 232, 240, 0.5);
+  --scrollbar-track:         #E2E8F0;
+  --scrollbar-thumb:         #94A3B8;
+  --scrollbar-thumb-hover:   #64748B;
+}
+
+/* ─── Theme: Rose ─────────────────────────────────────────────────────────── */
+[data-theme="rose"] {
+  color-scheme: light;
+  --color-parchment-base:    #FFF1F2;
+  --color-parchment-sidebar: #FFE4E6;
+  --color-parchment-dark:    #FECDD3;
+  --color-parchment-card:    #FFFFFF;
+  --color-ink-primary:       #1C0A0B;
+  --color-ink-muted:         #9F4952;
+  --color-ink-light:         #FDA4AF;
+  --color-accent-rgb:        225 29 72;
+  --color-accent-hover:      #BE123C;
+  --color-accent-light:      #FECDD3;
+  --font-ui:                 Georgia, serif;
+  --font-editor:             Georgia, serif;
+  --cm-bg:                   #FFF1F2;
+  --cm-gutter-border:        #FECDD3;
+  --cm-activeline-gutter:    #FFE4E6;
+  --cm-activeline:           rgba(254, 205, 211, 0.5);
+  --scrollbar-track:         #FFE4E6;
+  --scrollbar-thumb:         #FDA4AF;
+  --scrollbar-thumb-hover:   #FB7185;
+}
+
+/* ─── Base ────────────────────────────────────────────────────────────────── */
 :root {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-ui);
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light;
-  color: #1C1917;
-  background-color: #F5F0E8;
-
+  color: var(--color-ink-primary);
+  background-color: var(--color-parchment-base);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -21,6 +140,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  font-family: var(--font-ui);
 }
 
 #root {
@@ -28,30 +148,31 @@ body {
   height: 100vh;
 }
 
-/* Custom scrollbar for parchment theme */
+/* ─── Scrollbar ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #EDE8DC;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D4B896;
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #C4A886;
+  background: var(--scrollbar-thumb-hover);
 }
 
-/* CodeMirror customizations */
+/* ─── CodeMirror ──────────────────────────────────────────────────────────── */
 .cm-editor {
-  font-family: 'Lora', Georgia, serif;
+  font-family: var(--font-editor);
   font-size: 16px;
   line-height: 1.7;
+  background-color: var(--cm-bg) !important;
 }
 
 .cm-editor.cm-focused {
@@ -60,19 +181,19 @@ body {
 
 .cm-gutters {
   background-color: transparent !important;
-  border-right: 1px solid #E5DDD0 !important;
+  border-right: 1px solid var(--cm-gutter-border) !important;
 }
 
 .cm-activeLineGutter {
-  background-color: #EDE8DC !important;
+  background-color: var(--cm-activeline-gutter) !important;
 }
 
 .cm-activeLine {
-  background-color: rgba(237, 232, 220, 0.5) !important;
+  background-color: var(--cm-activeline) !important;
 }
 
-/* Selection */
+/* ─── Selection ───────────────────────────────────────────────────────────── */
 ::selection {
-  background-color: #D4B896;
-  color: #1C1917;
+  background-color: rgb(var(--color-accent-rgb) / 0.3);
+  color: var(--color-ink-primary);
 }

@@ -183,6 +183,10 @@ Your character:
         return { success: false, needsInit: true, error: 'This folder has not been set up as an abbey yet.' }
       }
 
+      // Ensure required directories exist
+      await fs.mkdir(path.join(abbeyPath, '_drafts'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
+
       // Save abbey path to database and initialize manager
       dbManager.setSetting('abbeyPath', abbeyPath)
       await initAbbeyManager(abbeyPath)
@@ -193,10 +197,12 @@ Your character:
     }
   })
 
-  // Abbey: Initialise an existing folder as an abbey (creates .scriptorium only)
+  // Abbey: Initialise an existing folder as an abbey (creates .scriptorium, _drafts, _inbox)
   ipcMain.handle(IPC_CHANNELS.ABBEY_INIT, async (_, abbeyPath: string) => {
     try {
       await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '_drafts'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
 
       // Seed default agent profile in DB
       if (!dbManager.getSetting('agentProfile')) {

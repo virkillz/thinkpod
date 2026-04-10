@@ -86,7 +86,7 @@ export function StepLLM({ onContinue, onBack }: StepLLMProps) {
             type="text"
             value={baseUrl}
             onChange={(e) => handleInputChange(setBaseUrl, e.target.value)}
-            className="w-full px-4 py-3 bg-white border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-ink-primary"
+            className="w-full px-4 py-3 bg-parchment-card border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-ink-primary"
             placeholder="http://localhost:8000/v1"
           />
         </div>
@@ -99,7 +99,7 @@ export function StepLLM({ onContinue, onBack }: StepLLMProps) {
             type="text"
             value={model}
             onChange={(e) => handleInputChange(setModel, e.target.value)}
-            className="w-full px-4 py-3 bg-white border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-ink-primary"
+            className="w-full px-4 py-3 bg-parchment-card border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-ink-primary"
             placeholder="gemma-4-e4b-it-4bit"
           />
         </div>
@@ -112,7 +112,7 @@ export function StepLLM({ onContinue, onBack }: StepLLMProps) {
             type="password"
             value={apiKey}
             onChange={(e) => handleInputChange(setApiKey, e.target.value)}
-            className="w-full px-4 py-3 bg-white border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-ink-primary"
+            className="w-full px-4 py-3 bg-parchment-card border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-ink-primary"
             placeholder=""
           />
         </div>

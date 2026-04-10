@@ -100,7 +100,7 @@ export function DraftsView() {
               <div
                 key={draft.path}
                 onClick={() => handleSelectDraft(draft)}
-                className="bg-white rounded-xl p-6 shadow-sm border border-parchment-dark hover:border-accent transition-colors cursor-pointer"
+                className="bg-parchment-card rounded-xl p-6 shadow-sm border border-parchment-dark hover:border-accent transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <FileText className="w-4 h-4 text-ink-muted flex-shrink-0" />
