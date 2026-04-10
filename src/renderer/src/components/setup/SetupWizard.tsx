@@ -4,12 +4,15 @@ import { StepAbbey } from './StepAbbey.js'
 import { StepLLM } from './StepLLM.js'
 import { StepVoice } from './StepVoice.js'
 import { useAppStore } from '../../store/appStore.js'
+import wilfredAvatar from '../../assets/avatar01.png'
 
 interface SetupWizardProps {
   onComplete: () => void
 }
 
 type SetupStep = 'welcome' | 'abbey' | 'llm' | 'voice'
+
+const STEPS: SetupStep[] = ['welcome', 'abbey', 'llm', 'voice']
 
 export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>('welcome')
@@ -20,32 +23,18 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
   const handleStepComplete = () => {
     switch (currentStep) {
-      case 'welcome':
-        setCurrentStep('abbey')
-        break
-      case 'abbey':
-        setCurrentStep('llm')
-        break
-      case 'llm':
-        setCurrentStep('voice')
-        break
-      case 'voice':
-        onComplete()
-        break
+      case 'welcome': setCurrentStep('abbey'); break
+      case 'abbey':   setCurrentStep('llm');   break
+      case 'llm':     setCurrentStep('voice'); break
+      case 'voice':   onComplete();            break
     }
   }
 
   const handleStepBack = () => {
     switch (currentStep) {
-      case 'abbey':
-        setCurrentStep('welcome')
-        break
-      case 'llm':
-        setCurrentStep('abbey')
-        break
-      case 'voice':
-        setCurrentStep('llm')
-        break
+      case 'abbey': setCurrentStep('welcome'); break
+      case 'llm':   setCurrentStep('abbey');   break
+      case 'voice': setCurrentStep('llm');     break
     }
   }
 
@@ -103,82 +92,85 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     handleStepComplete()
   }
 
+  const currentStepIndex = STEPS.indexOf(currentStep)
+
   return (
     <div className="w-full h-screen bg-parchment-base flex items-center justify-center p-8">
-      <div className="w-full max-w-2xl">
-        {/* Step indicator */}
-        <div className="flex justify-end mb-8">
-          <div className="flex gap-2">
-            {(['welcome', 'abbey', 'llm', 'voice'] as const).map((step, index) => (
-              <div
-                key={step}
-                className={`w-2 h-2 rounded-full transition-colors ${
-                  step === currentStep
-                    ? 'bg-accent'
-                    : ['welcome', 'abbey', 'llm', 'voice'].indexOf(currentStep) > index
-                    ? 'bg-ink-muted'
-                    : 'bg-parchment-dark'
-                }`}
-              />
-            ))}
+      <div className="flex items-end gap-5 w-full max-w-3xl">
+
+        {/* Wilfred avatar */}
+        <div className="flex-shrink-0 flex flex-col items-center gap-2 mb-2">
+          <div className="w-20 h-20 rounded-full overflow-hidden shadow-lg ring-4 ring-accent/20 animate-breathe">
+            <img src={wilfredAvatar} alt="Wilfred" className="w-full h-full object-cover" />
+          </div>
+          <span className="text-xs text-ink-muted font-medium tracking-wide">Wilfred</span>
+        </div>
+
+        {/* Chat bubble */}
+        <div className="relative flex-1">
+          {/* Speech bubble tail (left-pointing triangle) */}
+          <div
+            className="absolute left-0 bottom-10 -translate-x-[11px]"
+            style={{
+              width: 0,
+              height: 0,
+              borderTop: '10px solid transparent',
+              borderBottom: '10px solid transparent',
+              borderRight: '12px solid var(--color-parchment-card)',
+            }}
+          />
+
+          {/* Card */}
+          <div className="bg-parchment-card rounded-2xl shadow-lg p-10 min-h-[500px] flex flex-col">
+            {/* Step indicator */}
+            <div className="flex justify-end mb-8">
+              <div className="flex gap-2">
+                {STEPS.map((step, index) => (
+                  <div
+                    key={step}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      step === currentStep
+                        ? 'bg-accent'
+                        : currentStepIndex > index
+                        ? 'bg-ink-muted'
+                        : 'bg-parchment-dark'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Step content */}
+            <div className="flex-1">
+              {currentStep === 'welcome' && (
+                <StepWelcome onContinue={handleStepComplete} />
+              )}
+              {currentStep === 'abbey' && (
+                <StepAbbey
+                  onContinue={handleAbbeySelected}
+                  onBack={handleStepBack}
+                  error={abbeyError}
+                  needsInit={abbeyNeedsInit}
+                  onConfirmInit={handleConfirmInit}
+                />
+              )}
+              {currentStep === 'llm' && (
+                <StepLLM
+                  onContinue={handleLLMConfigured}
+                  onBack={handleStepBack}
+                />
+              )}
+              {currentStep === 'voice' && (
+                <StepVoice
+                  onContinue={handleStepComplete}
+                  onBack={handleStepBack}
+                  onSkip={onComplete}
+                />
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Step content */}
-        <div className="bg-parchment-card rounded-2xl shadow-lg p-12 min-h-[500px]">
-          {currentStep === 'welcome' && (
-            <StepWelcome onContinue={handleStepComplete} />
-          )}
-          {currentStep === 'abbey' && (
-            <StepAbbey
-              onContinue={handleAbbeySelected}
-              onBack={handleStepBack}
-              error={abbeyError}
-              needsInit={abbeyNeedsInit}
-              onConfirmInit={handleConfirmInit}
-            />
-          )}
-          {currentStep === 'llm' && (
-            <StepLLM
-              onContinue={handleLLMConfigured}
-              onBack={handleStepBack}
-            />
-          )}
-          {currentStep === 'voice' && (
-            <StepVoice
-              onContinue={handleStepComplete}
-              onBack={handleStepBack}
-              onSkip={onComplete}
-            />
-          )}
-        </div>
-
-        {/* Wilfred avatar (decorative) */}
-        <div className="fixed bottom-8 right-8 flex items-end gap-4">
-          {currentStep === 'welcome' && (
-            <div className="bg-parchment-card rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted animate-breathe">
-              "Welcome to the Scriptorium. I am Wilfred, your faithful monk."
-            </div>
-          )}
-          {currentStep === 'abbey' && selectedAbbeyPath && (
-            <div className="bg-parchment-card rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
-              "A fine choice."
-            </div>
-          )}
-          {currentStep === 'llm' && (
-            <div className="bg-parchment-card rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
-              "Tell me where to find the words."
-            </div>
-          )}
-          {currentStep === 'voice' && (
-            <div className="bg-parchment-card rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
-              "Speak, and I shall transcribe."
-            </div>
-          )}
-          <div className="w-14 h-14 bg-accent rounded-full flex items-center justify-center shadow-lg animate-breathe">
-            <span className="text-2xl">🖋</span>
-          </div>
-        </div>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download, Wrench, Zap, Palette } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download, Wrench, Zap, Palette, User } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
-import type { ThemeId } from '../../store/appStore.js'
+import type { ThemeId, UserProfile } from '../../store/appStore.js'
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
 type VoiceDownloadState = 'idle' | 'downloading' | 'error'
@@ -126,6 +126,94 @@ function AppearanceTab() {
   )
 }
 
+// ─── Profile Section ──────────────────────────────────────────────────────────
+
+function ProfileSection() {
+  const { userProfile, setUserProfile } = useAppStore()
+  const [name, setName] = useState(userProfile.name)
+  const [bio, setBio] = useState(userProfile.bio)
+  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(userProfile.avatarDataUrl)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAvatarClick = async () => {
+    const dataUrl = await window.electronAPI.selectUserImage()
+    if (dataUrl) setAvatarDataUrl(dataUrl)
+  }
+
+  const handleSave = async () => {
+    const profile: UserProfile = { name: name.trim() || 'Chief', bio, avatarDataUrl }
+    setUserProfile(profile)
+    await window.electronAPI.setSetting('userProfile', profile)
+    setSaveStatus('saved')
+    setTimeout(() => setSaveStatus('idle'), 2000)
+  }
+
+  return (
+    <section>
+      <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Your Profile</h3>
+      <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark space-y-5">
+        {/* Avatar */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleAvatarClick}
+            className="relative w-16 h-16 rounded-full border-2 border-parchment-dark hover:border-accent overflow-hidden flex-shrink-0 transition-colors group"
+          >
+            {avatarDataUrl ? (
+              <img src={avatarDataUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-parchment-sidebar flex items-center justify-center">
+                <User className="w-7 h-7 text-ink-muted" />
+              </div>
+            )}
+            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <span className="text-white text-xs font-medium">Change</span>
+            </div>
+          </button>
+          <div className="text-sm text-ink-muted">
+            <p className="font-medium text-ink-primary">Profile picture</p>
+            <p className="text-xs mt-0.5">Click to select an image</p>
+          </div>
+          {/* Hidden input kept for fallback — not used directly */}
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" />
+        </div>
+
+        {/* Name */}
+        <div>
+          <label className="block text-sm font-medium text-ink-primary mb-2">Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setSaveStatus('idle') }}
+            placeholder="Chief"
+            className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm"
+          />
+        </div>
+
+        {/* Bio */}
+        <div>
+          <label className="block text-sm font-medium text-ink-primary mb-2">Bio</label>
+          <textarea
+            value={bio}
+            onChange={(e) => { setBio(e.target.value); setSaveStatus('idle') }}
+            placeholder="A brief note about yourself…"
+            rows={3}
+            className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm resize-none"
+          />
+        </div>
+
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          {saveStatus === 'saved' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+          {saveStatus === 'saved' ? 'Saved' : 'Save'}
+        </button>
+      </div>
+    </section>
+  )
+}
+
 // ─── General Tab ──────────────────────────────────────────────────────────────
 
 function GeneralTab() {
@@ -133,6 +221,8 @@ function GeneralTab() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
+      <ProfileSection />
+
       <section>
         <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Abbey</h3>
         <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark">

@@ -66,14 +66,14 @@ export function StepLLM({ onContinue, onBack }: StepLLMProps) {
         <div>
           <div className="text-sm text-ink-muted mb-1">Step 3 of 3</div>
           <h2 className="text-2xl font-serif font-medium text-ink-primary">
-            Connect an Inference Server
+            Connect to LLM Server
           </h2>
         </div>
       </div>
 
       <p className="text-ink-muted mb-8">
         Wilfred thinks through a local language model.
-        Point him at your inference server.
+        Point him at your local or remote llm server. Any Openai API compatible service will do.
       </p>
 
       {/* Form */}

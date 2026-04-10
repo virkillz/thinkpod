@@ -48,13 +48,13 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
         <div>
           <div className="text-sm text-ink-muted mb-1">Step 2 of 3</div>
           <h2 className="text-2xl font-serif font-medium text-ink-primary">
-            Choose your Abbey
+            Choose your Vault
           </h2>
         </div>
       </div>
 
       <p className="text-ink-muted mb-8">
-        This is the folder where all your manuscripts will be kept.
+        This is the folder where all your notes will be kept.
         You can use an existing folder or create a new one.
       </p>
 
@@ -126,18 +126,17 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
       {needsInit && selectedPath && (
         <div className="mb-6 p-4 border border-amber-300 bg-amber-50 rounded-lg">
           <p className="text-sm text-amber-800 font-medium mb-1">
-            This folder is not set up as an abbey yet.
+            This folder is not set up as a vault yet.
           </p>
           <p className="text-sm text-amber-700 mb-3">
-            A <code className="font-mono">.scriptorium</code> folder will be created inside{' '}
-            <span className="font-medium">{selectedPath.split('/').pop()}</span> to get it ready.
+            A <code className="font-mono">.scriptorium</code> folder will be created inside this folder to get it ready.
             Your existing files will not be changed.
           </p>
           <button
             onClick={onConfirmInit}
             className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm rounded-lg font-medium transition-colors"
           >
-            Initialize as Abbey
+            Initialize as ThinkPod Vault
           </button>
         </div>
       )}

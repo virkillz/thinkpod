@@ -452,6 +452,29 @@ export function setupIpcHandlers(
     return app.getVersion()
   })
 
+  // User: Select image for avatar
+  ipcMain.handle(IPC_CHANNELS.USER_SELECT_IMAGE, async () => {
+    const mainWindow = getMainWindow()
+    if (!mainWindow) return null
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }],
+      message: 'Choose a profile picture',
+    })
+
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const filePath = result.filePaths[0]
+    const data = await fs.readFile(filePath)
+    const ext = path.extname(filePath).slice(1).toLowerCase()
+    const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+      : ext === 'png' ? 'image/png'
+      : ext === 'gif' ? 'image/gif'
+      : 'image/webp'
+    return `data:${mime};base64,${data.toString('base64')}`
+  })
+
   // LLM: Start server
   ipcMain.handle(IPC_CHANNELS.LLM_START_SERVER, async (_, config: { model: string; port?: number }) => {
     if (llmProcessManager) {

@@ -20,6 +20,12 @@ export interface LLMConfig {
   apiKey: string
 }
 
+export interface UserProfile {
+  name: string
+  bio: string
+  avatarDataUrl: string | null
+}
+
 interface AppState {
   // Setup
   isSetupComplete: boolean
@@ -53,6 +59,10 @@ interface AppState {
   setShowSystemFolders: (show: boolean) => void
   theme: ThemeId
   setTheme: (theme: ThemeId) => void
+
+  // User Profile
+  userProfile: UserProfile
+  setUserProfile: (profile: UserProfile) => void
 
   // Inbox
   unreadInbox: number
@@ -121,6 +131,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     document.documentElement.dataset.theme = theme
     window.electronAPI.setSetting('theme', theme)
   },
+
+  // User Profile
+  userProfile: { name: 'Chief', bio: '', avatarDataUrl: null },
+  setUserProfile: (profile) => set({ userProfile: profile }),
 
   // Inbox
   unreadInbox: 0,

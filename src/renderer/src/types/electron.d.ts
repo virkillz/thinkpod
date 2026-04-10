@@ -105,6 +105,7 @@ export interface ElectronAPI {
 
   // App
   getAppVersion: () => Promise<string>
+  selectUserImage: () => Promise<string | null>
 
   // Whisper / Voice
   getWhisperConfig: () => Promise<{

@@ -200,7 +200,7 @@ export function NewDraftView() {
       <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark bg-parchment-card">
         <div className="flex items-center gap-3">
           <PenLine className="w-5 h-5 text-accent" />
-          <h2 className="font-serif font-medium text-lg text-ink-primary">New Draft</h2>
+          <h2 className="font-serif font-medium text-lg text-ink-primary">New Thought</h2>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-ink-muted">Cmd+Enter to save</span>

@@ -20,7 +20,7 @@ export function InkwellButton({ compact }: InkwellButtonProps) {
         }`}
       >
         <PenLine className="w-5 h-5" />
-        {!compact && <span>New Draft</span>}
+        {!compact && <span>New Thought</span>}
       </button>
 
       <CaptureSheet

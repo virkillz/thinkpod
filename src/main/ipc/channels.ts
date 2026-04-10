@@ -53,6 +53,7 @@ export const IPC_CHANNELS = {
 
   // App
   APP_GET_VERSION: 'app:get-version',
+  USER_SELECT_IMAGE: 'user:select-image',
 
   // Whisper / Voice
   WHISPER_GET_CONFIG: 'whisper:get-config',

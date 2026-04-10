@@ -6,7 +6,7 @@ import { LoadingScreen } from './components/common/LoadingScreen.js'
 
 function App() {
   const [isLoading, setIsLoading] = useState(true)
-  const { isSetupComplete, setSetupComplete, setAbbey, setLLMConfig } = useAppStore()
+  const { isSetupComplete, setSetupComplete, setAbbey, setLLMConfig, setUserProfile } = useAppStore()
 
   useEffect(() => {
     const checkAbbey = async () => {
@@ -27,6 +27,18 @@ function App() {
               apiKey: saved.apiKey ?? '',
             })
           }
+
+          // Restore persisted user profile
+          const savedProfile = await window.electronAPI.getSetting('userProfile') as {
+            name?: string; bio?: string; avatarDataUrl?: string | null
+          } | null
+          if (savedProfile) {
+            setUserProfile({
+              name: savedProfile.name ?? 'Chief',
+              bio: savedProfile.bio ?? '',
+              avatarDataUrl: savedProfile.avatarDataUrl ?? null,
+            })
+          }
         }
       } catch (error) {
         console.error('Failed to check abbey:', error)
@@ -36,7 +48,7 @@ function App() {
     }
 
     checkAbbey()
-  }, [setAbbey, setSetupComplete, setLLMConfig])
+  }, [setAbbey, setSetupComplete, setLLMConfig, setUserProfile])
 
   if (isLoading) {
     return <LoadingScreen />

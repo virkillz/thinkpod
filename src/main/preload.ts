@@ -37,6 +37,7 @@ const IPC_CHANNELS = {
   SCHEDULE_TOGGLE: 'schedule:toggle',
   SCHEDULE_TRIGGER: 'schedule:trigger',
   APP_GET_VERSION: 'app:get-version',
+  USER_SELECT_IMAGE: 'user:select-image',
   PUSH_TASK_UPDATE: 'push:task-update',
   PUSH_TASK_END: 'push:task-end',
   PUSH_CHAT_TOOL_USE: 'push:chat-tool-use',
@@ -113,6 +114,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
+  selectUserImage: () => ipcRenderer.invoke(IPC_CHANNELS.USER_SELECT_IMAGE),
 
   // Whisper / Voice
   getWhisperConfig: () => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_GET_CONFIG),
