@@ -8,10 +8,11 @@ import { ThoughtsView } from '../views/ThoughtsView.js'
 import { NewThoughtView } from '../views/NewThoughtView.js'
 import { AgentsView } from '../views/AgentsView.js'
 import { SettingsView } from '../views/SettingsView.js'
+import { AboutView } from '../views/AboutView.js'
 import { AgentFAB } from './AgentFAB.js'
 
 export function MainShell() {
-  const { currentView, refreshFileTree, refreshThoughtCount, setTheme, setCurrentView, setAgentProfile } = useAppStore()
+  const { currentView, refreshFileTree, refreshThoughtCount, setTheme, setCurrentView, setAgentProfile, toggleSidebar, toggleAgentChat } = useAppStore()
 
   useEffect(() => {
     refreshFileTree()
@@ -34,14 +35,32 @@ export function MainShell() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n' && currentView !== 'settings') {
+      const isMod = e.metaKey || e.ctrlKey
+      
+      // New Thought: Cmd/Ctrl+N
+      if (isMod && e.key === 'n' && currentView !== 'settings') {
         e.preventDefault()
         setCurrentView('newthought')
+        return
+      }
+      
+      // Toggle Sidebar: Cmd/Ctrl+B
+      if (isMod && e.key === 'b') {
+        e.preventDefault()
+        toggleSidebar()
+        return
+      }
+      
+      // Toggle Agent Chat: Cmd/Ctrl+J
+      if (isMod && e.key === 'j') {
+        e.preventDefault()
+        toggleAgentChat()
+        return
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentView, setCurrentView])
+  }, [currentView, setCurrentView, toggleSidebar, toggleAgentChat])
 
   const renderView = () => {
     switch (currentView) {
@@ -57,6 +76,8 @@ export function MainShell() {
         return <AgentsView />
       case 'settings':
         return <SettingsView />
+      case 'about':
+        return <AboutView />
       default:
         return <NotesView />
     }

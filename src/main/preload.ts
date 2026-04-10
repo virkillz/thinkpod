@@ -41,6 +41,7 @@ const IPC_CHANNELS = {
   INBOX_READ: 'inbox:read',
   INBOX_MARK_READ: 'inbox:mark-read',
   INBOX_DELETE: 'inbox:delete',
+  INBOX_REPLY: 'inbox:reply',
   SCHEDULE_LIST: 'schedule:list',
   SCHEDULE_TOGGLE: 'schedule:toggle',
   SCHEDULE_TRIGGER: 'schedule:trigger',
@@ -136,6 +137,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readInboxItem: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_READ, filename),
   markInboxRead: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_MARK_READ, filename),
   deleteInboxItem: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_DELETE, filename),
+  replyToThread: (threadId: string, replyText: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_REPLY, threadId, replyText),
 
   // Schedule
   listSchedules: () => ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_LIST),

@@ -106,6 +106,7 @@ export interface ElectronAPI {
   readInboxItem: (filename: string) => Promise<{ content: string; path: string }>
   markInboxRead: (filename: string) => Promise<{ success: boolean }>
   deleteInboxItem: (filename: string) => Promise<{ success: boolean }>
+  replyToThread: (threadId: string, replyText: string) => Promise<{ success: boolean; response?: string; error?: string }>
 
   // Schedule
   listSchedules: () => Promise<Array<{

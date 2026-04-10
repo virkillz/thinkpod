@@ -11,8 +11,12 @@ import type { ManifestEntry } from '../agent_vault/Manifest.js'
 export interface CognitiveJobContext {
   agentVaultManager: AgentVaultManager
   cognitiveRunner: CognitiveRunner
+  /** Name of the platform user, injected into LLM prompts. */
+  userName: string
   /** When true: runs LLM calls but skips all writes. Returns preview in JobResult. */
   dryRun?: boolean
+  /** Max files to process in this run (default: 20). Used for manual runs to process one at a time. */
+  limit?: number
 }
 
 export interface DryRunStep {
@@ -36,12 +40,11 @@ export interface JobResult {
 }
 
 const MAX_FILES_PER_RUN = 20
-const AGENT_VAULT_DIR = '_agent_vault'
 
 export async function run(ctx: CognitiveJobContext): Promise<JobResult> {
   if (ctx.dryRun) return runDry(ctx)
 
-  const { agentVaultManager, cognitiveRunner } = ctx
+  const { agentVaultManager, cognitiveRunner, userName } = ctx
   const vaultPath = agentVaultManager.vaultPath
 
   // 1. Collect all vault markdown files, excluding _agent_vault/
@@ -67,7 +70,7 @@ export async function run(ctx: CognitiveJobContext): Promise<JobResult> {
 
   const toProcess = await agentVaultManager.manifest.getUnprocessed(
     valid.map((f) => ({ path: f.path, mtime: f.mtime, hash: f.hash })),
-    MAX_FILES_PER_RUN
+    ctx.limit ?? MAX_FILES_PER_RUN
   )
 
   let processed = 0
@@ -85,7 +88,7 @@ export async function run(ctx: CognitiveJobContext): Promise<JobResult> {
       const wordCount = countWords(fileMeta.content)
 
       // 3b. Run question battery (7 CognitiveRunner calls in parallel)
-      const batteryResults = await runBattery(cognitiveRunner, fileMeta.content)
+      const batteryResults = await runBattery(cognitiveRunner, fileMeta.content, userName)
 
       // 3c. Write raw learning note
       const rawLearningFile = await writeRawLearningNote(relPath, batteryResults, agentVaultManager)
@@ -125,7 +128,7 @@ export async function run(ctx: CognitiveJobContext): Promise<JobResult> {
  * with real LLM calls, but skips all writes. Returns preview in JobResult.
  */
 async function runDry(ctx: CognitiveJobContext): Promise<JobResult> {
-  const { agentVaultManager, cognitiveRunner } = ctx
+  const { agentVaultManager, cognitiveRunner, userName } = ctx
   const vaultPath = agentVaultManager.vaultPath
 
   const allFiles = await collectVaultFiles(vaultPath)
@@ -156,7 +159,7 @@ async function runDry(ctx: CognitiveJobContext): Promise<JobResult> {
       let step: DryRunStep
       if (category.id === 'open_questions') {
         const result = await cognitiveRunner.call<{ questions: QuestionItem[] }>({
-          prompt: category.prompt(content),
+          prompt: category.prompt(content, userName),
           outputSchema: category.schema,
           example: category.example,
         })
@@ -165,7 +168,7 @@ async function runDry(ctx: CognitiveJobContext): Promise<JobResult> {
         findings.push({ categoryId: category.id, label: category.label, results: items })
       } else {
         const result = await cognitiveRunner.call<{ findings: string[] }>({
-          prompt: category.prompt(content),
+          prompt: category.prompt(content, userName),
           outputSchema: category.schema,
           example: category.example,
         })
@@ -214,13 +217,14 @@ async function runDry(ctx: CognitiveJobContext): Promise<JobResult> {
  */
 async function runBattery(
   runner: CognitiveRunner,
-  documentText: string
+  documentText: string,
+  userName: string
 ): Promise<BatteryFinding[]> {
   const results = await Promise.all(
     QUESTION_BATTERY.map(async (category) => {
       if (category.id === 'open_questions') {
         const result = await runner.call<{ questions: QuestionItem[] }>({
-          prompt: category.prompt(documentText),
+          prompt: category.prompt(documentText, userName),
           outputSchema: category.schema,
           example: category.example,
         })
@@ -231,7 +235,7 @@ async function runBattery(
         } satisfies BatteryFinding
       } else {
         const result = await runner.call<{ findings: string[] }>({
-          prompt: category.prompt(documentText),
+          prompt: category.prompt(documentText, userName),
           outputSchema: category.schema,
           example: category.example,
         })
@@ -266,8 +270,9 @@ async function collectVaultFiles(vaultPath: string): Promise<string[]> {
       const absPath = path.join(dir, entry.name)
       const relPath = path.relative(vaultPath, absPath)
 
-      // Skip _agent_vault and hidden directories
-      if (entry.name === AGENT_VAULT_DIR || entry.name.startsWith('.')) continue
+      // Skip system folders: underscore-prefixed dirs (e.g. _agent_vault, _inbox) and dot-prefixed (e.g. .obsidian)
+      if (entry.isDirectory() && (entry.name.startsWith('_') || entry.name.startsWith('.'))) continue
+      if (entry.isFile() && entry.name.startsWith('.')) continue
 
       if (entry.isDirectory()) {
         await walk(absPath)

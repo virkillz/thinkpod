@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Mic, MicOff, Square, Settings, ArrowRight, PenLine } from 'lucide-react'
+import { Mic, MicOff, Square, Settings, ArrowRight } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 import captureWorkletUrl from '../../audio/captureWorklet.js?url'
 
@@ -12,10 +12,9 @@ export function NewThoughtView() {
   const [voiceConfigured, setVoiceConfigured] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [showVoiceInfo, setShowVoiceInfo] = useState(false)
-  const [amplitude, setAmplitude] = useState<number[]>(Array(16).fill(0))
+  const [amplitude, setAmplitude] = useState<number[]>(Array(24).fill(0))
   const { refreshFileTree, setCurrentView } = useAppStore()
 
-  // Refs for audio pipeline
   const audioCtxRef = useRef<AudioContext | null>(null)
   const workletNodeRef = useRef<AudioWorkletNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -23,40 +22,47 @@ export function NewThoughtView() {
   const animFrameRef = useRef<number | null>(null)
   const transcriptBufRef = useRef<string>('')
 
-  // Check if voice is configured on mount
+  const now = new Date()
+  const dateLabel = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0
+
   useEffect(() => {
     window.electronAPI.getWhisperConfig().then(({ config }) => {
-      console.log('[VoiceCapture] Whisper config:', config)
       setVoiceConfigured(config !== null)
     })
   }, [])
 
-  // Subscribe to streaming transcript push events
   useEffect(() => {
-    const cleanup = window.electronAPI.onVoiceTranscript(({ text, isFinal }) => {
-      console.log('[VoiceCapture] Transcript received — isFinal:', isFinal, 'text:', JSON.stringify(text))
-      if (text === '…') return // placeholder while processing
-
+    const cleanup = window.electronAPI.onVoiceTranscript(({ text }) => {
+      if (text === '…') return
       transcriptBufRef.current += (transcriptBufRef.current ? ' ' : '') + text
       setContent(transcriptBufRef.current)
     })
     return cleanup
   }, [])
 
-  // Handle keyboard shortcut Cmd+Enter to save
   const handleSave = useCallback(async () => {
     if (!content.trim()) return
     setIsSaving(true)
     try {
       const date = new Date()
       const timestamp = date.toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      const slug = content.slice(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'thought'
+      const slug =
+        content
+          .slice(0, 30)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '') || 'thought'
       const filename = `${timestamp}-${slug}.md`
       await window.electronAPI.writeFile(`_thoughts/${filename}`, content)
       await refreshFileTree()
       setContent('')
       transcriptBufRef.current = ''
-      // Navigate to thoughts view after saving
       setCurrentView('thoughts')
     } catch (error) {
       console.error('Failed to save thought:', error)
@@ -68,31 +74,28 @@ export function NewThoughtView() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSave()
+      if (e.key === 'Escape' && voiceState === 'idle') setCurrentView('thoughts')
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleSave])
+  }, [handleSave, voiceState, setCurrentView])
 
-  // Cleanup when component unmounts
   useEffect(() => {
     return () => {
-      if (voiceState === 'listening') {
-        stopVoice()
-      }
+      if (voiceState === 'listening') stopVoice()
     }
   }, [voiceState])
 
-  // Amplitude animation loop
   const startAmplitudeLoop = (analyser: AnalyserNode) => {
     const data = new Uint8Array(analyser.fftSize)
     const tick = () => {
       analyser.getByteTimeDomainData(data)
-      const bars = Array.from({ length: 16 }, (_, i) => {
-        const start = Math.floor((i / 16) * data.length)
-        const end = Math.floor(((i + 1) / 16) * data.length)
+      const bars = Array.from({ length: 24 }, (_, i) => {
+        const start = Math.floor((i / 24) * data.length)
+        const end = Math.floor(((i + 1) / 24) * data.length)
         let sum = 0
         for (let j = start; j < end; j++) sum += Math.abs(data[j] - 128)
-        return Math.min(1, (sum / (end - start)) / 40)
+        return Math.min(1, sum / (end - start) / 40)
       })
       setAmplitude(bars)
       animFrameRef.current = requestAnimationFrame(tick)
@@ -105,24 +108,18 @@ export function NewThoughtView() {
       cancelAnimationFrame(animFrameRef.current)
       animFrameRef.current = null
     }
-    setAmplitude(Array(16).fill(0))
+    setAmplitude(Array(24).fill(0))
   }
 
   const startVoice = async () => {
-    console.log('[VoiceCapture] startVoice — requesting microphone...')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      console.log('[VoiceCapture] Got media stream, tracks:', stream.getTracks().map(t => `${t.kind}:${t.label}`))
       streamRef.current = stream
 
       const ctx = new AudioContext({ sampleRate: 16000 })
-      console.log('[VoiceCapture] AudioContext created, state:', ctx.state, 'sampleRate:', ctx.sampleRate)
       audioCtxRef.current = ctx
 
-      // Load AudioWorklet
-      console.log('[VoiceCapture] Loading worklet from:', captureWorkletUrl)
       await ctx.audioWorklet.addModule(captureWorkletUrl)
-      console.log('[VoiceCapture] Worklet module loaded')
 
       const source = ctx.createMediaStreamSource(stream)
 
@@ -135,30 +132,20 @@ export function NewThoughtView() {
       workletNodeRef.current = workletNode
       source.connect(workletNode)
 
-      let chunkCount = 0
-      // Forward PCM chunks to main process
       workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-        chunkCount++
-        if (chunkCount <= 3 || chunkCount % 50 === 0) {
-          console.log('[VoiceCapture] Sending audio chunk #', chunkCount, 'byteLength:', e.data.byteLength)
-        }
         window.electronAPI.sendAudioChunk(e.data)
       }
 
-      console.log('[VoiceCapture] Calling startVoiceCapture IPC...')
-      const result = await window.electronAPI.startVoiceCapture()
-      console.log('[VoiceCapture] startVoiceCapture result:', result)
+      await window.electronAPI.startVoiceCapture()
       setVoiceState('listening')
       startAmplitudeLoop(analyser)
     } catch (err) {
-      console.error('[VoiceCapture] Failed to start voice capture:', err)
       setVoiceState('idle')
       setVoiceError(err instanceof Error ? err.message : 'Failed to start recording')
     }
   }
 
   const stopVoice = async () => {
-    console.log('[VoiceCapture] stopVoice called')
     setVoiceState('stopping')
     stopAmplitudeLoop()
 
@@ -167,27 +154,23 @@ export function NewThoughtView() {
     analyserRef.current?.disconnect()
     analyserRef.current = null
 
-    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
 
     await audioCtxRef.current?.close()
     audioCtxRef.current = null
 
-    console.log('[VoiceCapture] Calling stopVoiceCapture IPC...')
     await window.electronAPI.stopVoiceCapture()
-    console.log('[VoiceCapture] stopVoiceCapture done')
     setVoiceState('idle')
   }
 
   const handleVoiceClick = () => {
-    console.log('[VoiceCapture] handleVoiceClick — voiceState:', voiceState, 'voiceConfigured:', voiceConfigured)
     if (voiceState === 'listening') {
       stopVoice()
     } else if (voiceState === 'idle' && voiceConfigured) {
       setVoiceError(null)
       startVoice()
     } else if (!voiceConfigured) {
-      console.log('[VoiceCapture] Voice not configured — showing info panel')
       setShowVoiceInfo(true)
     }
   }
@@ -195,78 +178,32 @@ export function NewThoughtView() {
   const isListening = voiceState === 'listening'
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-parchment-base">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark bg-parchment-card">
-        <div className="flex items-center gap-3">
-          <PenLine className="w-5 h-5 text-accent" />
-          <h2 className="font-serif font-medium text-lg text-ink-primary">New Thought</h2>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-ink-muted">Cmd+Enter to save</span>
-          <button
-            onClick={handleSave}
-            disabled={!content.trim() || isSaving || isListening}
-            className="px-6 py-2 bg-accent hover:bg-accent-hover disabled:bg-ink-light disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-          >
-            {isSaving ? 'Saving…' : 'Save Thought'}
-          </button>
-        </div>
-      </div>
+    <div className="flex-1 flex flex-col h-full bg-parchment-base relative group/page">
 
-      {/* Recording indicator — only shown while listening */}
-      {isListening && (
-        <div className="flex items-center gap-3 px-6 py-3 bg-red-50/50 border-b border-red-100">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-          </span>
-          <div className="flex items-end gap-0.5 flex-1" style={{ height: 32 }}>
-            {amplitude.map((v, i) => (
-              <div
-                key={i}
-                className="flex-1 bg-red-400 rounded-full transition-all duration-75"
-                style={{ height: `${Math.max(3, v * 32)}px` }}
-              />
-            ))}
-          </div>
-          <span className="text-sm text-red-600 font-medium">Recording...</span>
-        </div>
-      )}
-
-      {/* Error */}
-      {voiceError && (
-        <div className="px-6 py-3 text-sm text-red-600 bg-red-50 border-b border-red-100">
-          {voiceError}
-        </div>
-      )}
-
-      {/* Voice Info Panel - shown when clicking voice button without config */}
+      {/* Voice setup notification — top right, non-blocking */}
       {showVoiceInfo && (
-        <div className="px-6 py-4 border-b border-parchment-dark bg-amber-50/50">
+        <div className="absolute top-5 right-5 z-20 max-w-[280px] bg-parchment-card border border-parchment-dark rounded-xl shadow-lg p-4 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="flex items-start gap-3">
-            <Settings className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm text-ink-primary">
-                Voice capture is not configured. Download a Whisper model to enable offline dictation.
+            <Settings className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-ink-primary leading-relaxed">
+                Voice capture needs a Whisper model to work offline.
               </p>
               <button
                 onClick={() => {
                   setShowVoiceInfo(false)
                   setCurrentView('settings')
                 }}
-                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-hover transition-colors"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
               >
-                Go to Settings → Voice
-                <ArrowRight className="w-4 h-4" />
+                Set up in Settings <ArrowRight className="w-3 h-3" />
               </button>
             </div>
             <button
               onClick={() => setShowVoiceInfo(false)}
-              className="p-1 text-ink-muted hover:text-ink-primary rounded transition-colors"
+              className="text-ink-light hover:text-ink-muted transition-colors flex-shrink-0"
             >
-              <span className="sr-only">Dismiss</span>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -274,62 +211,113 @@ export function NewThoughtView() {
         </div>
       )}
 
-      {/* Editor Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 p-6 overflow-y-auto">
-          <div className="max-w-3xl mx-auto h-full">
-            <textarea
-              value={content}
-              onChange={(e) => {
-                setContent(e.target.value)
-                if (!isListening) transcriptBufRef.current = e.target.value
-              }}
-              placeholder={isListening ? 'Listening… Speak now to capture your thoughts.' : 'Write here… or click the Voice button to dictate.'}
-              className="w-full h-full p-6 bg-parchment-card rounded-xl border border-parchment-dark focus:outline-none focus:border-accent resize-none font-serif text-ink-primary leading-relaxed text-lg shadow-sm"
-              autoFocus={!isListening}
-              readOnly={isListening}
-            />
-          </div>
+      {/* Error toast */}
+      {voiceError && (
+        <div className="absolute top-5 left-1/2 -translate-x-1/2 z-20 bg-parchment-card border border-red-200 text-red-500 text-xs rounded-full px-4 py-2 shadow-sm animate-in fade-in duration-200">
+          {voiceError}
         </div>
+      )}
 
-        {/* Voice Capture Button - Large and Prominent */}
-        <div className="px-6 py-6 border-t border-parchment-dark bg-parchment-card">
-          <div className="max-w-3xl mx-auto flex justify-center">
-            <button
-              onClick={handleVoiceClick}
-              disabled={voiceState === 'stopping'}
-              title={
-                isListening
-                  ? 'Stop recording'
-                  : voiceConfigured
-                  ? 'Start voice capture'
-                  : 'Set up voice in Settings → Voice'
-              }
-              className={`flex flex-col items-center justify-center gap-3 px-12 py-6 rounded-2xl transition-all duration-200 shadow-sm hover:shadow-md ${
-                isListening
-                  ? 'text-white bg-red-500 hover:bg-red-600 shadow-red-200'
-                  : voiceConfigured
-                  ? 'text-accent bg-accent/10 hover:bg-accent/20 border-2 border-accent/30'
-                  : 'text-ink-muted bg-parchment-dark hover:bg-parchment-dark/80 border-2 border-parchment-dark'
-              }`}
-            >
-              <div className={`rounded-full p-4 ${isListening ? 'bg-white/20' : voiceConfigured ? 'bg-accent/20' : 'bg-ink-light/20'}`}>
-                {isListening ? (
-                  <Square className="w-10 h-10 fill-current" />
-                ) : voiceConfigured ? (
-                  <Mic className="w-10 h-10" />
-                ) : (
-                  <MicOff className="w-10 h-10" />
-                )}
-              </div>
-              <span className="text-lg font-semibold">
-                {isListening ? 'Stop Recording' : voiceConfigured ? 'Start Voice Dictation' : 'Voice Not Configured'}
+      {/* Writing area — full bleed, no chrome */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-10 pt-20 pb-40">
+
+          {/* Date — barely there, anchors the page */}
+          <p className="font-serif text-sm text-ink-light mb-12 select-none tracking-wide">
+            {dateLabel}
+          </p>
+
+          {/* The writing surface — invisible input, pure text */}
+          <textarea
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value)
+              if (!isListening) transcriptBufRef.current = e.target.value
+            }}
+            placeholder={isListening ? 'Listening…' : "What's on your mind?"}
+            className="w-full min-h-[55vh] bg-transparent border-none outline-none resize-none font-serif text-xl text-ink-primary leading-[1.85] placeholder:text-ink-light/60 focus:outline-none caret-accent"
+            autoFocus={!isListening}
+            readOnly={isListening}
+          />
+        </div>
+      </div>
+
+      {/* Floating micro-toolbar — fades in on hover or focus */}
+      <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-7 pointer-events-none">
+        <div
+          className={`
+            pointer-events-auto flex items-center gap-3 px-5 py-2.5
+            bg-parchment-card/90 backdrop-blur-sm
+            border border-parchment-dark
+            rounded-full shadow-sm
+            transition-opacity duration-500 ease-out
+            ${isListening
+              ? 'opacity-100'
+              : 'opacity-0 group-hover/page:opacity-100 group-focus-within/page:opacity-100'}
+          `}
+        >
+          {/* Waveform — only while recording */}
+          {isListening && (
+            <div className="flex items-center gap-0.5 pr-1" style={{ height: 18 }}>
+              <span className="relative flex h-1.5 w-1.5 mr-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
               </span>
-              {!voiceConfigured && !isListening && (
-                <span className="text-sm opacity-70">Click to learn how to set up</span>
-              )}
-            </button>
-          </div>
+              {amplitude.map((v, i) => (
+                <div
+                  key={i}
+                  className="w-px bg-red-400 rounded-full transition-all duration-75"
+                  style={{ height: `${Math.max(2, v * 18)}px` }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Mic / Stop button */}
+          <button
+            onClick={handleVoiceClick}
+            disabled={voiceState === 'stopping'}
+            title={
+              isListening
+                ? 'Stop recording'
+                : voiceConfigured
+                ? 'Voice dictation'
+                : 'Set up voice in Settings'
+            }
+            className={`transition-colors duration-150 ${
+              isListening
+                ? 'text-red-500 hover:text-red-600'
+                : voiceConfigured
+                ? 'text-ink-muted hover:text-accent'
+                : 'text-ink-light hover:text-ink-muted'
+            }`}
+          >
+            {isListening ? (
+              <Square className="w-3.5 h-3.5 fill-current" />
+            ) : voiceConfigured ? (
+              <Mic className="w-3.5 h-3.5" />
+            ) : (
+              <MicOff className="w-3.5 h-3.5" />
+            )}
+          </button>
+
+          <div className="w-px h-3.5 bg-parchment-dark" />
+
+          {/* Word count */}
+          <span className="text-xs text-ink-light tabular-nums select-none">
+            {wordCount} {wordCount === 1 ? 'word' : 'words'}
+          </span>
+
+          <div className="w-px h-3.5 bg-parchment-dark" />
+
+          {/* Save */}
+          <button
+            onClick={handleSave}
+            disabled={!content.trim() || isSaving || isListening}
+            className="text-xs text-ink-muted hover:text-accent disabled:text-ink-light disabled:cursor-not-allowed transition-colors duration-150 font-medium tracking-wide"
+          >
+            {isSaving ? 'Saving…' : '⌘↵ Save'}
+          </button>
         </div>
       </div>
     </div>

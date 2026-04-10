@@ -16,6 +16,8 @@ import { VoiceCaptureService } from '../whisper/VoiceCaptureService.js'
 import { CognitiveRunner } from '../agent/CognitiveRunner.js'
 import { AgentVaultManager } from '../agent_vault/AgentVaultManager.js'
 import { run as runProcessNewFiles, type CognitiveJobContext, type JobResult } from '../cognitive_jobs/ProcessNewFilesJob.js'
+import { run as runNoteReview } from '../cognitive_jobs/NoteReviewJob.js'
+import { InboxThreadManager } from '../agent_vault/InboxThreadManager.js'
 
 // ── Cognitive job helpers ─────────────────────────────────────────────────────
 
@@ -35,7 +37,7 @@ async function buildCognitiveContext(dbManager: DatabaseManager): Promise<{ runn
 
 async function runCognitiveJob(name: string, ctx: CognitiveJobContext): Promise<JobResult | null> {
   if (name === 'process_new_files') return runProcessNewFiles(ctx)
-  // Other jobs will be added in later phases
+  if (name === 'note_review') return runNoteReview(ctx)
   return null
 }
 
@@ -1006,6 +1008,59 @@ export function setupIpcHandlers(
     return { success: true }
   })
 
+  // Inbox: Reply to thread and get agent response
+  ipcMain.handle(IPC_CHANNELS.INBOX_REPLY, async (_, threadId: string, replyText: string) => {
+    const abbey = getVaultManager()
+    if (!abbey) {
+      return { success: false, error: 'No vault initialized' }
+    }
+
+    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    if (!llmConfig) {
+      return { success: false, error: 'LLM not configured' }
+    }
+
+    const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; systemPrompt?: string } | null
+    const userProfile = dbManager.getSetting('userProfile') as { name?: string } | null
+    const userName = userProfile?.name?.trim()
+
+    const threadManager = new InboxThreadManager(path.join(abbey.vaultPath, '_inbox'))
+
+    // 1. Append human reply
+    const thread = await threadManager.appendReply(threadId, replyText)
+    if (!thread) {
+      return { success: false, error: 'Thread not found' }
+    }
+
+    // 2. Build conversation context for LLM
+    const conversation = thread.messages
+      .map((m) => `${m.role === 'agent' ? agentProfile?.name ?? 'Agent' : userName ?? 'Human'}: ${m.content}`)
+      .join('\n\n')
+
+    const persona = agentProfile?.systemPrompt ?? 'You are a thoughtful assistant helping the user with their notes and knowledge management.'
+
+    // 3. Call LLM for response
+    try {
+      const client = new LLMClient(llmConfig)
+      const response = await client.chat([
+        { role: 'system', content: `${persona}\n\nYou are continuing a conversation thread. Respond warmly and concisely to the user's last message.` },
+        { role: 'user', content: `Conversation so far:\n${conversation}\n\nPlease respond to the user's last message.` },
+      ])
+
+      const agentResponse = response.content?.trim() ?? ''
+      if (!agentResponse) {
+        return { success: false, error: 'No response from agent' }
+      }
+
+      // 4. Append agent response to thread
+      await threadManager.appendAgentResponse(threadId, agentResponse)
+
+      return { success: true, response: agentResponse }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Schedule: List
   ipcMain.handle(IPC_CHANNELS.SCHEDULE_LIST, async () => {
     return dbManager.getSchedules()
@@ -1138,7 +1193,10 @@ export function setupIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.COGNITIVE_JOB_TRIGGER, async (_, name: string) => {
     try {
       const { runner, manager } = await buildCognitiveContext(dbManager)
-      const result = await runCognitiveJob(name, { agentVaultManager: manager, cognitiveRunner: runner })
+      const userProfile = dbManager.getSetting('userProfile') as { name?: string } | null
+      const userName = userProfile?.name?.trim() || 'the user'
+      // Manual runs process 1 file at a time so the user can control pacing
+      const result = await runCognitiveJob(name, { agentVaultManager: manager, cognitiveRunner: runner, userName, limit: 1 })
       if (result) {
         const status = result.errors > 0 ? 'error' : 'done'
         dbManager.updateCognitiveJobRun(name, status, `processed:${result.processed} skipped:${result.skipped} errors:${result.errors}`)
@@ -1155,7 +1213,9 @@ export function setupIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.COGNITIVE_JOB_DRY_RUN, async (_, name: string) => {
     try {
       const { runner, manager } = await buildCognitiveContext(dbManager)
-      const result = await runCognitiveJob(name, { agentVaultManager: manager, cognitiveRunner: runner, dryRun: true })
+      const userProfile = dbManager.getSetting('userProfile') as { name?: string } | null
+      const userName = userProfile?.name?.trim() || 'the user'
+      const result = await runCognitiveJob(name, { agentVaultManager: manager, cognitiveRunner: runner, userName, dryRun: true })
       if (result) return { success: true, result }
       return { success: false, error: `Unknown job: ${name}` }
     } catch (error) {

@@ -4,7 +4,7 @@ export interface QuestionCategory {
   id: string
   label: string
   learningFile: string   // which dense learning file receives results
-  prompt: (documentText: string) => string
+  prompt: (documentText: string, userName: string) => string
   schema: SchemaObject
   example: object
 }
@@ -25,7 +25,7 @@ export const QUESTION_BATTERY: QuestionCategory[] = [
     id: 'character',
     label: 'Character & Personality',
     learningFile: 'character',
-    prompt: (text) => `Read this document and extract observations about the writer's character and personality.
+    prompt: (text, userName) => `Read this document and extract observations about ${userName}'s character and personality.
 Look for: emotional states, how they handle difficulty or setbacks, patience, anxiety, confidence, curiosity,
 values they express, habits of mind, self-awareness, and recurring attitudes.
 Only include observations directly evidenced by the text — do not infer or assume.
@@ -47,7 +47,7 @@ ${text}`,
     id: 'facts',
     label: 'Facts & Preferences',
     learningFile: 'facts',
-    prompt: (text) => `Read this document and extract concrete, factual details about the writer.
+    prompt: (text, userName) => `Read this document and extract concrete, factual details about ${userName}.
 Look for: where they live, what tools/languages/frameworks they use, dietary preferences, schedule habits,
 physical details, skills mentioned, things they like or dislike, possessions, and recurring factual statements.
 Only include facts clearly stated in the text.
@@ -69,9 +69,9 @@ ${text}`,
     id: 'people',
     label: 'People & Relationships',
     learningFile: 'people',
-    prompt: (text) => `Read this document and extract information about the people mentioned.
-For each person: their name (if given), how they relate to the writer (colleague, friend, family, etc.),
-and what is said or implied about them or their relationship with the writer.
+    prompt: (text, userName) => `Read this document and extract information about the people mentioned.
+For each person: their name (if given), how they relate to ${userName} (colleague, friend, family, etc.),
+and what is said or implied about them or their relationship with ${userName}.
 Return JSON with a "findings" array, one entry per notable person-mention.
 
 Document:
@@ -90,7 +90,7 @@ ${text}`,
     id: 'work',
     label: 'Work & Projects',
     learningFile: 'projects',
-    prompt: (text) => `Read this document and extract information about the writer's work and projects.
+    prompt: (text, userName) => `Read this document and extract information about ${userName}'s work and projects.
 Look for: project names, what the project does, current status, blockers, milestones, decisions made,
 technologies used, collaborators involved, and any next steps mentioned.
 Return JSON with a "findings" array of specific strings.
@@ -111,7 +111,7 @@ ${text}`,
     id: 'goals',
     label: 'Goals & Plans',
     learningFile: 'goals',
-    prompt: (text) => `Read this document and extract the writer's goals, intentions, and plans.
+    prompt: (text, userName) => `Read this document and extract ${userName}'s goals, intentions, and plans.
 Look for: things they want to achieve, timelines mentioned, explicit plans, aspirations, things they
 intend to learn or build, and recurring motivations.
 Return JSON with a "findings" array of specific strings.
@@ -132,7 +132,7 @@ ${text}`,
     id: 'beliefs',
     label: 'Beliefs & Worldview',
     learningFile: 'beliefs',
-    prompt: (text) => `Read this document and extract the writer's beliefs, opinions, and worldview.
+    prompt: (text, userName) => `Read this document and extract ${userName}'s beliefs, opinions, and worldview.
 Look for: things they assert as true about the world, opinions about technology, people, or society,
 philosophical stances, recurring values, and how they frame problems or decisions.
 Return JSON with a "findings" array of specific strings.
@@ -153,12 +153,12 @@ ${text}`,
     id: 'open_questions',
     label: 'Open Questions',
     learningFile: 'open_questions',
-    prompt: (text) => `Read this document and identify things that are unclear, ambiguous, or that raise questions
-about the writer's life, work, or relationships.
+    prompt: (text, userName) => `Read this document and identify things that are unclear, ambiguous, or that raise questions
+about ${userName}'s life, work, or relationships.
 For each question, suggest the best way to answer it:
 - "internal_vault": the answer might already exist in other notes
 - "web": would require a web search
-- "ask_human": only the writer can answer this
+- "ask_human": only ${userName} can answer this
 
 Return JSON with a "questions" array.
 

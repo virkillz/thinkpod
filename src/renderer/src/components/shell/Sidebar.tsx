@@ -1,9 +1,9 @@
-import { BookOpen, Mail, Inbox, Bot, Settings, Menu, X, PenLine } from 'lucide-react'
+import { BookOpen, Mail, Inbox, Bot, Settings, Menu, X, PenLine, Info } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 import { FileTree } from '../codex/FileTree.js'
 
 type NavItem = {
-  id: 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought'
+  id: 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought' | 'about'
   label: string
   icon: React.ElementType
   badge?: number
@@ -161,6 +161,21 @@ export function Sidebar() {
             </button>
           )
         })}
+
+        {/* About / Info */}
+        <button
+          onClick={() => setCurrentView('about')}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+            currentView === 'about'
+              ? 'bg-accent/10 text-accent border-l-2 border-accent'
+              : 'text-ink-muted hover:bg-parchment-dark hover:text-ink-primary'
+          } ${isSidebarOpen ? '' : 'justify-center'}`}
+        >
+          <Info className="w-5 h-5 flex-shrink-0" />
+          {isSidebarOpen && (
+            <span className="flex-1 text-left text-sm font-medium">About</span>
+          )}
+        </button>
 
         {isSidebarOpen && vault && (
           <div className="mt-4 px-3 text-xs text-ink-muted truncate">

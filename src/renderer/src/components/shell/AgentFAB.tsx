@@ -3,8 +3,7 @@ import { useAppStore } from '../../store/appStore.js'
 import { AgentChatPanel } from './AgentChatPanel.js'
 
 export function AgentFAB() {
-  const { agentAvatar, selectedFile, currentView } = useAppStore()
-  const [isChatOpen, setIsChatOpen] = useState(false)
+  const { agentAvatar, selectedFile, currentView, isAgentChatOpen, toggleAgentChat, setAgentChatOpen } = useAppStore()
   const [isAnimating, setIsAnimating] = useState(false)
   const [showGreeting, setShowGreeting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle')
@@ -22,6 +21,8 @@ export function AgentFAB() {
   const contextKey = contextType === 'docs_review' ? selectedFile! : '__general__'
   const contextFilePath = contextType === 'docs_review' ? selectedFile! : undefined
 
+  if (currentView === 'newthought') return null
+
   const getStatusColor = () => {
     switch (status) {
       case 'running': return 'bg-warning animate-pulse'
@@ -32,7 +33,7 @@ export function AgentFAB() {
 
   const handleToggleChat = () => {
     setIsAnimating(true)
-    setIsChatOpen(!isChatOpen)
+    toggleAgentChat()
     setTimeout(() => setIsAnimating(false), 300)
   }
 
@@ -52,7 +53,7 @@ export function AgentFAB() {
             shadow-lg hover:shadow-xl transition-all duration-300 ease-out
             hover:scale-105 animate-breathe overflow-hidden
             ${isAnimating ? 'scale-90' : 'scale-100'}
-            ${isChatOpen ? 'ring-4 ring-accent/30' : 'ring-0'}
+            ${isAgentChatOpen ? 'ring-4 ring-accent/30' : 'ring-0'}
             transition-[box-shadow,transform]
           `}
         >
@@ -60,7 +61,7 @@ export function AgentFAB() {
             className={`
               absolute inset-0 rounded-full bg-accent/20
               transition-all duration-500 ease-out
-              ${isChatOpen && isAnimating ? 'scale-[2.5] opacity-0' : 'scale-100 opacity-0'}
+              ${isAgentChatOpen && isAnimating ? 'scale-[2.5] opacity-0' : 'scale-100 opacity-0'}
             `}
           />
           <img
@@ -68,7 +69,7 @@ export function AgentFAB() {
             alt="Agent"
             className={`
               w-full h-full object-cover transition-transform duration-300 ease-out
-              ${isChatOpen ? 'scale-90 rotate-6' : 'scale-100 rotate-0'}
+              ${isAgentChatOpen ? 'scale-90 rotate-6' : 'scale-100 rotate-0'}
             `}
           />
           <span
@@ -86,14 +87,14 @@ export function AgentFAB() {
         className={`
           fixed inset-0 z-30 bg-black/10
           transition-all duration-300 ease-out
-          ${isChatOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
+          ${isAgentChatOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
         `}
-        onClick={() => setIsChatOpen(false)}
+        onClick={() => setAgentChatOpen(false)}
       />
 
       <AgentChatPanel
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
+        isOpen={isAgentChatOpen}
+        onClose={() => setAgentChatOpen(false)}
         contextType={contextType}
         contextKey={contextKey}
         contextFilePath={contextFilePath}

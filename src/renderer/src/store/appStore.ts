@@ -37,7 +37,7 @@ interface AppState {
   setVault: (vault: VaultInfo | null) => void
 
   // Navigation
-  currentView: 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought'
+  currentView: 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought' | 'about'
   setCurrentView: (view: AppState['currentView']) => void
 
   // Files
@@ -60,6 +60,9 @@ interface AppState {
   setShowSystemFolders: (show: boolean) => void
   theme: ThemeId
   setTheme: (theme: ThemeId) => void
+  isAgentChatOpen: boolean
+  toggleAgentChat: () => void
+  setAgentChatOpen: (open: boolean) => void
 
   // User Profile
   userProfile: UserProfile
@@ -136,6 +139,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     document.documentElement.dataset.theme = theme
     window.electronAPI.setSetting('theme', theme)
   },
+  isAgentChatOpen: false,
+  toggleAgentChat: () => set((state) => ({ isAgentChatOpen: !state.isAgentChatOpen })),
+  setAgentChatOpen: (open) => set({ isAgentChatOpen: open }),
 
   // User Profile
   userProfile: { name: 'Chief', bio: '', avatarDataUrl: null },
