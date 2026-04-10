@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Inbox, FileText, Trash2, FolderInput, Loader2, CheckCheck, X, Sparkles, PenLine } from 'lucide-react'
+import { Inbox, FileText, Trash2, Sparkles, PenLine, Loader2, AlertTriangle, ChevronRight, Check, X } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
+import { MarkdownPreview } from '../codex/MarkdownPreview.js'
+import type { NoteTemplate } from '../views/SettingsView.js'
 
 const INSPIRATIONAL_MESSAGES = [
   { title: 'All caught up!', subtitle: 'Your thoughts folder is clear. Ready for the next brain dump?', icon: 'sparkle' },
@@ -23,10 +25,403 @@ interface Thought {
   isDirectory: boolean
 }
 
-type SuggestState = 'idle' | 'loading' | 'confirming' | 'moving'
+type TriageStep = 'classifying' | 'picking' | 'missing-fields' | 'filling' | 'reformatting' | 'preview' | 'moving'
+
+interface MissingQuestion {
+  field: string
+  question: string
+  hint?: string
+}
+
+interface TriageState {
+  step: TriageStep
+  detectedTemplateId: string | null
+  confidence: number
+  selectedTemplateId: string | null
+  suggestedFolder: string
+  missingQuestions: MissingQuestion[]
+  userAnswers: { field: string; answer: string }[]
+  reformattedContent: string | null
+  error: string | null
+}
+
+// ─── Triage Wizard ────────────────────────────────────────────────────────────
+
+interface TriageWizardProps {
+  thought: Thought
+  content: string
+  onClose: () => void
+  onDone: () => void
+}
+
+function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) {
+  const [templates, setTemplates] = useState<NoteTemplate[]>([])
+  const [triage, setTriage] = useState<TriageState>({
+    step: 'classifying',
+    detectedTemplateId: null,
+    confidence: 0,
+    selectedTemplateId: null,
+    suggestedFolder: '',
+    missingQuestions: [],
+    userAnswers: [],
+    reformattedContent: null,
+    error: null,
+  })
+
+  // Load templates and immediately kick off classification
+  useEffect(() => {
+    const init = async () => {
+      const saved = (await window.electronAPI.getSetting('noteTemplates')) as NoteTemplate[] | null
+      const tmplList: NoteTemplate[] = saved && Array.isArray(saved) && saved.length > 0 ? saved : []
+      setTemplates(tmplList)
+
+      const enabled = tmplList.filter((t) => t.isEnabled)
+      if (enabled.length === 0) {
+        setTriage((s) => ({ ...s, step: 'picking', error: 'No enabled templates found.' }))
+        return
+      }
+
+      try {
+        const result = await window.electronAPI.classifyThought(
+          content,
+          enabled.map((t) => ({ id: t.id, title: t.title, description: t.description }))
+        )
+        if (!result.success) {
+          setTriage((s) => ({ ...s, step: 'picking', error: result.error ?? 'Classification failed' }))
+          return
+        }
+        setTriage((s) => ({
+          ...s,
+          step: 'picking',
+          detectedTemplateId: result.templateId ?? null,
+          confidence: result.confidence ?? 0,
+          selectedTemplateId: result.templateId ?? null,
+          suggestedFolder: result.folder ?? '',
+        }))
+      } catch (e) {
+        setTriage((s) => ({ ...s, step: 'picking', error: (e as Error).message }))
+      }
+    }
+    init()
+  }, [])
+
+  const selectedTemplate = useMemo(
+    () => templates.find((t) => t.id === triage.selectedTemplateId) ?? null,
+    [templates, triage.selectedTemplateId]
+  )
+
+  const handleConfirmTemplate = async () => {
+    if (!selectedTemplate) return
+    setTriage((s) => ({ ...s, step: 'missing-fields', error: null }))
+
+    try {
+      const result = await window.electronAPI.getMissingFields(content, selectedTemplate.format)
+      if (!result.success) {
+        // Skip to reformatting if the call fails
+        setTriage((s) => ({ ...s, step: 'reformatting', missingQuestions: [] }))
+        doReformat([], selectedTemplate)
+        return
+      }
+      const questions: MissingQuestion[] = result.questions ?? []
+      if (questions.length === 0) {
+        setTriage((s) => ({ ...s, step: 'reformatting', missingQuestions: [] }))
+        doReformat([], selectedTemplate)
+      } else {
+        setTriage((s) => ({
+          ...s,
+          step: 'filling',
+          missingQuestions: questions,
+          userAnswers: questions.map((q) => ({ field: q.field, answer: '' })),
+        }))
+      }
+    } catch (e) {
+      setTriage((s) => ({ ...s, step: 'reformatting', missingQuestions: [] }))
+      doReformat([], selectedTemplate)
+    }
+  }
+
+  const doReformat = async (answers: { field: string; answer: string }[], tmpl: NoteTemplate) => {
+    const filledAnswers = answers.filter((a) => a.answer.trim() !== '')
+    try {
+      const result = await window.electronAPI.reformatThought(content, tmpl.format, filledAnswers)
+      if (!result.success) {
+        setTriage((s) => ({ ...s, step: 'preview', error: result.error ?? 'Reformat failed', reformattedContent: content }))
+        return
+      }
+      setTriage((s) => ({ ...s, step: 'preview', reformattedContent: result.reformattedContent ?? null }))
+    } catch (e) {
+      setTriage((s) => ({ ...s, step: 'preview', error: (e as Error).message, reformattedContent: content }))
+    }
+  }
+
+  const handleSubmitAnswers = () => {
+    if (!selectedTemplate) return
+    setTriage((s) => ({ ...s, step: 'reformatting' }))
+    doReformat(triage.userAnswers, selectedTemplate)
+  }
+
+  const handleSaveAndMove = async () => {
+    if (!triage.reformattedContent || !selectedTemplate) return
+    setTriage((s) => ({ ...s, step: 'moving', error: null }))
+
+    try {
+      const folder = triage.suggestedFolder || selectedTemplate.defaultFolder
+      const destPath = folder.replace(/\/$/, '') + '/' + thought.name
+
+      // Write reformatted content back to the original thought path first
+      await window.electronAPI.writeFile(thought.path, triage.reformattedContent)
+      // Move to destination
+      await window.electronAPI.moveFile(thought.path, destPath)
+      onDone()
+    } catch (e) {
+      setTriage((s) => ({ ...s, step: 'preview', error: (e as Error).message }))
+    }
+  }
+
+  const enabledTemplates = templates.filter((t) => t.isEnabled)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative bg-parchment-card w-full max-w-2xl mx-4 rounded-2xl shadow-2xl border border-parchment-dark flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-accent" />
+            <span className="font-serif font-medium text-ink-primary">Triage: {thought.name}</span>
+          </div>
+          <button onClick={onClose} className="text-ink-muted hover:text-ink-primary transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
+
+          {/* Classifying */}
+          {triage.step === 'classifying' && (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <Loader2 className="w-8 h-8 text-accent animate-spin" />
+              <p className="text-ink-muted">Classifying your thought…</p>
+            </div>
+          )}
+
+          {/* Picking */}
+          {triage.step === 'picking' && (
+            <div className="space-y-5">
+              {triage.detectedTemplateId && (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-ink-muted">Detected:</span>
+                  <span className="font-medium text-ink-primary">
+                    {templates.find((t) => t.id === triage.detectedTemplateId)?.title ?? triage.detectedTemplateId}
+                  </span>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      triage.confidence >= 0.6
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {Math.round(triage.confidence * 100)}% confidence
+                  </span>
+                  {triage.confidence < 0.6 && (
+                    <span className="flex items-center gap-1 text-xs text-amber-600">
+                      <AlertTriangle className="w-3 h-3" /> Low confidence
+                    </span>
+                  )}
+                </div>
+              )}
+              {triage.error && (
+                <p className="text-sm text-amber-600 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> {triage.error}
+                </p>
+              )}
+              <p className="text-sm text-ink-muted">Choose a template:</p>
+              <div className="space-y-2">
+                {enabledTemplates.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() =>
+                      setTriage((s) => ({
+                        ...s,
+                        selectedTemplateId: t.id,
+                        suggestedFolder: s.detectedTemplateId === t.id ? s.suggestedFolder : t.defaultFolder,
+                      }))
+                    }
+                    className={`w-full text-left px-4 py-3 rounded-xl border transition-colors flex items-center gap-3 ${
+                      triage.selectedTemplateId === t.id
+                        ? 'border-accent bg-accent/5 text-ink-primary'
+                        : 'border-parchment-dark hover:border-accent/50 text-ink-muted'
+                    }`}
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                        triage.selectedTemplateId === t.id ? 'border-accent bg-accent' : 'border-ink-muted'
+                      }`}
+                    >
+                      {triage.selectedTemplateId === t.id && <Check className="w-2.5 h-2.5 text-white" />}
+                    </span>
+                    <span>
+                      <span className="font-medium block text-ink-primary">{t.title}</span>
+                      {t.description && <span className="text-xs text-ink-muted">{t.description}</span>}
+                    </span>
+                    <span className="ml-auto text-xs text-ink-muted">{t.defaultFolder}</span>
+                  </button>
+                ))}
+              </div>
+              {triage.selectedTemplateId && (
+                <div className="pt-1">
+                  <label className="block text-xs text-ink-muted mb-1">Destination folder</label>
+                  <input
+                    type="text"
+                    value={triage.suggestedFolder}
+                    onChange={(e) => setTriage((s) => ({ ...s, suggestedFolder: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm bg-parchment-card border border-parchment-dark rounded-lg font-mono text-ink-primary focus:outline-none focus:border-accent"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Missing fields (loading) */}
+          {triage.step === 'missing-fields' && (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <Loader2 className="w-8 h-8 text-accent animate-spin" />
+              <p className="text-ink-muted">Checking for missing information…</p>
+            </div>
+          )}
+
+          {/* Filling */}
+          {triage.step === 'filling' && (
+            <div className="space-y-5">
+              <p className="text-sm text-ink-muted">
+                Some information seems missing. Answer what you can — all fields are optional.
+              </p>
+              <div className="space-y-4">
+                {triage.missingQuestions.map((q, i) => (
+                  <div key={q.field}>
+                    <label className="block text-sm font-medium text-ink-primary mb-1">{q.question}</label>
+                    {q.hint && <p className="text-xs text-ink-muted mb-1">{q.hint}</p>}
+                    <input
+                      type="text"
+                      value={triage.userAnswers[i]?.answer ?? ''}
+                      onChange={(e) => {
+                        const answers = [...triage.userAnswers]
+                        answers[i] = { field: q.field, answer: e.target.value }
+                        setTriage((s) => ({ ...s, userAnswers: answers }))
+                      }}
+                      className="w-full px-3 py-2 text-sm bg-parchment-card border border-parchment-dark rounded-lg text-ink-primary focus:outline-none focus:border-accent"
+                      placeholder="Leave blank to skip"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Reformatting */}
+          {triage.step === 'reformatting' && (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <Loader2 className="w-8 h-8 text-accent animate-spin" />
+              <p className="text-ink-muted">Reformatting your thought…</p>
+            </div>
+          )}
+
+          {/* Preview */}
+          {triage.step === 'preview' && (
+            <div className="space-y-4">
+              {triage.error && (
+                <p className="text-sm text-amber-600 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> {triage.error}
+                </p>
+              )}
+              <div className="text-xs text-ink-muted flex items-center gap-1">
+                Will move to:{' '}
+                <span className="font-mono text-ink-primary">
+                  {triage.suggestedFolder || selectedTemplate?.defaultFolder || '(unknown)'}
+                </span>
+              </div>
+              <div className="bg-parchment-card border border-parchment-dark rounded-xl p-5 max-h-96 overflow-y-auto">
+                <MarkdownPreview content={triage.reformattedContent ?? ''} />
+              </div>
+            </div>
+          )}
+
+          {/* Moving */}
+          {triage.step === 'moving' && (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <Loader2 className="w-8 h-8 text-accent animate-spin" />
+              <p className="text-ink-muted">Saving and moving file…</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer actions */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-parchment-dark">
+          <button
+            onClick={onClose}
+            disabled={triage.step === 'moving'}
+            className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors disabled:opacity-40"
+          >
+            Discard
+          </button>
+
+          <div className="flex items-center gap-2">
+            {triage.step === 'preview' && (
+              <button
+                onClick={() => setTriage((s) => ({ ...s, step: 'picking' }))}
+                className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors"
+              >
+                ← Back
+              </button>
+            )}
+
+            {triage.step === 'picking' && (
+              <button
+                onClick={handleConfirmTemplate}
+                disabled={!triage.selectedTemplateId}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all disabled:opacity-40"
+              >
+                Confirm <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+
+            {triage.step === 'filling' && (
+              <>
+                <button
+                  onClick={() => handleSubmitAnswers()}
+                  className="text-sm text-ink-muted hover:text-ink-primary transition-colors px-3 py-2"
+                >
+                  Skip All
+                </button>
+                <button
+                  onClick={handleSubmitAnswers}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all"
+                >
+                  Continue <ChevronRight className="w-4 h-4" />
+                </button>
+              </>
+            )}
+
+            {triage.step === 'preview' && (
+              <button
+                onClick={handleSaveAndMove}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all"
+              >
+                <Check className="w-4 h-4" /> Save & Move
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── ThoughtsView ─────────────────────────────────────────────────────────────
 
 export function ThoughtsView() {
-  const { agentName, refreshFileTree, setCurrentView } = useAppStore()
+  const { agentName, setCurrentView } = useAppStore()
   const [thoughts, setThoughts] = useState<Thought[]>([])
 
   const randomMessage = useMemo(() => {
@@ -35,9 +430,7 @@ export function ThoughtsView() {
   }, [])
   const [selectedThought, setSelectedThought] = useState<Thought | null>(null)
   const [content, setContent] = useState('')
-  const [suggestState, setSuggestState] = useState<SuggestState>('idle')
-  const [suggestedFolder, setSuggestedFolder] = useState<string | null>(null)
-  const [suggestError, setSuggestError] = useState<string | null>(null)
+  const [triageOpen, setTriageOpen] = useState(false)
 
   useEffect(() => {
     loadThoughts()
@@ -54,9 +447,6 @@ export function ThoughtsView() {
 
   const handleSelectThought = async (thought: Thought) => {
     setSelectedThought(thought)
-    setSuggestState('idle')
-    setSuggestedFolder(null)
-    setSuggestError(null)
     try {
       const result = await window.electronAPI.readFile(thought.path)
       setContent(result.content)
@@ -79,147 +469,71 @@ export function ThoughtsView() {
     }
   }
 
-  const handleSuggestFolder = async () => {
-    if (!content || suggestState !== 'idle') return
-    setSuggestState('loading')
-    setSuggestError(null)
-    try {
-      const result = await window.electronAPI.suggestFolder(content)
-      if (result.success) {
-        setSuggestedFolder(result.folder)
-        setSuggestState('confirming')
-      } else {
-        setSuggestError(result.error ?? 'Could not suggest a folder')
-        setSuggestState('idle')
-      }
-    } catch (err) {
-      setSuggestError(err instanceof Error ? err.message : 'Failed to suggest folder')
-      setSuggestState('idle')
-    }
-  }
-
-  const handleConfirmMove = async () => {
-    if (!selectedThought || !suggestedFolder) return
-    setSuggestState('moving')
-    try {
-      const destPath = `${suggestedFolder}/${selectedThought.name}`
-      await window.electronAPI.moveFile(selectedThought.path, destPath)
-      await refreshFileTree()
-      setSelectedThought(null)
-      setContent('')
-      setSuggestState('idle')
-      setSuggestedFolder(null)
-      loadThoughts()
-    } catch {
-      setSuggestError('Failed to move file')
-      setSuggestState('confirming')
-    }
-  }
-
-  const handleCancelSuggest = () => {
-    setSuggestState('idle')
-    setSuggestedFolder(null)
-    setSuggestError(null)
+  const handleTriageDone = () => {
+    setTriageOpen(false)
+    setSelectedThought(null)
+    setContent('')
+    loadThoughts()
   }
 
   if (selectedThought) {
     return (
-      <div className="flex-1 flex flex-col h-full">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                setSelectedThought(null)
-                setContent('')
-                setSuggestState('idle')
-                setSuggestedFolder(null)
-              }}
-              className="text-ink-muted hover:text-ink-primary"
-            >
-              ← Back
-            </button>
-            <span className="text-parchment-dark">|</span>
+      <>
+        <div className="flex-1 flex flex-col h-full">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setSelectedThought(null)
+                  setContent('')
+                }}
+                className="text-ink-muted hover:text-ink-primary"
+              >
+                ← Back
+              </button>
+              <span className="text-parchment-dark">|</span>
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-accent" />
+                <span className="font-serif font-medium text-ink-primary">{selectedThought.name}</span>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-accent" />
-              <span className="font-serif font-medium text-ink-primary">{selectedThought.name}</span>
+              <button
+                onClick={() => setTriageOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
+              >
+                <Sparkles className="w-4 h-4" />
+                Triage
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete thought"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSuggestFolder}
-              disabled={suggestState !== 'idle' || !content}
-              title="Ask AI to suggest a folder for this note"
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-accent hover:text-accent-hover hover:bg-accent/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {suggestState === 'loading' ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <FolderInput className="w-4 h-4" />
-              )}
-              {suggestState === 'loading' ? 'Thinking…' : 'Suggest Folder'}
-            </button>
-            <button
-              onClick={handleDelete}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-              title="Delete thought"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </button>
-          </div>
-        </div>
 
-        {/* Suggest folder confirmation banner */}
-        {suggestState === 'confirming' && suggestedFolder && (
-          <div className="flex items-center gap-3 px-6 py-3 bg-accent/5 border-b border-accent/20">
-            <FolderInput className="w-4 h-4 text-accent flex-shrink-0" />
-            <span className="text-sm text-ink-primary flex-1">
-              Move to{' '}
-              <span className="font-mono font-medium text-accent">{suggestedFolder}</span>
-              {'?'}
-            </span>
-            <button
-              onClick={handleConfirmMove}
-              className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors"
-            >
-              <CheckCheck className="w-3.5 h-3.5" />
-              Move
-            </button>
-            <button
-              onClick={handleCancelSuggest}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-ink-muted hover:text-ink-primary rounded-lg transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Moving state banner */}
-        {suggestState === 'moving' && (
-          <div className="flex items-center gap-3 px-6 py-3 bg-accent/5 border-b border-accent/20">
-            <Loader2 className="w-4 h-4 text-accent animate-spin" />
-            <span className="text-sm text-ink-muted">Moving file…</span>
-          </div>
-        )}
-
-        {/* Error banner */}
-        {suggestError && (
-          <div className="flex items-center gap-3 px-6 py-3 bg-red-50 border-b border-red-100">
-            <span className="text-sm text-red-600 flex-1">{suggestError}</span>
-            <button onClick={() => setSuggestError(null)} className="text-red-400 hover:text-red-600">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-3xl mx-auto">
-            <div className="prose prose-lg max-w-none font-serif text-ink-primary whitespace-pre-wrap">
-              {content}
+          <div className="flex-1 overflow-y-auto p-8">
+            <div className="max-w-3xl mx-auto">
+              <div className="prose prose-lg max-w-none font-serif text-ink-primary whitespace-pre-wrap">
+                {content}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+
+        {triageOpen && (
+          <TriageWizard
+            thought={selectedThought}
+            content={content}
+            onClose={() => setTriageOpen(false)}
+            onDone={handleTriageDone}
+          />
+        )}
+      </>
     )
   }
 

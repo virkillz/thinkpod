@@ -68,8 +68,8 @@ export class ChatAgent {
     this.messages = [
       { role: 'system', content: systemPrompt },
       ...history
-        .filter(m => m.role !== 'system')
-        .map(m => ({ role: m.role, content: m.content })),
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     ]
   }
 
@@ -129,7 +129,7 @@ export class ChatAgent {
     return { agent, sessionId }
   }
 
-  async send(userMessage: string, onToolUse?: OnToolUse): Promise<{ content: string; toolCallCount: number }> {
+  async send(userMessage: string, onToolUse?: OnToolUse): Promise<{ content: string; toolCallCount: number; toolErrors: { toolName: string; error: string; ts: number }[] }> {
     const userMsg: ChatMessage = { role: 'user', content: userMessage, ts: Date.now() }
     await this.session.append(userMsg)
     this.messages.push({ role: 'user', content: userMessage })
@@ -137,6 +137,7 @@ export class ChatAgent {
     let finalContent = ''
     let totalToolCalls = 0
     let iterations = 0
+    const toolErrors: { toolName: string; error: string; ts: number }[] = []
 
     while (iterations < MAX_CHAT_ITERATIONS) {
       iterations++
@@ -162,6 +163,23 @@ export class ChatAgent {
         onToolUse?.(toolCall.function.name, args)
 
         const result = await this.executor.execute(toolCall)
+        const ts = Date.now()
+
+        // Persist tool result to JSONL for post-mortem debugging
+        await this.session.append({
+          role: 'tool_result',
+          content: result.success
+            ? JSON.stringify(result.data ?? {})
+            : (result.error ?? 'Unknown error'),
+          ts,
+          toolName: toolCall.function.name,
+          toolSuccess: result.success,
+        })
+
+        if (!result.success) {
+          toolErrors.push({ toolName: toolCall.function.name, error: result.error ?? 'Unknown error', ts })
+        }
+
         this.messages.push({
           role: 'user',
           content: `Tool result for ${toolCall.function.name}:\n${JSON.stringify(result, null, 2)}`,
@@ -177,7 +195,7 @@ export class ChatAgent {
     const assistantMsg: ChatMessage = { role: 'assistant', content: finalContent, ts: Date.now() }
     await this.session.append(assistantMsg)
 
-    return { content: finalContent, toolCallCount: totalToolCalls }
+    return { content: finalContent, toolCallCount: totalToolCalls, toolErrors }
   }
 
   getSystemPrompt(): string {

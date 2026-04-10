@@ -135,11 +135,14 @@ export function setupIpcHandlers(
       await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '.thinkpod'), { recursive: true })
 
-      // Create default folders
-      await fs.mkdir(path.join(abbeyPath, 'Projects'), { recursive: true })
-      await fs.mkdir(path.join(abbeyPath, 'People'), { recursive: true })
+      // Create default folders (align with template defaultFolder values)
+      await fs.mkdir(path.join(abbeyPath, 'Bookmarks'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, 'Ideas'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, 'Journal'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, 'Meetings'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, 'Others'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, 'Projects'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, 'Todos'), { recursive: true })
 
       // Seed default agent profile in DB
       if (!dbManager.getSetting('agentProfile')) {
@@ -687,6 +690,93 @@ export function setupIpcHandlers(
     }
   })
 
+  // LLM: Classify a thought against enabled note templates
+  ipcMain.handle(
+    IPC_CHANNELS.LLM_CLASSIFY_THOUGHT,
+    async (_, content: string, templates: { id: string; title: string; description: string }[]) => {
+      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      if (!llmConfig) return { success: false, error: 'LLM not configured' }
+
+      try {
+        const client = new LLMClient({ ...llmConfig, maxTokens: 200 })
+        const templateList = templates.map((t) => `- id: ${t.id} | title: ${t.title} | description: ${t.description}`).join('\n')
+        const response = await client.chat([
+          {
+            role: 'system',
+            content:
+              'You are a note classifier. Given a note and a list of templates, pick the best matching template and suggest a folder. Respond with ONLY valid JSON in this exact shape: {"templateId":"<id or null>","confidence":<0-1>,"folder":"<suggested folder path>"}. No extra text.',
+          },
+          {
+            role: 'user',
+            content: `Templates:\n${templateList}\n\nNote:\n${content.slice(0, 2000)}`,
+          },
+        ])
+        const raw = response.content?.trim() ?? '{}'
+        const parsed = JSON.parse(raw)
+        return { success: true, templateId: parsed.templateId ?? null, confidence: parsed.confidence ?? 0, folder: parsed.folder ?? '' }
+      } catch (error) {
+        return { success: false, error: (error as Error).message }
+      }
+    }
+  )
+
+  // LLM: Identify missing fields in a thought relative to a template
+  ipcMain.handle(IPC_CHANNELS.LLM_GET_MISSING_FIELDS, async (_, content: string, templateFormat: string) => {
+    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    if (!llmConfig) return { success: false, error: 'LLM not configured' }
+
+    try {
+      const client = new LLMClient({ ...llmConfig, maxTokens: 400 })
+      const response = await client.chat([
+        {
+          role: 'system',
+          content:
+            'You are a note assistant. Compare the note to the template and identify what key information is missing or unclear. Respond with ONLY valid JSON: {"questions":[{"field":"<field name>","question":"<question for user>","hint":"<optional hint>"}]}. Return an empty array if nothing is missing.',
+        },
+        {
+          role: 'user',
+          content: `Template:\n${templateFormat}\n\nNote:\n${content.slice(0, 2000)}`,
+        },
+      ])
+      const raw = response.content?.trim() ?? '{}'
+      const parsed = JSON.parse(raw)
+      return { success: true, questions: parsed.questions ?? [] }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // LLM: Reformat a thought using a template and optional user answers
+  ipcMain.handle(
+    IPC_CHANNELS.LLM_REFORMAT_THOUGHT,
+    async (_, content: string, templateFormat: string, userAnswers: { field: string; answer: string }[]) => {
+      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      if (!llmConfig) return { success: false, error: 'LLM not configured' }
+
+      try {
+        const client = new LLMClient({ ...llmConfig, maxTokens: 2000 })
+        const answersText =
+          userAnswers.length > 0
+            ? '\n\nAdditional answers from the user:\n' + userAnswers.map((a) => `- ${a.field}: ${a.answer}`).join('\n')
+            : ''
+        const response = await client.chat([
+          {
+            role: 'system',
+            content:
+              "You are a note formatter. Reformat the provided note into the given template structure. Use the original ideas and wording — don't invent new content. Fill template sections using the original note and any additional answers. Return ONLY the reformatted note as markdown.",
+          },
+          {
+            role: 'user',
+            content: `Template:\n${templateFormat}\n\nOriginal note:\n${content.slice(0, 2000)}${answersText}`,
+          },
+        ])
+        return { success: true, reformattedContent: response.content?.trim() ?? '' }
+      } catch (error) {
+        return { success: false, error: (error as Error).message }
+      }
+    }
+  )
+
   // Agent: Open or resume a chat session
   ipcMain.handle(
     IPC_CHANNELS.AGENT_CHAT_OPEN,
@@ -698,7 +788,14 @@ export function setupIpcHandlers(
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
       const agentProfile = dbManager.getSetting('agentProfile') as { systemPrompt?: string } | null
-      const persona = agentProfile?.systemPrompt ?? 'You are a thoughtful friend who loves brainstorming and exploring ideas together.'
+      const userProfile = dbManager.getSetting('userProfile') as { name?: string; bio?: string } | null
+      const basePersona = agentProfile?.systemPrompt ?? 'You are a thoughtful friend who loves brainstorming and exploring ideas together.'
+      const userName = userProfile?.name?.trim()
+      const userBio = userProfile?.bio?.trim()
+      const userContext = userName
+        ? `\n\nThe person you are speaking with is named ${userName}.${userBio ? ` ${userBio}` : ''} Address them by name when appropriate.`
+        : ''
+      const persona = basePersona + userContext
 
       try {
         const chatToolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
@@ -723,10 +820,10 @@ export function setupIpcHandlers(
 
     try {
       dbManager.touchChatSession(sessionId)
-      const { content, toolCallCount } = await agent.send(message, (toolName, args) => {
+      const { content, toolCallCount, toolErrors } = await agent.send(message, (toolName, args) => {
         pushToRenderer(IPC_CHANNELS.PUSH_CHAT_TOOL_USE, { sessionId, toolName, args })
       })
-      return { success: true, content, toolCallCount }
+      return { success: true, content, toolCallCount, toolErrors }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }
@@ -743,7 +840,14 @@ export function setupIpcHandlers(
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
       const agentProfile = dbManager.getSetting('agentProfile') as { systemPrompt?: string } | null
-      const persona = agentProfile?.systemPrompt ?? 'You are a thoughtful friend who loves brainstorming and exploring ideas together.'
+      const userProfile = dbManager.getSetting('userProfile') as { name?: string; bio?: string } | null
+      const basePersona = agentProfile?.systemPrompt ?? 'You are a thoughtful friend who loves brainstorming and exploring ideas together.'
+      const userName = userProfile?.name?.trim()
+      const userBio = userProfile?.bio?.trim()
+      const userContext = userName
+        ? `\n\nThe person you are speaking with is named ${userName}.${userBio ? ` ${userBio}` : ''} Address them by name when appropriate.`
+        : ''
+      const persona = basePersona + userContext
 
       try {
         const freshToolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
@@ -860,6 +964,18 @@ export function setupIpcHandlers(
     content = content.replace(/status: unread/, 'status: read')
 
     await fs.writeFile(filePath, content, 'utf-8')
+    return { success: true }
+  })
+
+  // Inbox: Delete
+  ipcMain.handle(IPC_CHANNELS.INBOX_DELETE, async (_, filename: string) => {
+    const abbey = getVaultManager()
+    if (!abbey) {
+      throw new Error('No vault initialized')
+    }
+
+    const filePath = path.join(abbey.vaultPath, '_inbox', filename)
+    await fs.unlink(filePath)
     return { success: true }
   })
 

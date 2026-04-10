@@ -44,6 +44,19 @@ export interface ElectronAPI {
   stopLLMServer: () => Promise<{ success: boolean }>
   editText: (text: string, instruction: string) => Promise<{ success: boolean; content?: string; error?: string }>
   suggestFolder: (content: string) => Promise<{ success: boolean; folder?: string; error?: string }>
+  classifyThought: (
+    content: string,
+    templates: { id: string; title: string; description: string }[]
+  ) => Promise<{ success: boolean; templateId?: string | null; confidence?: number; folder?: string; error?: string }>
+  getMissingFields: (
+    content: string,
+    templateFormat: string
+  ) => Promise<{ success: boolean; questions?: { field: string; question: string; hint?: string }[]; error?: string }>
+  reformatThought: (
+    content: string,
+    templateFormat: string,
+    userAnswers: { field: string; answer: string }[]
+  ) => Promise<{ success: boolean; reformattedContent?: string; error?: string }>
 
   // Agent
   runAgentTask: (taskName: string, instruction: string) => Promise<{
@@ -77,7 +90,7 @@ export interface ElectronAPI {
     history?: ChatMessage[]
     error?: string
   }>
-  agentChatSend: (sessionId: string, message: string) => Promise<{ success: boolean; content?: string; toolCallCount?: number; error?: string }>
+  agentChatSend: (sessionId: string, message: string) => Promise<{ success: boolean; content?: string; toolCallCount?: number; error?: string; toolErrors?: { toolName: string; error: string; ts: number }[] }>
   agentChatNew: (contextType: string, contextKey: string, filePath?: string) => Promise<{ success: boolean; sessionId?: string; error?: string }>
   agentChatGetSystemPrompt: (sessionId: string) => Promise<{ success: boolean; systemPrompt?: string; error?: string }>
 
@@ -92,6 +105,7 @@ export interface ElectronAPI {
   }>>
   readInboxItem: (filename: string) => Promise<{ content: string; path: string }>
   markInboxRead: (filename: string) => Promise<{ success: boolean }>
+  deleteInboxItem: (filename: string) => Promise<{ success: boolean }>
 
   // Schedule
   listSchedules: () => Promise<Array<{
@@ -151,9 +165,11 @@ export interface ElectronAPI {
 }
 
 interface ChatMessage {
-  role: 'user' | 'assistant' | 'system'
+  role: 'user' | 'assistant' | 'system' | 'tool_result'
   content: string
   ts: number
+  toolName?: string
+  toolSuccess?: boolean
 }
 
 interface VoiceConfig {

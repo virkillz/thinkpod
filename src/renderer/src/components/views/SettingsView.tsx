@@ -751,18 +751,24 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     title: 'Journal',
     description: 'Daily reflection and personal notes',
     isEnabled: true,
-    defaultFolder: 'journal/',
+    defaultFolder: 'Journal/',
     format: `# Journal — [date]
 
 ## How am I feeling?
 
 [Write freely here]
 
-## What happened today?
+## What's the plan for today?
 
-[Key events or moments]
+[Write freely or bullet points]
 
-## Reflections
+# Journal — [date]
+
+## What is actually happening?
+
+[Write freely or bullet points]
+
+## Reflection
 
 [What did I learn or notice?]`,
   },
@@ -771,7 +777,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     title: 'Meeting Notes',
     description: 'Structured notes from a meeting with agenda and action items',
     isEnabled: true,
-    defaultFolder: 'meetings/',
+    defaultFolder: 'Meetings/',
     format: `# Meeting: [Subject]
 
 **Attendees:** [Name 1, Name 2]
@@ -795,7 +801,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     title: 'Project Note',
     description: 'Progress notes for a project including goals and blockers',
     isEnabled: true,
-    defaultFolder: 'projects/',
+    defaultFolder: 'Projects/',
     format: `# Project: [Name]
 
 **Status:** [Active / On Hold / Done]
@@ -821,7 +827,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     title: 'Todo',
     description: 'A simple checklist of tasks',
     isEnabled: true,
-    defaultFolder: 'todos/',
+    defaultFolder: 'Todos/',
     format: `# Todo: [Subject]
 
 ## Tasks
@@ -839,7 +845,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     title: 'Bookmark',
     description: 'A saved link with context and tags',
     isEnabled: true,
-    defaultFolder: 'bookmarks/',
+    defaultFolder: 'Bookmarks/',
     format: `# [Page Title]
 
 **URL:** [URL]
@@ -860,7 +866,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     title: 'Ideas',
     description: 'A captured idea with description and next steps',
     isEnabled: true,
-    defaultFolder: 'ideas/',
+    defaultFolder: 'Ideas/',
     format: `# Idea: [Title]
 
 ## What is it?
@@ -880,7 +886,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     title: 'Braindump',
     description: "Unstructured catch-all for anything that doesn't fit elsewhere",
     isEnabled: true,
-    defaultFolder: 'inbox/',
+    defaultFolder: 'Others/',
     format: `# Braindump — [date]
 
 [Write anything here, no structure needed]`,

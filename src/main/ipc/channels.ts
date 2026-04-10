@@ -29,6 +29,9 @@ export const IPC_CHANNELS = {
   LLM_STOP_SERVER: 'llm:stop-server',
   LLM_EDIT_TEXT: 'llm:edit-text',
   LLM_SUGGEST_FOLDER: 'llm:suggest-folder',
+  LLM_CLASSIFY_THOUGHT: 'llm:classify-thought',
+  LLM_GET_MISSING_FIELDS: 'llm:get-missing-fields',
+  LLM_REFORMAT_THOUGHT: 'llm:reformat-thought',
 
   // Agent
   AGENT_RUN_TASK: 'agent:run-task',
@@ -44,6 +47,7 @@ export const IPC_CHANNELS = {
   INBOX_LIST: 'inbox:list',
   INBOX_READ: 'inbox:read',
   INBOX_MARK_READ: 'inbox:mark-read',
+  INBOX_DELETE: 'inbox:delete',
 
   // Schedule
   SCHEDULE_LIST: 'schedule:list',

@@ -2,9 +2,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system'
+  role: 'user' | 'assistant' | 'system' | 'tool_result'
   content: string
   ts: number
+  // Only present for role === 'tool_result'
+  toolName?: string
+  toolSuccess?: boolean
 }
 
 export class ChatSession {

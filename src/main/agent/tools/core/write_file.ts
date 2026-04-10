@@ -28,7 +28,11 @@ export const writeFileTool: ToolEntry = {
   },
   handler: async (args: Record<string, unknown>, context: ToolContext) => {
     const { path: p, content } = args as { path: string; content: string }
+    if (!p) return { success: false, error: 'path argument is required' }
     const fullPath = resolvePath(context.vaultPath, p)
+    if (!fullPath.startsWith(context.vaultPath)) {
+      return { success: false, error: `Cannot write to files outside the vault. Use a path relative to the vault root, not an absolute path like "${p}".` }
+    }
     await fs.mkdir(path.dirname(fullPath), { recursive: true })
     await fs.writeFile(fullPath, content, 'utf-8')
     return { path: p }

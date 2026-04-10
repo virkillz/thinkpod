@@ -926,9 +926,9 @@ function SchedulesTab() {
       {schedules.length === 0 ? (
         <div className="bg-parchment-sidebar rounded-xl p-8 text-center">
           <Calendar className="w-10 h-10 text-ink-light mx-auto mb-3" />
-          <p className="text-ink-muted font-medium">No schedules yet</p>
-          <p className="text-sm text-ink-light mt-1 max-w-sm mx-auto">
-            Create a schedule to have your agent run tasks automatically — daily summaries, weekly reviews, or any recurring work.
+          <p className="font-serif italic text-ink-primary mb-2">"Time, once harnessed, becomes your ally."</p>
+          <p className="text-xs text-ink-muted max-w-sm mx-auto">
+            Create a schedule for daily summaries, weekly reviews, or any recurring task.
           </p>
         </div>
       ) : (

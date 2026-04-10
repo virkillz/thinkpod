@@ -26,6 +26,9 @@ const IPC_CHANNELS = {
   LLM_STOP_SERVER: 'llm:stop-server',
   LLM_EDIT_TEXT: 'llm:edit-text',
   LLM_SUGGEST_FOLDER: 'llm:suggest-folder',
+  LLM_CLASSIFY_THOUGHT: 'llm:classify-thought',
+  LLM_GET_MISSING_FIELDS: 'llm:get-missing-fields',
+  LLM_REFORMAT_THOUGHT: 'llm:reformat-thought',
   AGENT_RUN_TASK: 'agent:run-task',
   AGENT_ABORT_TASK: 'agent:abort-task',
   AGENT_GET_TASKS: 'agent:get-tasks',
@@ -37,6 +40,7 @@ const IPC_CHANNELS = {
   INBOX_LIST: 'inbox:list',
   INBOX_READ: 'inbox:read',
   INBOX_MARK_READ: 'inbox:mark-read',
+  INBOX_DELETE: 'inbox:delete',
   SCHEDULE_LIST: 'schedule:list',
   SCHEDULE_TOGGLE: 'schedule:toggle',
   SCHEDULE_TRIGGER: 'schedule:trigger',
@@ -100,6 +104,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopLLMServer: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_STOP_SERVER),
   editText: (text: string, instruction: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_EDIT_TEXT, text, instruction),
   suggestFolder: (content: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SUGGEST_FOLDER, content),
+  classifyThought: (content: string, templates: { id: string; title: string; description: string }[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_CLASSIFY_THOUGHT, content, templates),
+  getMissingFields: (content: string, templateFormat: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_GET_MISSING_FIELDS, content, templateFormat),
+  reformatThought: (content: string, templateFormat: string, userAnswers: { field: string; answer: string }[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_REFORMAT_THOUGHT, content, templateFormat, userAnswers),
 
   // Agent
   runAgentTask: (taskName: string, instruction: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_RUN_TASK, taskName, instruction),
@@ -119,6 +129,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listInbox: () => ipcRenderer.invoke(IPC_CHANNELS.INBOX_LIST),
   readInboxItem: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_READ, filename),
   markInboxRead: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_MARK_READ, filename),
+  deleteInboxItem: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_DELETE, filename),
 
   // Schedule
   listSchedules: () => ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_LIST),

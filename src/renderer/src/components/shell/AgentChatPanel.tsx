@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Send, Trash2, ScrollText, Wrench } from 'lucide-react'
+import { X, Send, Trash2, ScrollText, Wrench, AlertTriangle } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
 const TOOL_LABELS: Record<string, string> = {
@@ -40,9 +40,10 @@ export interface AgentChatPanelProps {
 
 interface UIMessage {
   id: string
-  role: 'user' | 'agent'
+  role: 'user' | 'agent' | 'tool_error'
   content: string
   ts: number
+  toolName?: string
 }
 
 // ─── System Prompt Modal ──────────────────────────────────────────────────────
@@ -131,15 +132,18 @@ export function AgentChatPanel({
       openedContextKey.current = contextKey
       setSessionId(result.sessionId)
 
-      // Restore history from JSONL (filter out system messages)
-      const history = (result.history ?? []).filter(m => m.role !== 'system')
+      // Restore history from JSONL — chat bubbles + failed tool calls as inline indicators
+      const history = result.history ?? []
       setMessages(
-        history.map(m => ({
-          id: `${m.ts}-${m.role}`,
-          role: m.role === 'user' ? 'user' : 'agent',
-          content: m.content,
-          ts: m.ts,
-        }))
+        history
+          .filter(m => m.role === 'user' || m.role === 'assistant' || (m.role === 'tool_result' && m.toolSuccess === false))
+          .map(m => ({
+            id: `${m.ts}-${m.role}`,
+            role: m.role === 'user' ? 'user' : m.role === 'tool_result' ? 'tool_error' : 'agent',
+            content: m.content,
+            ts: m.ts,
+            toolName: m.toolName,
+          }))
       )
 
       // Pre-fetch system prompt for the view button
@@ -181,7 +185,14 @@ export function AgentChatPanel({
           : result.error ?? 'I was unable to respond. Please check the LLM configuration.',
         ts: Date.now(),
       }
-      setMessages(prev => [...prev, agentMsg])
+      const errorMsgs: UIMessage[] = (result.toolErrors ?? []).map(e => ({
+        id: `${e.ts}-tool_error`,
+        role: 'tool_error',
+        content: e.error,
+        ts: e.ts,
+        toolName: e.toolName,
+      }))
+      setMessages(prev => [...prev, agentMsg, ...errorMsgs])
       onStatusChange?.('idle')
     } catch {
       setCurrentTool(null)
@@ -296,8 +307,14 @@ export function AgentChatPanel({
               ${isExiting ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0 animate-in fade-in slide-in-from-bottom-2 duration-500'}
             `}>
               {contextType === 'docs_review'
-                ? <>Ask {agentName} about this document,<br />or request an edit.</>
-                : <>Ask {agentName} about your manuscripts,<br />or request a task.</>}
+                ? <>
+                    <p className="font-serif italic text-ink-primary mb-2">"What shall we make of this?"</p>
+                    <p className="text-xs">Bounce ideas, explore angles, or deepen your thinking — {agentName} is your sparring partner.</p>
+                  </>
+                : <>
+                    <p className="font-serif italic text-ink-primary mb-2">"A thought unspoken is a seed unsown."</p>
+                    <p className="text-xs">Brainstorm ideas, explore possibilities, or think through something together.</p>
+                  </>}
             </div>
           ) : (
             messages.map((message, index) => (
@@ -314,17 +331,29 @@ export function AgentChatPanel({
                   animationDuration: !isExiting ? '300ms' : undefined,
                 }}
               >
-                <div
-                  className={`
-                    max-w-[80%] px-4 py-2 rounded-2xl text-sm whitespace-pre-wrap
-                    transition-transform duration-200 ease-out hover:scale-[1.02]
-                    ${message.role === 'user'
-                      ? 'bg-accent text-white rounded-br-md'
-                      : 'bg-parchment-sidebar text-ink-primary rounded-bl-md'}
-                  `}
-                >
-                  {message.content}
-                </div>
+                {message.role === 'tool_error' ? (
+                  <details className="w-full group">
+                    <summary className="flex items-center gap-1.5 text-xs text-amber-600 cursor-pointer select-none list-none">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <span>Tool failed: <span className="font-mono">{message.toolName ?? 'unknown'}</span></span>
+                    </summary>
+                    <p className="mt-1 ml-4.5 text-xs font-mono text-ink-muted whitespace-pre-wrap break-all bg-parchment-base rounded-lg px-2 py-1.5">
+                      {message.content}
+                    </p>
+                  </details>
+                ) : (
+                  <div
+                    className={`
+                      max-w-[80%] px-4 py-2 rounded-2xl text-sm whitespace-pre-wrap
+                      transition-transform duration-200 ease-out hover:scale-[1.02]
+                      ${message.role === 'user'
+                        ? 'bg-accent text-white rounded-br-md'
+                        : 'bg-parchment-sidebar text-ink-primary rounded-bl-md'}
+                    `}
+                  >
+                    {message.content}
+                  </div>
+                )}
               </div>
             ))
           )}

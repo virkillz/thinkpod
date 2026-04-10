@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Mail, Check, Eye } from 'lucide-react'
+import { Mail, Check, Eye, Trash2 } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
 interface InboxItem {
@@ -72,8 +72,24 @@ export function InboxView() {
               <span className="font-serif font-medium text-ink-primary">{selectedItem.title}</span>
             </div>
           </div>
-          <div className="text-sm text-ink-muted">
-            {new Date(selectedItem.created).toLocaleString()}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                if (confirm('Delete this message?')) {
+                  await window.electronAPI.deleteInboxItem(selectedItem.id)
+                  setSelectedItem(null)
+                  setContent('')
+                  loadItems()
+                }
+              }}
+              className="text-ink-muted hover:text-red-600 transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <div className="text-sm text-ink-muted">
+              {new Date(selectedItem.created).toLocaleString()}
+            </div>
           </div>
         </div>
 
