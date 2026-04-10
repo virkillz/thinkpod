@@ -15,7 +15,7 @@ export function InboxView() {
   const [items, setItems] = useState<InboxItem[]>([])
   const [selectedItem, setSelectedItem] = useState<InboxItem | null>(null)
   const [content, setContent] = useState('')
-  const { setUnreadInbox, setCurrentView } = useAppStore()
+  const { setUnreadInbox, setCurrentView, agentName } = useAppStore()
 
   useEffect(() => {
     loadItems()
@@ -98,7 +98,7 @@ export function InboxView() {
           <h2 className="font-serif font-medium text-lg text-ink-primary">Inbox</h2>
         </div>
         <span className="text-sm text-ink-muted">
-          Messages from Wilfred
+          Messages from {agentName}
         </span>
       </div>
 
@@ -113,11 +113,11 @@ export function InboxView() {
               No messages yet
             </h3>
             <p className="text-ink-muted max-w-md mx-auto mb-4">
-              Wilfred will leave messages here when he has insights,
+              {agentName} will leave messages here when he has insights,
               recommendations, or questions about your notes.
             </p>
             <p className="text-sm text-ink-light">
-              Try running a task from the Tasks view, or ask Wilfred a question.
+              Try running a task from the Tasks view, or ask {agentName} a question.
             </p>
           </div>
         ) : (

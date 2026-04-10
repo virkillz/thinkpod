@@ -30,7 +30,7 @@ interface AppState {
   setAbbey: (abbey: AbbeyInfo | null) => void
 
   // Navigation
-  currentView: 'notes' | 'inbox' | 'drafts' | 'agents' | 'settings'
+  currentView: 'notes' | 'inbox' | 'drafts' | 'agents' | 'settings' | 'newdraft'
   setCurrentView: (view: AppState['currentView']) => void
 
   // Files
@@ -47,6 +47,8 @@ interface AppState {
   // UI State
   isSidebarOpen: boolean
   toggleSidebar: () => void
+  isFileTreeVisible: boolean
+  toggleFileTree: () => void
   showSystemFolders: boolean
   setShowSystemFolders: (show: boolean) => void
   theme: ThemeId
@@ -61,6 +63,9 @@ interface AppState {
   setAgentRunning: (running: boolean) => void
   currentTask: string | null
   setCurrentTask: (task: string | null) => void
+  agentName: string
+  agentAvatar: string
+  setAgentProfile: (name: string, avatar: string) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -106,6 +111,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // UI State
   isSidebarOpen: true,
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+  isFileTreeVisible: true,
+  toggleFileTree: () => set((state) => ({ isFileTreeVisible: !state.isFileTreeVisible })),
   showSystemFolders: false,
   setShowSystemFolders: (show) => set({ showSystemFolders: show }),
   theme: 'parchment' as ThemeId,
@@ -124,4 +131,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAgentRunning: (running) => set({ isAgentRunning: running }),
   currentTask: null,
   setCurrentTask: (task) => set({ currentTask: task }),
+  agentName: 'Wilfred',
+  agentAvatar: '✦',
+  setAgentProfile: (name, avatar) => set({ agentName: name, agentAvatar: avatar }),
 }))

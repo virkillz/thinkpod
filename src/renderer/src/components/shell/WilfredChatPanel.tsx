@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, Send } from 'lucide-react'
+import { useAppStore } from '../../store/appStore.js'
 
 interface WilfredChatPanelProps {
   isOpen: boolean
@@ -14,6 +15,7 @@ interface Message {
 }
 
 export function WilfredChatPanel({ isOpen, onClose }: WilfredChatPanelProps) {
+  const { agentName, agentAvatar } = useAppStore()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -78,8 +80,8 @@ export function WilfredChatPanel({ isOpen, onClose }: WilfredChatPanelProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-accent text-white">
         <div className="flex items-center gap-2">
-          <span className="text-lg">🖋</span>
-          <span className="font-medium">Wilfred</span>
+          <span className="text-lg">{agentAvatar}</span>
+          <span className="font-medium">{agentName}</span>
         </div>
         <button 
           onClick={onClose}
@@ -96,7 +98,7 @@ export function WilfredChatPanel({ isOpen, onClose }: WilfredChatPanelProps) {
       >
         {messages.length === 0 ? (
           <div className="text-center text-ink-muted text-sm py-8">
-            Ask Wilfred about your manuscripts,
+            Ask {agentName} about your manuscripts,
             <br />
             or request a task.
           </div>
@@ -140,7 +142,7 @@ export function WilfredChatPanel({ isOpen, onClose }: WilfredChatPanelProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Wilfred…"
+            placeholder={`Ask ${agentName}…`}
             className="flex-1 px-3 py-2 bg-parchment-base rounded-lg border border-parchment-dark focus:outline-none focus:border-accent text-sm"
           />
           <button

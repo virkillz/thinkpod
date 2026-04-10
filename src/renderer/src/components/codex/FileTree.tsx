@@ -25,7 +25,7 @@ export function FileTree() {
   const [renameValue, setRenameValue] = useState('')
   const [draggingPath, setDraggingPath] = useState<string | null>(null)
   const [dragOverPath, setDragOverPath] = useState<string | null>(null)
-  const { selectedFile, setSelectedFile, abbey, showSystemFolders } = useAppStore()
+  const { selectedFile, setSelectedFile, setCurrentView, abbey, showSystemFolders } = useAppStore()
 
   const loadDirectory = useCallback(async (path: string): Promise<TreeNode[]> => {
     try {
@@ -85,7 +85,10 @@ export function FileTree() {
 
   const handleSelect = (node: TreeNode) => {
     if (node.isDirectory) toggleDirectory(node)
-    else setSelectedFile(node.path)
+    else {
+      setSelectedFile(node.path)
+      setCurrentView('notes')
+    }
   }
 
   const handleContextMenu = (e: React.MouseEvent, node: TreeNode) => {

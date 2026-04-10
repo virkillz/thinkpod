@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useAppStore } from '../../store/appStore.js'
 import { Bot, User, Clock, Calendar, Save, Check, Loader2, Play, Archive, CheckCircle, XCircle, AlertCircle, X } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ const AVATAR_OPTIONS = ['✦', '✧', '⚜', '🤖', '🦉', '🧙', '🦊', '�
 const DEFAULT_PROFILE: AgentProfile = {
   name: 'Wilfred',
   avatar: '✦',
-  systemPrompt: `You are Wilfred, a diligent monk in the Scriptorium. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
+  systemPrompt: `You are Wilfred, a diligent monk in the ThinkPod. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
 
 Your character:
 - Methodical. You work through tasks step by step.
@@ -54,6 +55,7 @@ type Tab = 'profile' | 'tasks' | 'schedules'
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
 
 function ProfileTab() {
+  const { setAgentProfile } = useAppStore()
   const [profile, setProfile] = useState<AgentProfile>(DEFAULT_PROFILE)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
@@ -68,6 +70,7 @@ function ProfileTab() {
   const handleSave = async () => {
     setSaveStatus('saving')
     await window.electronAPI.setSetting('agentProfile', profile)
+    setAgentProfile(profile.name || 'Wilfred', profile.avatar || '✦')
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
   }

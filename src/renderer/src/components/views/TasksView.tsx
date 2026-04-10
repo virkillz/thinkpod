@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Clock, Play, Archive, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { useAppStore } from '../../store/appStore.js'
 
 interface TaskRecord {
   id: number
@@ -25,6 +26,7 @@ interface LiveTask {
 }
 
 export function TasksView() {
+  const { agentName } = useAppStore()
   const [tasks, setTasks] = useState<TaskRecord[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [liveTask, setLiveTask] = useState<LiveTask | null>(null)
@@ -160,7 +162,7 @@ export function TasksView() {
               <div className="bg-parchment-sidebar rounded-xl p-6 text-center">
                 <p className="text-ink-muted">No tasks running</p>
                 <p className="text-sm text-ink-light mt-1">
-                  Wilfred rests when his work is done.
+                  {agentName} rests when his work is done.
                 </p>
               </div>
             )}
@@ -176,7 +178,7 @@ export function TasksView() {
                 <Archive className="w-8 h-8 text-ink-light mx-auto mb-2" />
                 <p className="text-ink-muted">No completed tasks yet</p>
                 <p className="text-sm text-ink-light mt-1">
-                  Task history will appear here once Wilfred has run his scheduled tasks.
+                  Task history will appear here once {agentName} has run his scheduled tasks.
                 </p>
               </div>
             ) : (

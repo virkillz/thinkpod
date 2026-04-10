@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, MessageCircle, HelpCircle, Lightbulb } from 'lucide-react'
+import { useAppStore } from '../../store/appStore.js'
 
 interface Comment {
   id: number
@@ -16,6 +17,7 @@ interface CommentPanelProps {
 }
 
 export function CommentPanel({ filePath }: CommentPanelProps) {
+  const { agentName } = useAppStore()
   const [comments, setComments] = useState<Comment[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -79,7 +81,7 @@ export function CommentPanel({ filePath }: CommentPanelProps) {
         <div className="flex items-center gap-2">
           <MessageCircle className="w-4 h-4 text-accent" />
           <span className="font-medium text-sm text-ink-primary">
-            Wilfred's Comments
+            {agentName}'s Comments
           </span>
         </div>
         <span className="text-xs text-ink-muted">{comments.length}</span>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Inbox, FileText } from 'lucide-react'
+import { useAppStore } from '../../store/appStore.js'
 
 interface Draft {
   name: string
@@ -8,6 +9,7 @@ interface Draft {
 }
 
 export function DraftsView() {
+  const { agentName } = useAppStore()
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null)
   const [content, setContent] = useState('')
@@ -91,7 +93,7 @@ export function DraftsView() {
             </h3>
             <p className="text-ink-muted max-w-md mx-auto mb-4">
               Drop files into the <code className="text-accent">_drafts/</code> folder in your workspace.
-              Wilfred will triage them automatically.
+              {agentName} will triage them automatically.
             </p>
           </div>
         ) : (
