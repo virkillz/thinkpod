@@ -109,10 +109,48 @@ export class DatabaseManager {
       )
     `)
 
+    // Cognitive jobs (system-managed, seeded from code)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS cognitive_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        schedule TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1,
+        last_run_at INTEGER,
+        last_run_status TEXT,
+        last_run_summary TEXT,
+        created_at INTEGER
+      )
+    `)
+
+    this.seedCognitiveJobs()
+
     // Create default schedules if none exist
     const count = this.db.prepare('SELECT COUNT(*) as count FROM schedules').get() as { count: number }
     if (count.count === 0) {
       this.createDefaultSchedules()
+    }
+  }
+
+  private seedCognitiveJobs(): void {
+    const COGNITIVE_JOBS = [
+      { name: 'process_new_files', schedule: '*/30 * * * *' },
+      { name: 'note_review', schedule: '0 4 * * *' },
+      { name: 'question_vault_hunt', schedule: '0 2 * * *' },
+      { name: 'question_web_hunt', schedule: '0 3 * * *' },
+      { name: 'know_your_human', schedule: '0 5 * * *' },
+      { name: 'random_insight', schedule: '0 8,14,20 * * *' },
+      { name: 'inspiration_search', schedule: '0 10 * * 1,3,5' },
+      { name: 'inspiration_to_plan', schedule: '0 9 * * 1' },
+      { name: 'synthesize_week', schedule: '0 21 * * 0' },
+    ]
+    const stmt = this.db.prepare(`
+      INSERT OR IGNORE INTO cognitive_jobs (name, schedule, is_active, created_at)
+      VALUES (?, ?, 1, ?)
+    `)
+    const now = Date.now()
+    for (const job of COGNITIVE_JOBS) {
+      stmt.run(job.name, job.schedule, now)
     }
   }
 
@@ -441,6 +479,54 @@ export class DatabaseManager {
 
   touchChatSession(sessionId: string): void {
     this.db.prepare('UPDATE chat_sessions SET last_message_at = ? WHERE id = ?').run(Date.now(), sessionId)
+  }
+
+  // Cognitive jobs
+  getCognitiveJobs(): Array<{
+    id: number
+    name: string
+    schedule: string
+    is_active: number
+    last_run_at: number | null
+    last_run_status: string | null
+    last_run_summary: string | null
+  }> {
+    return this.db.prepare(`
+      SELECT id, name, schedule, is_active, last_run_at, last_run_status, last_run_summary
+      FROM cognitive_jobs ORDER BY id ASC
+    `).all() as Array<{
+      id: number
+      name: string
+      schedule: string
+      is_active: number
+      last_run_at: number | null
+      last_run_status: string | null
+      last_run_summary: string | null
+    }>
+  }
+
+  updateCognitiveJobRun(
+    name: string,
+    status: 'done' | 'error' | 'skipped',
+    summary: string
+  ): void {
+    this.db.prepare(`
+      UPDATE cognitive_jobs
+      SET last_run_at = ?, last_run_status = ?, last_run_summary = ?
+      WHERE name = ?
+    `).run(Date.now(), status, summary, name)
+  }
+
+  toggleCognitiveJob(name: string, isActive: boolean): void {
+    this.db.prepare(`
+      UPDATE cognitive_jobs SET is_active = ? WHERE name = ?
+    `).run(isActive ? 1 : 0, name)
+  }
+
+  updateCognitiveJobSchedule(name: string, schedule: string): void {
+    this.db.prepare(`
+      UPDATE cognitive_jobs SET schedule = ? WHERE name = ?
+    `).run(schedule, name)
   }
 
   close(): void {

@@ -66,6 +66,12 @@ const IPC_CHANNELS = {
   WHISPER_AUDIO_CHUNK: 'whisper:audio-chunk',
   PUSH_VOICE_DOWNLOAD_PROGRESS: 'push:voice-download-progress',
   PUSH_VOICE_TRANSCRIPT: 'push:voice-transcript',
+  COGNITIVE_JOB_LIST: 'cognitive:list',
+  COGNITIVE_JOB_TRIGGER: 'cognitive:trigger',
+  COGNITIVE_JOB_DRY_RUN: 'cognitive:dry-run',
+  COGNITIVE_JOB_TOGGLE: 'cognitive:toggle',
+  COGNITIVE_JOB_EDIT_SCHEDULE: 'cognitive:edit-schedule',
+  PUSH_COGNITIVE_JOB_PROGRESS: 'push:cognitive-job-progress',
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -187,5 +193,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onChatToolUse: (callback: (data: { sessionId: string; toolName: string; args: Record<string, unknown> }) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PUSH_CHAT_TOOL_USE, (_, data) => callback(data))
     return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_CHAT_TOOL_USE)
+  },
+
+  // Cognitive jobs
+  listCognitiveJobs: () => ipcRenderer.invoke(IPC_CHANNELS.COGNITIVE_JOB_LIST),
+  triggerCognitiveJob: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.COGNITIVE_JOB_TRIGGER, name),
+  dryRunCognitiveJob: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.COGNITIVE_JOB_DRY_RUN, name),
+  toggleCognitiveJob: (name: string, isActive: boolean) => ipcRenderer.invoke(IPC_CHANNELS.COGNITIVE_JOB_TOGGLE, name, isActive),
+  editCognitiveJobSchedule: (name: string, schedule: string) => ipcRenderer.invoke(IPC_CHANNELS.COGNITIVE_JOB_EDIT_SCHEDULE, name, schedule),
+  onCognitiveJobProgress: (callback: (data: { name: string; step: number; total: number }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_COGNITIVE_JOB_PROGRESS, (_, data) => callback(data))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_COGNITIVE_JOB_PROGRESS)
   },
 })

@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/appStore.js'
 import { MarkdownEditor } from '../codex/MarkdownEditor.js'
 import { MarkdownPreview } from '../codex/MarkdownPreview.js'
 import { CommentPanel } from '../codex/CommentPanel.js'
-import { FileText, Sparkles, X, Loader2, AlertTriangle, Eye, Pencil, Save } from 'lucide-react'
+import { FileText, Sparkles, X, Loader2, AlertTriangle, Eye, Pencil, Save, RefreshCw } from 'lucide-react'
 
 type EditMode = 'replace' | 'append'
 
@@ -85,6 +85,19 @@ export function NotesView() {
     } catch (error) {
       console.error('Failed to save file:', error)
       setSaveStatus('idle')
+    }
+  }
+
+  const handleReload = async () => {
+    if (!selectedFile) return
+    setIsLoading(true)
+    try {
+      const result = await window.electronAPI.readFile(selectedFile)
+      setFileContent(result.content)
+    } catch (error) {
+      console.error('Failed to reload file:', error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -178,6 +191,17 @@ export function NotesView() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Refresh button */}
+            <button
+              onClick={handleReload}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-parchment-card border border-parchment-dark text-ink-secondary hover:text-ink-primary hover:border-accent/50 transition-colors disabled:opacity-50"
+              title="Reload file from disk"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </button>
+
             {/* View/Edit Toggle */}
             <div className="flex rounded-lg border border-parchment-dark overflow-hidden">
               <button

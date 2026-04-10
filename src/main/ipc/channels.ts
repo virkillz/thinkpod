@@ -67,6 +67,14 @@ export const IPC_CHANNELS = {
   TOOLS_GET_CONFIG: 'tools:get-config',
   TOOLS_SET_CONFIG: 'tools:set-config',
 
+  // Cognitive jobs (system scheduler)
+  COGNITIVE_JOB_LIST: 'cognitive:list',
+  COGNITIVE_JOB_TRIGGER: 'cognitive:trigger',
+  COGNITIVE_JOB_DRY_RUN: 'cognitive:dry-run',
+  COGNITIVE_JOB_TOGGLE: 'cognitive:toggle',
+  COGNITIVE_JOB_EDIT_SCHEDULE: 'cognitive:edit-schedule',
+  PUSH_COGNITIVE_JOB_PROGRESS: 'push:cognitive-job-progress',
+
   // Vault reset
   VAULT_RESET: 'vault:reset',
 

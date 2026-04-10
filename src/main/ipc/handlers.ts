@@ -13,6 +13,33 @@ import { Scheduler } from '../scheduler/Scheduler.js'
 import { WhisperManager, WHISPER_MODELS, type VoiceConfig } from '../whisper/WhisperManager.js'
 import { getToolMetas, DEFAULT_TOOLS_CONFIG } from '../agent/tools/index.js'
 import { VoiceCaptureService } from '../whisper/VoiceCaptureService.js'
+import { CognitiveRunner } from '../agent/CognitiveRunner.js'
+import { AgentVaultManager } from '../agent_vault/AgentVaultManager.js'
+import { run as runProcessNewFiles, type CognitiveJobContext, type JobResult } from '../cognitive_jobs/ProcessNewFilesJob.js'
+
+// ── Cognitive job helpers ─────────────────────────────────────────────────────
+
+async function buildCognitiveContext(dbManager: DatabaseManager): Promise<{ runner: CognitiveRunner; manager: AgentVaultManager }> {
+  const vaultManager = getVaultManager()
+  if (!vaultManager) throw new Error('Vault not open')
+
+  const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+  if (!llmConfig?.baseUrl || !llmConfig?.model) throw new Error('LLM not configured')
+
+  const manager = new AgentVaultManager(vaultManager.vaultPath)
+  await manager.initialize()
+
+  const runner = new CognitiveRunner(llmConfig)
+  return { runner, manager }
+}
+
+async function runCognitiveJob(name: string, ctx: CognitiveJobContext): Promise<JobResult | null> {
+  if (name === 'process_new_files') return runProcessNewFiles(ctx)
+  // Other jobs will be added in later phases
+  return null
+}
+
+// ── Agent state ───────────────────────────────────────────────────────────────
 
 // Agent state
 let llmProcessManager: LLMProcessManager | null = null
@@ -1075,6 +1102,62 @@ export function setupIpcHandlers(
     try {
       dbManager.deleteTask(id)
       return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // ── Cognitive Jobs ─────────────────────────────────────────────────────────
+
+  // List all cognitive jobs with their current DB state
+  ipcMain.handle(IPC_CHANNELS.COGNITIVE_JOB_LIST, async () => {
+    return dbManager.getCognitiveJobs()
+  })
+
+  // Toggle a cognitive job on/off
+  ipcMain.handle(IPC_CHANNELS.COGNITIVE_JOB_TOGGLE, async (_, name: string, isActive: boolean) => {
+    try {
+      dbManager.toggleCognitiveJob(name, isActive)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Update the cron schedule of a cognitive job
+  ipcMain.handle(IPC_CHANNELS.COGNITIVE_JOB_EDIT_SCHEDULE, async (_, name: string, schedule: string) => {
+    try {
+      dbManager.updateCognitiveJobSchedule(name, schedule)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Run a cognitive job now (production run)
+  ipcMain.handle(IPC_CHANNELS.COGNITIVE_JOB_TRIGGER, async (_, name: string) => {
+    try {
+      const { runner, manager } = await buildCognitiveContext(dbManager)
+      const result = await runCognitiveJob(name, { agentVaultManager: manager, cognitiveRunner: runner })
+      if (result) {
+        const status = result.errors > 0 ? 'error' : 'done'
+        dbManager.updateCognitiveJobRun(name, status, `processed:${result.processed} skipped:${result.skipped} errors:${result.errors}`)
+        return { success: true, result }
+      }
+      return { success: false, error: `Unknown job: ${name}` }
+    } catch (error) {
+      dbManager.updateCognitiveJobRun(name, 'error', (error as Error).message)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Dry-run a cognitive job — real LLM calls, no writes, returns preview
+  ipcMain.handle(IPC_CHANNELS.COGNITIVE_JOB_DRY_RUN, async (_, name: string) => {
+    try {
+      const { runner, manager } = await buildCognitiveContext(dbManager)
+      const result = await runCognitiveJob(name, { agentVaultManager: manager, cognitiveRunner: runner, dryRun: true })
+      if (result) return { success: true, result }
+      return { success: false, error: `Unknown job: ${name}` }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }

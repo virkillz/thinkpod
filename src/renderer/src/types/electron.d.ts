@@ -134,6 +134,20 @@ export interface ElectronAPI {
   updateTask: (id: number, name: string, prompt: string, runAt: number | null) => Promise<{ success: boolean; error?: string }>
   deleteTask: (id: number) => Promise<{ success: boolean; error?: string }>
 
+  // Cognitive Jobs
+  listCognitiveJobs: () => Promise<Array<{
+    id: number
+    name: string
+    schedule: string
+    is_active: number
+    last_run_at: number | null
+    last_run_status: string | null
+    last_run_summary: string | null
+  }>>
+  triggerCognitiveJob: (name: string) => Promise<{ success: boolean; result?: unknown; error?: string }>
+  dryRunCognitiveJob: (name: string) => Promise<{ success: boolean; result?: unknown; error?: string }>
+  toggleCognitiveJob: (name: string, isActive: boolean) => Promise<{ success: boolean; error?: string }>
+
   // App
   getAppVersion: () => Promise<string>
   selectUserImage: () => Promise<string | null>
