@@ -8,7 +8,7 @@ import { DraftsView } from '../views/DraftsView.js'
 import { NewDraftView } from '../views/NewDraftView.js'
 import { AgentsView } from '../views/AgentsView.js'
 import { SettingsView } from '../views/SettingsView.js'
-import { WilfredFAB } from './WilfredFAB.js'
+import { AgentFAB } from './AgentFAB.js'
 
 export function MainShell() {
   const { currentView, refreshFileTree, setTheme, setCurrentView, setAgentProfile } = useAppStore()
@@ -66,7 +66,7 @@ export function MainShell() {
       <Sidebar />
       <main className="flex-1 relative overflow-hidden">
         {renderView()}
-        <WilfredFAB />
+        <AgentFAB />
       </main>
     </div>
   )
