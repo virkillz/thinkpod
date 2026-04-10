@@ -165,3 +165,8 @@ export const TOOL_DEFINITIONS = [
 ] as const
 
 export type ToolName = typeof TOOL_DEFINITIONS[number]['function']['name']
+
+// Tool definitions for chat agents — excludes finish_task (chat ends naturally)
+export const CHAT_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter(
+  t => t.function.name !== 'finish_task'
+)

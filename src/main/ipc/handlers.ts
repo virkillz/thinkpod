@@ -8,6 +8,7 @@ import { getMainWindow, getAbbeyManager, initAbbeyManager } from '../index.js'
 import { LLMProcessManager } from '../agent/LLMProcessManager.js'
 import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
 import { LLMClient } from '../agent/LLMClient.js'
+import { ChatAgent, InvocationType } from '../agent/ChatAgent.js'
 import { Scheduler } from '../scheduler/Scheduler.js'
 import { WhisperManager, WHISPER_MODELS, type VoiceConfig } from '../whisper/WhisperManager.js'
 import { VoiceCaptureService } from '../whisper/VoiceCaptureService.js'
@@ -16,6 +17,9 @@ import { VoiceCaptureService } from '../whisper/VoiceCaptureService.js'
 let llmProcessManager: LLMProcessManager | null = null
 let currentAgentLoop: AgentLoop | null = null
 let scheduler: Scheduler | null = null
+
+// Chat sessions — keyed by sessionId so the renderer can hold the handle
+const activeChatAgents = new Map<string, ChatAgent>()
 
 // Whisper state
 let whisperManager: WhisperManager | null = null
@@ -141,13 +145,18 @@ export function setupIpcHandlers(
         dbManager.setSetting('agentProfile', {
           name: 'Wilfred',
           avatar: '✦',
-          systemPrompt: `You are Wilfred, a diligent monk in the Scriptorium. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
+          systemPrompt: `You are Wilfred, a note taking assistant. 
+          Your purpose is to organise notes and knowledge. You help 
+          to edit notes to make it more structured, you ask for missing information,
+          you help research on the internet via tools, and organize notes.
 
-Your character:
-- Methodical. You work through tasks step by step.
-- Humble. When you do not know where something belongs, you ask.
-- Brief. Your epistles are clear and concise — a monk does not ramble.
-- Faithful. You do exactly what the Rule asks, no more, no less.`,
+          Your character:
+          - Methodical. You work through tasks step by step.
+          - Humble. When you do not know where something belongs, you ask.
+          - Brief. Your epistles are clear and concise — a monk does not ramble.
+          - Eiger. You want to do things. With tools, instead of talking. 
+          - Diligent. You persistent to achieve your goal.
+          - Initiative. You can interprete intent and execute without too much ask for clarification.`,
         })
       }
 
@@ -209,13 +218,18 @@ Your character:
         dbManager.setSetting('agentProfile', {
           name: 'Wilfred',
           avatar: '✦',
-          systemPrompt: `You are Wilfred, a diligent monk in the Scriptorium. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
+          systemPrompt: `You are Wilfred, a note taking assistant. 
+          Your purpose is to organise notes and knowledge. You help 
+          to edit notes to make it more structured, you ask for missing information,
+          you help research on the internet via tools, and organize notes.
 
-Your character:
-- Methodical. You work through tasks step by step.
-- Humble. When you do not know where something belongs, you ask.
-- Brief. Your epistles are clear and concise — a monk does not ramble.
-- Faithful. You do exactly what the Rule asks, no more, no less.`,
+          Your character:
+          - Methodical. You work through tasks step by step.
+          - Humble. When you do not know where something belongs, you ask.
+          - Brief. Your epistles are clear and concise — a monk does not ramble.
+          - Eiger. You want to do things. With tools, instead of talking. 
+          - Diligent. You persistent to achieve your goal.
+          - Initiative. You can interprete intent and execute without too much ask for clarification.`,
         })
       }
 
@@ -498,7 +512,7 @@ Your character:
     }
 
     const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; avatar?: string; systemPrompt?: string } | null
-    const persona = agentProfile?.systemPrompt ?? 'You are Wilfred, a diligent monk in the Scriptorium.'
+    const persona = agentProfile?.systemPrompt ?? 'You are Wilfred, a note taking assistant'
 
     currentAgentLoop = new AgentLoop(
       {
@@ -536,7 +550,7 @@ Your character:
     }
 
     const agentProfileChat = dbManager.getSetting('agentProfile') as { name?: string; avatar?: string; systemPrompt?: string } | null
-    const persona = agentProfileChat?.systemPrompt ?? 'You are Wilfred, a diligent monk in the Scriptorium. Respond briefly and in character.'
+    const persona = agentProfileChat?.systemPrompt ?? 'You are Wilfred, a note taking assistant. Respond briefly and in character.'
 
     try {
       const client = new LLMClient(llmConfig)
@@ -548,6 +562,85 @@ Your character:
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }
+  })
+
+  // Agent: Open or resume a chat session
+  ipcMain.handle(
+    IPC_CHANNELS.AGENT_CHAT_OPEN,
+    async (_, contextType: InvocationType, contextKey: string, filePath?: string) => {
+      const abbey = getAbbeyManager()
+      if (!abbey) return { success: false, error: 'No abbey initialized' }
+
+      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      if (!llmConfig) return { success: false, error: 'LLM not configured' }
+
+      const agentProfile = dbManager.getSetting('agentProfile') as { systemPrompt?: string } | null
+      const persona = agentProfile?.systemPrompt ?? 'You are a diligent assistant in the Scriptorium.'
+
+      try {
+        const { agent, sessionId, history } = await ChatAgent.open(
+          { abbeyPath: abbey.abbeyPath, dbManager, llmConfig, persona },
+          contextType,
+          contextKey,
+          filePath
+        )
+        activeChatAgents.set(sessionId, agent)
+        return { success: true, sessionId, history }
+      } catch (error) {
+        return { success: false, error: (error as Error).message }
+      }
+    }
+  )
+
+  // Agent: Send a chat message on an existing session
+  ipcMain.handle(IPC_CHANNELS.AGENT_CHAT_SEND, async (_, sessionId: string, message: string) => {
+    const agent = activeChatAgents.get(sessionId)
+    if (!agent) return { success: false, error: 'Session not found' }
+
+    try {
+      dbManager.touchChatSession(sessionId)
+      const { content, toolCallCount } = await agent.send(message, (toolName, args) => {
+        pushToRenderer(IPC_CHANNELS.PUSH_CHAT_TOOL_USE, { sessionId, toolName, args })
+      })
+      return { success: true, content, toolCallCount }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Agent: Clear session and start fresh for the same context
+  ipcMain.handle(
+    IPC_CHANNELS.AGENT_CHAT_NEW,
+    async (_, contextType: InvocationType, contextKey: string, filePath?: string) => {
+      const abbey = getAbbeyManager()
+      if (!abbey) return { success: false, error: 'No abbey initialized' }
+
+      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      if (!llmConfig) return { success: false, error: 'LLM not configured' }
+
+      const agentProfile = dbManager.getSetting('agentProfile') as { systemPrompt?: string } | null
+      const persona = agentProfile?.systemPrompt ?? 'You are a diligent assistant in the Scriptorium.'
+
+      try {
+        const { agent, sessionId } = await ChatAgent.openFresh(
+          { abbeyPath: abbey.abbeyPath, dbManager, llmConfig, persona },
+          contextType,
+          contextKey,
+          filePath
+        )
+        activeChatAgents.set(sessionId, agent)
+        return { success: true, sessionId }
+      } catch (error) {
+        return { success: false, error: (error as Error).message }
+      }
+    }
+  )
+
+  // Agent: Get the composed system prompt for a session (read-only, for UI display)
+  ipcMain.handle(IPC_CHANNELS.AGENT_CHAT_GET_SYSTEM_PROMPT, async (_, sessionId: string) => {
+    const agent = activeChatAgents.get(sessionId)
+    if (!agent) return { success: false, error: 'Session not found' }
+    return { success: true, systemPrompt: agent.getSystemPrompt() }
   })
 
   // Agent: Abort task

@@ -25,6 +25,17 @@ export class ToolExecutor {
     this.context = context
   }
 
+  // Resolve a path argument from the LLM: absolute paths are used as-is,
+  // relative paths are joined to the abbey root.
+  private resolvePath(p: string): string {
+    if (path.isAbsolute(p)) {
+      // If the LLM gave a full absolute path that already starts with the abbey
+      // root, use it directly. Otherwise join (treating it as relative).
+      return p.startsWith(this.context.abbeyPath) ? p : path.join(this.context.abbeyPath, p)
+    }
+    return path.join(this.context.abbeyPath, p)
+  }
+
   async execute(toolCall: ToolCall): Promise<ToolResult> {
     const { name } = toolCall.function
     let args: Record<string, unknown>
@@ -57,7 +68,7 @@ export class ToolExecutor {
 
   private async readFile(args: { path: string }): Promise<ToolResult> {
     try {
-      const fullPath = path.join(this.context.abbeyPath, args.path)
+      const fullPath = this.resolvePath(args.path)
       const content = await fs.readFile(fullPath, 'utf-8')
       return { success: true, data: { content, path: args.path } }
     } catch (error) {
@@ -67,7 +78,7 @@ export class ToolExecutor {
 
   private async writeFile(args: { path: string; content: string }): Promise<ToolResult> {
     try {
-      const fullPath = path.join(this.context.abbeyPath, args.path)
+      const fullPath = this.resolvePath(args.path)
       await fs.mkdir(path.dirname(fullPath), { recursive: true })
       await fs.writeFile(fullPath, args.content, 'utf-8')
       return { success: true, data: { path: args.path } }
@@ -78,8 +89,8 @@ export class ToolExecutor {
 
   private async moveFile(args: { from: string; to: string }): Promise<ToolResult> {
     try {
-      const fromPath = path.join(this.context.abbeyPath, args.from)
-      const toPath = path.join(this.context.abbeyPath, args.to)
+      const fromPath = this.resolvePath(args.from)
+      const toPath = this.resolvePath(args.to)
       await fs.mkdir(path.dirname(toPath), { recursive: true })
       await fs.rename(fromPath, toPath)
       return { success: true, data: { from: args.from, to: args.to } }
@@ -90,7 +101,7 @@ export class ToolExecutor {
 
   private async listFiles(args: { path: string; pattern?: string }): Promise<ToolResult> {
     try {
-      const fullPath = path.join(this.context.abbeyPath, args.path)
+      const fullPath = this.resolvePath(args.path)
       const entries = await fs.readdir(fullPath, { withFileTypes: true })
       
       const files = entries

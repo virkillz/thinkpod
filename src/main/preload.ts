@@ -26,6 +26,10 @@ const IPC_CHANNELS = {
   AGENT_ABORT_TASK: 'agent:abort-task',
   AGENT_GET_TASKS: 'agent:get-tasks',
   AGENT_CHAT: 'agent:chat',
+  AGENT_CHAT_OPEN: 'agent:chat-open',
+  AGENT_CHAT_SEND: 'agent:chat-send',
+  AGENT_CHAT_NEW: 'agent:chat-new',
+  AGENT_CHAT_GET_SYSTEM_PROMPT: 'agent:chat-get-system-prompt',
   INBOX_LIST: 'inbox:list',
   INBOX_READ: 'inbox:read',
   INBOX_MARK_READ: 'inbox:mark-read',
@@ -35,6 +39,7 @@ const IPC_CHANNELS = {
   APP_GET_VERSION: 'app:get-version',
   PUSH_TASK_UPDATE: 'push:task-update',
   PUSH_TASK_END: 'push:task-end',
+  PUSH_CHAT_TOOL_USE: 'push:chat-tool-use',
   WHISPER_GET_CONFIG: 'whisper:get-config',
   WHISPER_SET_CONFIG: 'whisper:set-config',
   WHISPER_DOWNLOAD_MODEL: 'whisper:download-model',
@@ -87,6 +92,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   abortAgentTask: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_ABORT_TASK),
   getAgentTasks: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_GET_TASKS),
   agentChat: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_CHAT, message),
+  agentChatOpen: (contextType: string, contextKey: string, filePath?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_CHAT_OPEN, contextType, contextKey, filePath),
+  agentChatSend: (sessionId: string, message: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_CHAT_SEND, sessionId, message),
+  agentChatNew: (contextType: string, contextKey: string, filePath?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_CHAT_NEW, contextType, contextKey, filePath),
+  agentChatGetSystemPrompt: (sessionId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_CHAT_GET_SYSTEM_PROMPT, sessionId),
 
   // Inbox
   listInbox: () => ipcRenderer.invoke(IPC_CHANNELS.INBOX_LIST),
@@ -127,5 +140,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onVoiceTranscript: (callback: (data: { text: string; isFinal: boolean }) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PUSH_VOICE_TRANSCRIPT, (_, data) => callback(data))
     return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_VOICE_TRANSCRIPT)
+  },
+  onChatToolUse: (callback: (data: { sessionId: string; toolName: string; args: Record<string, unknown> }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_CHAT_TOOL_USE, (_, data) => callback(data))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_CHAT_TOOL_USE)
   },
 })

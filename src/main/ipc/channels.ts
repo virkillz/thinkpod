@@ -33,6 +33,10 @@ export const IPC_CHANNELS = {
   AGENT_ABORT_TASK: 'agent:abort-task',
   AGENT_GET_TASKS: 'agent:get-tasks',
   AGENT_CHAT: 'agent:chat',
+  AGENT_CHAT_OPEN: 'agent:chat-open',
+  AGENT_CHAT_SEND: 'agent:chat-send',
+  AGENT_CHAT_NEW: 'agent:chat-new',
+  AGENT_CHAT_GET_SYSTEM_PROMPT: 'agent:chat-get-system-prompt',
 
   // Inbox
   INBOX_LIST: 'inbox:list',
@@ -63,6 +67,7 @@ export const IPC_CHANNELS = {
   // Push (main → renderer)
   PUSH_TASK_UPDATE: 'push:task-update',
   PUSH_TASK_END: 'push:task-end',
+  PUSH_CHAT_TOOL_USE: 'push:chat-tool-use',
   PUSH_VOICE_DOWNLOAD_PROGRESS: 'push:voice-download-progress',
   PUSH_VOICE_TRANSCRIPT: 'push:voice-transcript',
 } as const

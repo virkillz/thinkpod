@@ -69,6 +69,15 @@ export interface ElectronAPI {
     summary: string
   }>>
   agentChat: (message: string) => Promise<{ success: boolean; content?: string; error?: string }>
+  agentChatOpen: (contextType: string, contextKey: string, filePath?: string) => Promise<{
+    success: boolean
+    sessionId?: string
+    history?: ChatMessage[]
+    error?: string
+  }>
+  agentChatSend: (sessionId: string, message: string) => Promise<{ success: boolean; content?: string; toolCallCount?: number; error?: string }>
+  agentChatNew: (contextType: string, contextKey: string, filePath?: string) => Promise<{ success: boolean; sessionId?: string; error?: string }>
+  agentChatGetSystemPrompt: (sessionId: string) => Promise<{ success: boolean; systemPrompt?: string; error?: string }>
 
   // Inbox
   listInbox: () => Promise<Array<{
@@ -116,6 +125,13 @@ export interface ElectronAPI {
   onTaskEnd: (callback: (run: TaskRun) => void) => () => void
   onVoiceDownloadProgress: (callback: (data: { modelName: string; progress: number }) => void) => () => void
   onVoiceTranscript: (callback: (data: { text: string; isFinal: boolean }) => void) => () => void
+  onChatToolUse: (callback: (data: { sessionId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  ts: number
 }
 
 interface VoiceConfig {

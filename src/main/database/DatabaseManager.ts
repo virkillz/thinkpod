@@ -69,6 +69,18 @@ export class DatabaseManager {
       )
     `)
 
+    // Chat sessions — one per (context_type, context_key) pair
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS chat_sessions (
+        id TEXT PRIMARY KEY,
+        context_type TEXT NOT NULL,
+        context_key TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_message_at INTEGER NOT NULL,
+        UNIQUE(context_type, context_key)
+      )
+    `)
+
     // Schedules (automated tasks)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS schedules (
@@ -307,6 +319,35 @@ export class DatabaseManager {
       status: string
       summary: string
     }>
+  }
+
+  // Chat sessions
+  getOrCreateChatSession(contextType: string, contextKey: string): { id: string; isNew: boolean } {
+    const existing = this.db.prepare(
+      'SELECT id FROM chat_sessions WHERE context_type = ? AND context_key = ?'
+    ).get(contextType, contextKey) as { id: string } | undefined
+
+    if (existing) return { id: existing.id, isNew: false }
+
+    const id = crypto.randomUUID()
+    const now = Date.now()
+    this.db.prepare(
+      'INSERT INTO chat_sessions (id, context_type, context_key, created_at, last_message_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, contextType, contextKey, now, now)
+    return { id, isNew: true }
+  }
+
+  replaceChatSession(contextType: string, contextKey: string): string {
+    const id = crypto.randomUUID()
+    const now = Date.now()
+    this.db.prepare(
+      'INSERT OR REPLACE INTO chat_sessions (id, context_type, context_key, created_at, last_message_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, contextType, contextKey, now, now)
+    return id
+  }
+
+  touchChatSession(sessionId: string): void {
+    this.db.prepare('UPDATE chat_sessions SET last_message_at = ? WHERE id = ?').run(Date.now(), sessionId)
   }
 
   close(): void {
