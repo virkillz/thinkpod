@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PenLine } from 'lucide-react'
 import { CaptureSheet } from './CaptureSheet.js'
+import { useAppStore } from '../../store/appStore.js'
 
 interface InkwellButtonProps {
   compact?: boolean
@@ -8,6 +9,7 @@ interface InkwellButtonProps {
 
 export function InkwellButton({ compact }: InkwellButtonProps) {
   const [isCaptureOpen, setIsCaptureOpen] = useState(false)
+  const { setCurrentView } = useAppStore()
 
   return (
     <>
@@ -21,9 +23,10 @@ export function InkwellButton({ compact }: InkwellButtonProps) {
         {!compact && <span>New Folio</span>}
       </button>
 
-      <CaptureSheet 
-        isOpen={isCaptureOpen} 
-        onClose={() => setIsCaptureOpen(false)} 
+      <CaptureSheet
+        isOpen={isCaptureOpen}
+        onClose={() => setIsCaptureOpen(false)}
+        onOpenSettings={() => setCurrentView('rule')}
       />
     </>
   )

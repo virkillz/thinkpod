@@ -89,10 +89,12 @@ export function setupIpcHandlers(
     return { success: true }
   })
 
-  // Whisper: Stop capture
+  // Whisper: Stop capture — await queue so all pending transcriptions finish
   ipcMain.handle(IPC_CHANNELS.WHISPER_STOP_CAPTURE, async () => {
-    voiceCaptureService?.stop()
-    voiceCaptureService = null
+    if (voiceCaptureService) {
+      await voiceCaptureService.stop()
+      voiceCaptureService = null
+    }
     return { success: true }
   })
 
@@ -301,8 +303,9 @@ Your character:
     if (!abbey) {
       throw new Error('No abbey initialized')
     }
-    
+
     const fullPath = path.join(abbey.abbeyPath, filePath)
+    await fs.mkdir(path.dirname(fullPath), { recursive: true })
     await fs.writeFile(fullPath, content, 'utf-8')
     return { success: true }
   })

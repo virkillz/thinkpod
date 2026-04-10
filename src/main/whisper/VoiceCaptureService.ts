@@ -1,19 +1,43 @@
 import { EventEmitter } from 'events'
 import path from 'path'
 import fs from 'fs/promises'
+import { existsSync } from 'fs'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { tmpdir } from 'os'
-import { app } from 'electron'
 import type { WhisperManager } from './WhisperManager.js'
 
-// nodejs-whisper ships CommonJS; import dynamically to avoid ESM issues
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let nodeWhisper: any = null
+const execFileAsync = promisify(execFile)
 
-async function getNodeWhisper() {
-  if (!nodeWhisper) {
-    nodeWhisper = await import('nodejs-whisper')
+// Cache the path to whisper-cli so we only search once
+let whisperCliPath: string | null = null
+
+async function findWhisperCli(): Promise<string> {
+  if (whisperCliPath) return whisperCliPath
+
+  // Get WHISPER_CPP_PATH from nodejs-whisper's bundled constants
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const constants = await import('nodejs-whisper/dist/constants.js') as any
+  const cppPath: string = constants.WHISPER_CPP_PATH ?? constants.default?.WHISPER_CPP_PATH
+  if (!cppPath) throw new Error('Could not resolve WHISPER_CPP_PATH from nodejs-whisper')
+
+  const execName = process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli'
+  const candidates = [
+    path.join(cppPath, 'build', 'bin', execName),
+    path.join(cppPath, 'build', 'bin', 'Release', execName),
+    path.join(cppPath, 'build', execName),
+    path.join(cppPath, execName),
+  ]
+
+  for (const p of candidates) {
+    if (existsSync(p)) {
+      console.log('[VoiceCaptureService] Found whisper-cli at:', p)
+      whisperCliPath = p
+      return p
+    }
   }
-  return nodeWhisper
+
+  throw new Error(`whisper-cli not found. Searched:\n  ${candidates.join('\n  ')}`)
 }
 
 interface TranscriptEvent {
@@ -47,6 +71,10 @@ export class VoiceCaptureService extends EventEmitter {
   private segmentTimer: ReturnType<typeof setTimeout> | null = null
   private hasSpeech = false
 
+  // Serialized transcription queue — prevents concurrent whisper-cli processes
+  // which would spike memory and produce out-of-order text
+  private transcriptionQueue: Promise<void> = Promise.resolve()
+
   constructor(whisperManager: WhisperManager) {
     super()
     this.whisperManager = whisperManager
@@ -54,13 +82,15 @@ export class VoiceCaptureService extends EventEmitter {
 
   start(): void {
     if (this.isRunning) return
+    console.log('[VoiceCaptureService] start()')
     this.isRunning = true
     this.speechBuffer = []
     this.hasSpeech = false
   }
 
-  stop(): void {
-    if (!this.isRunning) return
+  stop(): Promise<void> {
+    if (!this.isRunning) return this.transcriptionQueue
+    console.log('[VoiceCaptureService] stop() — buffer chunks:', this.speechBuffer.length)
     this.isRunning = false
     this.clearTimers()
 
@@ -68,18 +98,28 @@ export class VoiceCaptureService extends EventEmitter {
     if (this.speechBuffer.length > 0) {
       this.flushSegment(true)
     }
+
+    // Return the queue so callers can await all pending transcriptions
+    return this.transcriptionQueue
   }
 
   /**
    * Called from the IPC handler with each PCM chunk from the renderer's AudioWorklet.
    * chunks are Float32Array (16kHz mono).
    */
+  private _chunkCount = 0
+
   async handleAudioChunk(buffer: ArrayBuffer): Promise<void> {
     if (!this.isRunning) return
 
+    this._chunkCount++
     const samples = new Float32Array(buffer)
     const energy = rms(samples)
     const isSpeech = energy > SILENCE_THRESHOLD
+
+    if (this._chunkCount <= 3 || this._chunkCount % 100 === 0) {
+      console.log(`[VoiceCaptureService] chunk #${this._chunkCount} — energy: ${energy.toFixed(5)}, isSpeech: ${isSpeech}, hasSpeech: ${this.hasSpeech}, bufLen: ${this.speechBuffer.length}`)
+    }
 
     if (isSpeech) {
       // Clear silence timer — we have speech
@@ -119,31 +159,48 @@ export class VoiceCaptureService extends EventEmitter {
     if (this.segmentTimer) { clearTimeout(this.segmentTimer); this.segmentTimer = null }
   }
 
-  private async flushSegment(isFinal: boolean): Promise<void> {
+  private flushSegment(isFinal: boolean): void {
     if (this.speechBuffer.length === 0) return
 
     const chunks = this.speechBuffer.splice(0)
     this.hasSpeech = false
     this.clearTimers()
 
+    const totalSamples = chunks.reduce((n, c) => n + c.length, 0)
+    console.log(`[VoiceCaptureService] flushSegment — isFinal: ${isFinal}, chunks: ${chunks.length}, totalSamples: ${totalSamples} (~${(totalSamples / SAMPLE_RATE).toFixed(2)}s)`)
+
     // Emit a placeholder so the UI knows transcription is in progress
     this.emit('transcript', { text: '…', isFinal: false } as TranscriptEvent)
 
-    try {
-      const text = await this.transcribeChunks(chunks)
-      if (text.trim()) {
-        this.emit('transcript', { text: text.trim(), isFinal } as TranscriptEvent)
+    // Chain onto the queue so whisper-cli calls are serialized — one at a time
+    this.transcriptionQueue = this.transcriptionQueue.then(async () => {
+      try {
+        console.log('[VoiceCaptureService] Starting transcription...')
+        const text = await this.transcribeChunks(chunks)
+        console.log('[VoiceCaptureService] Transcription result:', JSON.stringify(text))
+        if (text.trim()) {
+          this.emit('transcript', { text: text.trim(), isFinal } as TranscriptEvent)
+        } else {
+          console.log('[VoiceCaptureService] Transcription returned empty text — nothing emitted')
+        }
+      } catch (err) {
+        console.error('[VoiceCaptureService] transcription error:', err)
       }
-    } catch (err) {
-      console.error('[VoiceCaptureService] transcription error:', err)
-    }
+    })
   }
 
   private async transcribeChunks(chunks: Float32Array[]): Promise<string> {
     const config = await this.whisperManager.getConfig()
+    console.log('[VoiceCaptureService] transcribeChunks — config:', config)
     if (!config) throw new Error('No voice model configured')
 
     const modelPath = this.whisperManager.getModelPath(config.modelName)
+    console.log('[VoiceCaptureService] modelPath:', modelPath)
+
+    // Verify the model file actually exists before attempting transcription
+    if (!existsSync(modelPath)) {
+      throw new Error(`Model file not found at: ${modelPath}`)
+    }
 
     // Combine all chunks into one Float32Array
     const totalLength = chunks.reduce((n, c) => n + c.length, 0)
@@ -154,29 +211,34 @@ export class VoiceCaptureService extends EventEmitter {
       offset += chunk.length
     }
 
-    // Write as a raw PCM WAV to a temp file for nodejs-whisper
     const wavPath = path.join(tmpdir(), `scriptorium-voice-${Date.now()}.wav`)
     await writeWav(wavPath, combined, SAMPLE_RATE)
 
     try {
-      const whisper = await getNodeWhisper()
-      // nodejs-whisper API: whisper(filePath, options) → string
-      const result = await whisper.nodewhisper(wavPath, {
-        modelName: config.modelName,
-        autoDownloadModelName: undefined,
-        whisperOptions: {
-          outputInText: true,
-          outputInVtt: false,
-          outputInSrt: false,
-          outputInCsv: false,
-          translateToEnglish: false,
-          language: config.language === 'en' ? 'en' : undefined,
-          wordTimestamps: false,
-          timestamps_length: 60,
-        },
-        modelPath,
-      })
-      return typeof result === 'string' ? result : ''
+      const cli = await findWhisperCli()
+      const lang = config.language === 'en' ? 'en' : 'auto'
+
+      console.log('[VoiceCaptureService] Running whisper-cli:', cli, '-m', modelPath, '-l', lang)
+
+      // Call whisper-cli directly so we control the model path.
+      // nodejs-whisper's nodewhisper() ignores the modelPath option and always
+      // looks in its own node_modules directory — this bypasses that.
+      const { stdout, stderr } = await execFileAsync(cli, [
+        '-m', modelPath,
+        '-f', wavPath,
+        '-l', lang,
+        '--no-prints',  // suppress progress output
+      ], { maxBuffer: 10 * 1024 * 1024 })
+
+      if (stderr) console.log('[VoiceCaptureService] whisper-cli stderr:', stderr)
+
+      // Strip timestamp brackets if present: [00:00:00.000 --> 00:00:02.360]
+      const text = stdout
+        .replace(/\[\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}\]\s*/g, '')
+        .trim()
+
+      console.log('[VoiceCaptureService] whisper-cli stdout (cleaned):', JSON.stringify(text))
+      return text
     } finally {
       await fs.unlink(wavPath).catch(() => {})
     }

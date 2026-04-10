@@ -1,19 +1,23 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { X, Mic, MicOff, Square } from 'lucide-react'
+import { X, Mic, MicOff, Square, Settings, ArrowRight } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
+import captureWorkletUrl from '../../audio/captureWorklet.js?url'
 
 interface CaptureSheetProps {
   isOpen: boolean
   onClose: () => void
+  onOpenSettings?: () => void
 }
 
 type VoiceState = 'idle' | 'listening' | 'stopping'
 
-export function CaptureSheet({ isOpen, onClose }: CaptureSheetProps) {
+export function CaptureSheet({ isOpen, onClose, onOpenSettings }: CaptureSheetProps) {
   const [content, setContent] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
   const [voiceConfigured, setVoiceConfigured] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [showVoiceInfo, setShowVoiceInfo] = useState(false)
   const [amplitude, setAmplitude] = useState<number[]>(Array(16).fill(0))
   const { refreshFileTree } = useAppStore()
 
@@ -29,6 +33,7 @@ export function CaptureSheet({ isOpen, onClose }: CaptureSheetProps) {
   useEffect(() => {
     if (!isOpen) return
     window.electronAPI.getWhisperConfig().then(({ config }) => {
+      console.log('[VoiceCapture] Whisper config:', config)
       setVoiceConfigured(config !== null)
     })
   }, [isOpen])
@@ -36,15 +41,11 @@ export function CaptureSheet({ isOpen, onClose }: CaptureSheetProps) {
   // Subscribe to streaming transcript push events
   useEffect(() => {
     const cleanup = window.electronAPI.onVoiceTranscript(({ text, isFinal }) => {
+      console.log('[VoiceCapture] Transcript received — isFinal:', isFinal, 'text:', JSON.stringify(text))
       if (text === '…') return // placeholder while processing
 
-      if (isFinal) {
-        transcriptBufRef.current += (transcriptBufRef.current ? ' ' : '') + text
-        setContent(transcriptBufRef.current)
-      } else {
-        // Partial — show inline without committing to the buffer
-        setContent(transcriptBufRef.current + (transcriptBufRef.current ? ' ' : '') + text)
-      }
+      transcriptBufRef.current += (transcriptBufRef.current ? ' ' : '') + text
+      setContent(transcriptBufRef.current)
     })
     return cleanup
   }, [])
@@ -118,16 +119,20 @@ export function CaptureSheet({ isOpen, onClose }: CaptureSheetProps) {
   }
 
   const startVoice = async () => {
+    console.log('[VoiceCapture] startVoice — requesting microphone...')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      console.log('[VoiceCapture] Got media stream, tracks:', stream.getTracks().map(t => `${t.kind}:${t.label}`))
       streamRef.current = stream
 
       const ctx = new AudioContext({ sampleRate: 16000 })
+      console.log('[VoiceCapture] AudioContext created, state:', ctx.state, 'sampleRate:', ctx.sampleRate)
       audioCtxRef.current = ctx
 
       // Load AudioWorklet
-      const workletUrl = new URL('../../audio/captureWorklet.ts', import.meta.url).href
-      await ctx.audioWorklet.addModule(workletUrl)
+      console.log('[VoiceCapture] Loading worklet from:', captureWorkletUrl)
+      await ctx.audioWorklet.addModule(captureWorkletUrl)
+      console.log('[VoiceCapture] Worklet module loaded')
 
       const source = ctx.createMediaStreamSource(stream)
 
@@ -140,21 +145,30 @@ export function CaptureSheet({ isOpen, onClose }: CaptureSheetProps) {
       workletNodeRef.current = workletNode
       source.connect(workletNode)
 
+      let chunkCount = 0
       // Forward PCM chunks to main process
       workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+        chunkCount++
+        if (chunkCount <= 3 || chunkCount % 50 === 0) {
+          console.log('[VoiceCapture] Sending audio chunk #', chunkCount, 'byteLength:', e.data.byteLength)
+        }
         window.electronAPI.sendAudioChunk(e.data)
       }
 
-      await window.electronAPI.startVoiceCapture()
+      console.log('[VoiceCapture] Calling startVoiceCapture IPC...')
+      const result = await window.electronAPI.startVoiceCapture()
+      console.log('[VoiceCapture] startVoiceCapture result:', result)
       setVoiceState('listening')
       startAmplitudeLoop(analyser)
     } catch (err) {
-      console.error('[CaptureSheet] Failed to start voice capture:', err)
+      console.error('[VoiceCapture] Failed to start voice capture:', err)
       setVoiceState('idle')
+      setVoiceError(err instanceof Error ? err.message : 'Failed to start recording')
     }
   }
 
   const stopVoice = async () => {
+    console.log('[VoiceCapture] stopVoice called')
     setVoiceState('stopping')
     stopAmplitudeLoop()
 
@@ -169,15 +183,22 @@ export function CaptureSheet({ isOpen, onClose }: CaptureSheetProps) {
     await audioCtxRef.current?.close()
     audioCtxRef.current = null
 
+    console.log('[VoiceCapture] Calling stopVoiceCapture IPC...')
     await window.electronAPI.stopVoiceCapture()
+    console.log('[VoiceCapture] stopVoiceCapture done')
     setVoiceState('idle')
   }
 
   const handleVoiceClick = () => {
+    console.log('[VoiceCapture] handleVoiceClick — voiceState:', voiceState, 'voiceConfigured:', voiceConfigured)
     if (voiceState === 'listening') {
       stopVoice()
     } else if (voiceState === 'idle' && voiceConfigured) {
+      setVoiceError(null)
       startVoice()
+    } else if (!voiceConfigured) {
+      console.log('[VoiceCapture] Voice not configured — showing info panel')
+      setShowVoiceInfo(true)
     }
   }
 
@@ -206,16 +227,22 @@ export function CaptureSheet({ isOpen, onClose }: CaptureSheetProps) {
           </button>
         </div>
 
-        {/* Waveform bar — only shown while listening */}
+        {/* Recording indicator — only shown while listening */}
         {isListening && (
-          <div className="flex items-center gap-0.5 px-6 pt-4">
-            {amplitude.map((v, i) => (
-              <div
-                key={i}
-                className="flex-1 bg-accent rounded-full transition-all duration-75"
-                style={{ height: `${Math.max(3, v * 32)}px` }}
-              />
-            ))}
+          <div className="flex items-center gap-3 px-6 pt-4">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+            </span>
+            <div className="flex items-end gap-0.5 flex-1" style={{ height: 32 }}>
+              {amplitude.map((v, i) => (
+                <div
+                  key={i}
+                  className="flex-1 bg-red-400 rounded-full transition-all duration-75"
+                  style={{ height: `${Math.max(3, v * 32)}px` }}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -234,24 +261,62 @@ export function CaptureSheet({ isOpen, onClose }: CaptureSheetProps) {
           />
         </div>
 
-        {/* Footer */}
+        {/* Error */}
+        {voiceError && (
+          <div className="px-6 py-2 text-sm text-red-600 bg-red-50 border-t border-red-100">
+            {voiceError}
+          </div>
+        )}
+
+        {/* Voice Info Panel - shown when clicking voice button without config */}
+        {showVoiceInfo && (
+          <div className="px-6 py-4 border-t border-parchment-dark bg-amber-50/50">
+            <div className="flex items-start gap-3">
+              <Settings className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-ink-primary">
+                  Voice capture is not configured. Download a Whisper model to enable offline dictation.
+                </p>
+                <button
+                  onClick={() => {
+                    setShowVoiceInfo(false)
+                    onClose()
+                    onOpenSettings?.()
+                  }}
+                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-hover transition-colors"
+                >
+                  Go to Rule → Voice
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+              <button
+                onClick={() => setShowVoiceInfo(false)}
+                className="p-1 text-ink-muted hover:text-ink-primary rounded transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Voice Capture Button */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-parchment-dark">
           <button
             onClick={handleVoiceClick}
-            disabled={!voiceConfigured || voiceState === 'stopping'}
+            disabled={voiceState === 'stopping'}
             title={
-              !voiceConfigured
-                ? 'Set up voice in Rule → Voice'
-                : isListening
+              isListening
                 ? 'Stop recording'
-                : 'Start voice capture'
+                : voiceConfigured
+                ? 'Start voice capture'
+                : 'Set up voice in Rule → Voice'
             }
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
               isListening
                 ? 'text-white bg-red-500 hover:bg-red-600'
                 : voiceConfigured
                 ? 'text-ink-muted hover:text-ink-primary hover:bg-parchment-sidebar'
-                : 'text-ink-light cursor-not-allowed'
+                : 'text-ink-muted hover:text-ink-primary hover:bg-parchment-sidebar'
             }`}
           >
             {isListening ? (

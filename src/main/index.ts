@@ -40,6 +40,10 @@ function createWindow(): void {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
+  mainWindow.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'media')
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
