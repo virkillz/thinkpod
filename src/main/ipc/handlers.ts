@@ -313,6 +313,56 @@ Your character:
     return { success: true }
   })
 
+  // Files: Move / rename
+  ipcMain.handle(IPC_CHANNELS.FILES_MOVE, async (_, from: string, to: string) => {
+    const abbey = getAbbeyManager()
+    if (!abbey) return { success: false, error: 'No abbey initialized' }
+
+    try {
+      const fullFrom = path.join(abbey.abbeyPath, from)
+      const fullTo = path.join(abbey.abbeyPath, to)
+
+      const stat = await fs.stat(fullFrom)
+      const isDirectory = stat.isDirectory()
+
+      await fs.mkdir(path.dirname(fullTo), { recursive: true })
+      await fs.rename(fullFrom, fullTo)
+
+      if (isDirectory) {
+        dbManager.renameFolder(from, to)
+      } else {
+        dbManager.renameFile(from, to)
+      }
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Files: Delete
+  ipcMain.handle(IPC_CHANNELS.FILES_DELETE, async (_, filePath: string) => {
+    const abbey = getAbbeyManager()
+    if (!abbey) return { success: false, error: 'No abbey initialized' }
+
+    try {
+      const fullPath = path.join(abbey.abbeyPath, filePath)
+      const stat = await fs.stat(fullPath)
+
+      if (stat.isDirectory()) {
+        await fs.rm(fullPath, { recursive: true, force: true })
+        dbManager.deleteFolder(filePath)
+      } else {
+        await fs.unlink(fullPath)
+        dbManager.deleteFile(filePath)
+      }
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Settings: Get
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, async (_, key: string) => {
     return dbManager.getSetting(key)

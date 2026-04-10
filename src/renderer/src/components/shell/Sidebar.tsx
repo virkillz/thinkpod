@@ -11,9 +11,9 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { id: 'notes', label: 'Notes', icon: BookOpen },
   { id: 'inbox', label: 'Inbox', icon: Mail, badge: 0 },
   { id: 'drafts', label: 'Drafts', icon: Inbox },
+  { id: 'notes', label: 'Notes', icon: BookOpen },
   { id: 'tasks', label: 'Tasks', icon: Clock },
   { id: 'schedule', label: 'Schedule', icon: Calendar },
 ]

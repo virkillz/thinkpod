@@ -174,6 +174,47 @@ export class DatabaseManager {
     `).run(Date.now(), id)
   }
 
+  // File management — path updates cascade to comments
+  renameFile(oldPath: string, newPath: string): void {
+    const newFolder = newPath.includes('/') ? newPath.slice(0, newPath.lastIndexOf('/')) : ''
+    this.db.transaction(() => {
+      this.db.prepare('UPDATE files SET path = ?, folder = ? WHERE path = ?').run(newPath, newFolder, oldPath)
+      this.db.prepare('UPDATE comments SET file_path = ? WHERE file_path = ?').run(newPath, oldPath)
+    })()
+  }
+
+  renameFolder(oldPrefix: string, newPrefix: string): void {
+    const affected = this.db.prepare(
+      'SELECT path FROM files WHERE path = ? OR path LIKE ?'
+    ).all(oldPrefix, `${oldPrefix}/%`) as { path: string }[]
+
+    const updateFile = this.db.prepare('UPDATE files SET path = ?, folder = ? WHERE path = ?')
+    const updateComments = this.db.prepare('UPDATE comments SET file_path = ? WHERE file_path = ?')
+
+    this.db.transaction(() => {
+      for (const { path: oldPath } of affected) {
+        const newPath = newPrefix + oldPath.slice(oldPrefix.length)
+        const newFolder = newPath.includes('/') ? newPath.slice(0, newPath.lastIndexOf('/')) : ''
+        updateFile.run(newPath, newFolder, oldPath)
+        updateComments.run(newPath, oldPath)
+      }
+    })()
+  }
+
+  deleteFile(filePath: string): void {
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM comments WHERE file_path = ?').run(filePath)
+      this.db.prepare('DELETE FROM files WHERE path = ?').run(filePath)
+    })()
+  }
+
+  deleteFolder(folderPath: string): void {
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM comments WHERE file_path = ? OR file_path LIKE ?').run(folderPath, `${folderPath}/%`)
+      this.db.prepare('DELETE FROM files WHERE path = ? OR path LIKE ?').run(folderPath, `${folderPath}/%`)
+    })()
+  }
+
   // Get recent files for abbey index
   getRecentFiles(limit: number = 20): Array<{
     path: string

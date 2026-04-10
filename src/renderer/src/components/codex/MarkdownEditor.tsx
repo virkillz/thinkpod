@@ -3,7 +3,6 @@ import { EditorView, keymap, lineNumbers } from '@codemirror/view'
 import { EditorState, Extension } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { oneDark } from '@codemirror/theme-one-dark'
 
 interface MarkdownEditorProps {
   content: string
@@ -26,7 +25,7 @@ export function MarkdownEditor({ content, onChange, onSave, filePath }: Markdown
     '.cm-content': {
       fontFamily: "'Lora', Georgia, serif",
       lineHeight: '1.7',
-      padding: '24px',
+      padding: '8px',
       maxWidth: '800px',
       margin: '0 auto',
     },
