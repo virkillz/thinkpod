@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { MessageCircle } from 'lucide-react'
+import { useAppStore } from '../../store/appStore.js'
 import { WilfredChatPanel } from './WilfredChatPanel.js'
 
 export function WilfredFAB() {
+  const { agentAvatar } = useAppStore()
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [showGreeting, setShowGreeting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle')
@@ -42,13 +43,17 @@ export function WilfredFAB() {
         {/* Avatar button */}
         <button
           onClick={() => setIsChatOpen(!isChatOpen)}
-          className="relative w-14 h-14 bg-accent rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all hover:scale-105 animate-breathe"
+          className="relative w-14 h-14 bg-accent rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all hover:scale-105 animate-breathe overflow-hidden"
         >
-          <MessageCircle className="w-6 h-6 text-white" />
-          
+          <img
+            src={agentAvatar}
+            alt="Wilfred"
+            className="w-full h-full object-cover"
+          />
+
           {/* Status indicator */}
-          <span 
-            className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-accent ${getStatusColor()}`} 
+          <span
+            className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-accent ${getStatusColor()}`}
           />
         </button>
       </div>

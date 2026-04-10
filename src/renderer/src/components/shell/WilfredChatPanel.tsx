@@ -80,7 +80,11 @@ export function WilfredChatPanel({ isOpen, onClose }: WilfredChatPanelProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-accent text-white">
         <div className="flex items-center gap-2">
-          <span className="text-lg">{agentAvatar}</span>
+          <img
+            src={agentAvatar}
+            alt={agentName}
+            className="w-7 h-7 rounded-full object-cover border border-white/30"
+          />
           <span className="font-medium">{agentName}</span>
         </div>
         <button 

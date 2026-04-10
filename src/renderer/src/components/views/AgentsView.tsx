@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../../store/appStore.js'
 import { Bot, User, Clock, Calendar, Save, Check, Loader2, Play, Archive, CheckCircle, XCircle, AlertCircle, X } from 'lucide-react'
+import avatar01 from '../../assets/avatar01.png'
+import avatar02 from '../../assets/avatar02.png'
+import avatar03 from '../../assets/avatar03.png'
+import avatar04 from '../../assets/avatar04.png'
+import avatar05 from '../../assets/avatar05.png'
+import avatar06 from '../../assets/avatar06.png'
+import avatar07 from '../../assets/avatar07.png'
+import avatar08 from '../../assets/avatar08.png'
+import avatar09 from '../../assets/avatar09.png'
+import avatar10 from '../../assets/avatar10.png'
+import avatar11 from '../../assets/avatar11.png'
+import avatar12 from '../../assets/avatar12.png'
+import avatar13 from '../../assets/avatar13.png'
+import avatar14 from '../../assets/avatar14.png'
+import avatar15 from '../../assets/avatar15.png'
+import avatar16 from '../../assets/avatar16.png'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,11 +52,16 @@ interface LiveTask {
 
 // ─── Avatar options ───────────────────────────────────────────────────────────
 
-const AVATAR_OPTIONS = ['✦', '✧', '⚜', '🤖', '🦉', '🧙', '🦊', '🔮', '📜', '⚗️', '🌟', '🪄', '🕊️', '🏰', '🌙', '⭐']
+const AVATAR_OPTIONS = [
+  avatar01, avatar02, avatar03, avatar04,
+  avatar05, avatar06, avatar07, avatar08,
+  avatar09, avatar10, avatar11, avatar12,
+  avatar13, avatar14, avatar15, avatar16,
+]
 
 const DEFAULT_PROFILE: AgentProfile = {
   name: 'Wilfred',
-  avatar: '✦',
+  avatar: avatar01,
   systemPrompt: `You are Wilfred, a diligent monk in the ThinkPod. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
 
 Your character:
@@ -70,7 +91,7 @@ function ProfileTab() {
   const handleSave = async () => {
     setSaveStatus('saving')
     await window.electronAPI.setSetting('agentProfile', profile)
-    setAgentProfile(profile.name || 'Wilfred', profile.avatar || '✦')
+    setAgentProfile(profile.name || 'Wilfred', profile.avatar || avatar01)
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
   }
@@ -79,9 +100,11 @@ function ProfileTab() {
     <div className="max-w-2xl mx-auto space-y-8">
       {/* Preview */}
       <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark flex items-center gap-5">
-        <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center text-3xl flex-shrink-0">
-          {profile.avatar}
-        </div>
+        <img
+          src={profile.avatar}
+          alt="Avatar"
+          className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+        />
         <div>
           <p className="font-serif font-medium text-lg text-ink-primary">{profile.name || 'Unnamed Agent'}</p>
           <p className="text-sm text-ink-muted mt-0.5">Agent</p>
@@ -104,17 +127,17 @@ function ProfileTab() {
       <section>
         <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-3">Avatar</h3>
         <div className="grid grid-cols-8 gap-2">
-          {AVATAR_OPTIONS.map((emoji) => (
+          {AVATAR_OPTIONS.map((src) => (
             <button
-              key={emoji}
-              onClick={() => setProfile({ ...profile, avatar: emoji })}
-              className={`h-10 w-10 rounded-lg text-xl flex items-center justify-center transition-all ${
-                profile.avatar === emoji
-                  ? 'bg-accent/15 ring-2 ring-accent'
-                  : 'bg-parchment-card border border-parchment-dark hover:border-accent hover:bg-accent/5'
+              key={src}
+              onClick={() => setProfile({ ...profile, avatar: src })}
+              className={`h-10 w-10 rounded-lg overflow-hidden transition-all p-0 ${
+                profile.avatar === src
+                  ? 'ring-2 ring-accent'
+                  : 'border border-parchment-dark hover:border-accent'
               }`}
             >
-              {emoji}
+              <img src={src} alt="Avatar option" className="w-full h-full object-cover" />
             </button>
           ))}
         </div>
