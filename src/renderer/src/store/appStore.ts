@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import avatar01 from '../assets/avatar01.png'
 
 export type ThemeId = 'parchment' | 'midnight' | 'forest' | 'slate' | 'rose'
 
@@ -146,6 +147,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentTask: null,
   setCurrentTask: (task) => set({ currentTask: task }),
   agentName: 'Wilfred',
-  agentAvatar: '✦',
+  agentAvatar: avatar01,
   setAgentProfile: (name, avatar) => set({ agentName: name, agentAvatar: avatar }),
 }))
