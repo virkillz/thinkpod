@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Inbox, FileText } from 'lucide-react'
+import { Inbox, FileText, Trash2 } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
 interface Thought {
@@ -37,6 +37,20 @@ export function ThoughtsView() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!selectedThought) return
+    if (!confirm(`Delete "${selectedThought.name}"?`)) return
+
+    try {
+      await window.electronAPI.deleteFile(selectedThought.path)
+      setSelectedThought(null)
+      setContent('')
+      loadThoughts()
+    } catch {
+      alert('Failed to delete file')
+    }
+  }
+
   if (selectedThought) {
     return (
       <div className="flex-1 flex flex-col h-full">
@@ -57,6 +71,14 @@ export function ThoughtsView() {
               <span className="font-serif font-medium text-ink-primary">{selectedThought.name}</span>
             </div>
           </div>
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+            title="Delete thought"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-8">
