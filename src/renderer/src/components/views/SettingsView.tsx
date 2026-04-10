@@ -1,21 +1,86 @@
 import { useState, useEffect } from 'react'
-import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download } from 'lucide-react'
+import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download, Wrench, Zap } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
 type VoiceDownloadState = 'idle' | 'downloading' | 'error'
+type VoiceConfig = { modelName: string; language: 'en' | 'auto' }
+type SettingsTab = 'general' | 'inference' | 'voice' | 'advanced'
 
 const VOICE_TIER_MODELS = [
-  { name: 'small.en',         label: 'Fast · English',      sizeMb: 466  },
-  { name: 'small',            label: 'Fast · Multilingual',  sizeMb: 466  },
-  { name: 'large-v3-turbo',   label: 'Accurate (recommended)', sizeMb: 805  },
-  { name: 'medium.en',        label: 'Medium · English',    sizeMb: 1533 },
-  { name: 'medium',           label: 'Medium · Multilingual', sizeMb: 1533 },
-  { name: 'large-v3',         label: 'Large v3',            sizeMb: 3094 },
+  { name: 'small.en',       label: 'Fast · English',         sizeMb: 466  },
+  { name: 'small',          label: 'Fast · Multilingual',    sizeMb: 466  },
+  { name: 'large-v3-turbo', label: 'Accurate (recommended)', sizeMb: 805  },
+  { name: 'medium.en',      label: 'Medium · English',       sizeMb: 1533 },
+  { name: 'medium',         label: 'Medium · Multilingual',  sizeMb: 1533 },
+  { name: 'large-v3',       label: 'Large v3',               sizeMb: 3094 },
 ]
 
-export function SettingsView() {
-  const { abbey, llmConfig, setLLMConfig, showSystemFolders, setShowSystemFolders, setSetupComplete, setAbbey } = useAppStore()
+const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
+  { id: 'general',   label: 'General',   icon: Folder   },
+  { id: 'inference', label: 'Inference', icon: Zap      },
+  { id: 'voice',     label: 'Voice',     icon: Mic      },
+  { id: 'advanced',  label: 'Advanced',  icon: Wrench   },
+]
+
+// ─── General Tab ──────────────────────────────────────────────────────────────
+
+function GeneralTab() {
+  const { abbey, showSystemFolders, setShowSystemFolders } = useAppStore()
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-8">
+      <section>
+        <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Abbey</h3>
+        <div className="bg-white rounded-xl p-6 border border-parchment-dark">
+          <div className="flex items-center gap-3 mb-4">
+            <Folder className="w-5 h-5 text-accent" />
+            <span className="font-medium text-ink-primary">Vault Path</span>
+          </div>
+          <div className="bg-parchment-sidebar rounded-lg px-4 py-3 font-mono text-sm text-ink-primary break-all">
+            {abbey?.path || 'No workspace configured'}
+          </div>
+          <p className="text-sm text-ink-muted mt-3">
+            All your notes are stored here as plain markdown files.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Notes</h3>
+        <div className="bg-white rounded-xl p-6 border border-parchment-dark">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <span className="font-medium text-ink-primary text-sm">Show system folders</span>
+              <p className="text-xs text-ink-muted mt-0.5">
+                Display _inbox, _drafts, and .scriptorium in the file tree
+              </p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={showSystemFolders}
+              onClick={() => setShowSystemFolders(!showSystemFolders)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                showSystemFolders ? 'bg-accent' : 'bg-ink-light'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200 ${
+                  showSystemFolders ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </label>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+// ─── Inference Tab ────────────────────────────────────────────────────────────
+
+function InferenceTab() {
+  const { llmConfig, setLLMConfig } = useAppStore()
 
   const [baseUrl, setBaseUrl] = useState(llmConfig.baseUrl)
   const [model, setModel] = useState(llmConfig.model)
@@ -23,10 +88,113 @@ export function SettingsView() {
   const [testStatus, setTestStatus] = useState<TestStatus>('idle')
   const [testError, setTestError] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
-  const [resetStage, setResetStage] = useState<'idle' | 'confirm' | 'resetting'>('idle')
-  const [resetError, setResetError] = useState<string | null>(null)
 
-  // Voice state
+  const handleInputChange = (setter: (v: string) => void, value: string) => {
+    setter(value)
+    setTestStatus('idle')
+    setTestError(null)
+    setSaveStatus('idle')
+  }
+
+  const handleTest = async () => {
+    setTestStatus('testing')
+    setTestError(null)
+    try {
+      const result = await window.electronAPI.testLLMConnection({ baseUrl, model, apiKey: apiKey || undefined })
+      if (result.success) {
+        setTestStatus('success')
+      } else {
+        setTestStatus('error')
+        setTestError(result.error || 'Connection failed')
+      }
+    } catch (err) {
+      setTestStatus('error')
+      setTestError((err as Error).message)
+    }
+  }
+
+  const handleSave = async () => {
+    const config = { baseUrl, model, apiKey }
+    setLLMConfig(config)
+    await window.electronAPI.setSetting('llmConfig', config)
+    setSaveStatus('saved')
+    setTimeout(() => setSaveStatus('idle'), 2000)
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white rounded-xl p-6 border border-parchment-dark space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-ink-primary mb-2">Base URL</label>
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={(e) => handleInputChange(setBaseUrl, e.target.value)}
+            className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-ink-primary mb-2">Model Name</label>
+          <input
+            type="text"
+            value={model}
+            onChange={(e) => handleInputChange(setModel, e.target.value)}
+            className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent"
+          />
+        </div>
+
+        <div>
+          <label className="flex items-center gap-2 text-sm font-medium text-ink-primary mb-2">
+            <Key className="w-4 h-4" />
+            API Key
+          </label>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => handleInputChange(setApiKey, e.target.value)}
+            placeholder="Optional — for cloud providers"
+            className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 pt-4 border-t border-parchment-dark">
+          <button
+            onClick={handleTest}
+            disabled={testStatus === 'testing' || !baseUrl || !model}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed ${
+              testStatus === 'success'
+                ? 'bg-green-600 text-white'
+                : testStatus === 'error'
+                ? 'bg-red-600 text-white'
+                : 'border border-accent text-accent hover:bg-accent hover:text-white disabled:border-parchment-dark disabled:text-ink-muted'
+            }`}
+          >
+            {testStatus === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
+            {testStatus === 'success' && <Check className="w-4 h-4" />}
+            {testStatus === 'error' && <X className="w-4 h-4" />}
+            {testStatus === 'testing' ? 'Testing…' : testStatus === 'success' ? 'Connected' : testStatus === 'error' ? 'Failed' : 'Test Connection'}
+          </button>
+
+          <button
+            onClick={handleSave}
+            disabled={!baseUrl || !model}
+            className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:bg-ink-light disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            {saveStatus === 'saved' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            {saveStatus === 'saved' ? 'Saved' : 'Save'}
+          </button>
+
+          {testError && <span className="text-sm text-red-600">{testError}</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Voice Tab ────────────────────────────────────────────────────────────────
+
+function VoiceTab() {
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig | null>(null)
   const [voiceShowPicker, setVoiceShowPicker] = useState(false)
   const [voicePickerModel, setVoicePickerModel] = useState('large-v3-turbo')
@@ -80,34 +248,157 @@ export function SettingsView() {
     setVoiceConfig(null)
   }
 
-  const handleTest = async () => {
-    setTestStatus('testing')
-    setTestError(null)
-    try {
-      const result = await window.electronAPI.testLLMConnection({
-        baseUrl,
-        model,
-        apiKey: apiKey || undefined,
-      })
-      if (result.success) {
-        setTestStatus('success')
-      } else {
-        setTestStatus('error')
-        setTestError(result.error || 'Connection failed')
-      }
-    } catch (err) {
-      setTestStatus('error')
-      setTestError((err as Error).message)
-    }
-  }
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white rounded-xl p-6 border border-parchment-dark space-y-4">
+        {voiceConfig && !voiceShowPicker && (
+          <div className="flex items-center gap-3">
+            <Mic className="w-5 h-5 text-accent flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-ink-primary text-sm block">
+                {VOICE_TIER_MODELS.find(m => m.name === voiceConfig.modelName)?.label ?? voiceConfig.modelName}
+              </span>
+              <span className="text-xs text-ink-muted">
+                Language: {voiceConfig.language === 'en' ? 'English only' : 'Auto-detect'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => { setVoicePickerModel(voiceConfig.modelName); setVoicePickerLang(voiceConfig.language); setVoiceShowPicker(true) }}
+                className="px-3 py-1.5 border border-accent text-accent hover:bg-accent hover:text-white rounded-lg text-xs font-medium transition-colors"
+              >
+                Change
+              </button>
+              <button
+                onClick={handleVoiceRemove}
+                className="px-3 py-1.5 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        )}
 
-  const handleSave = async () => {
-    const config = { baseUrl, model, apiKey }
-    setLLMConfig(config)
-    await window.electronAPI.setSetting('llmConfig', config)
-    setSaveStatus('saved')
-    setTimeout(() => setSaveStatus('idle'), 2000)
-  }
+        {!voiceConfig && !voiceShowPicker && (
+          <>
+            <p className="text-sm text-ink-muted">
+              Voice capture lets you dictate drafts offline using Whisper.
+              Download a model to enable it.
+            </p>
+            <button
+              onClick={() => setVoiceShowPicker(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-accent text-accent hover:bg-accent hover:text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Set Up Voice
+            </button>
+          </>
+        )}
+
+        {voiceShowPicker && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-ink-primary mb-2">Language</label>
+              <div className="flex gap-2">
+                {(['en', 'auto'] as const).map(lang => (
+                  <button
+                    key={lang}
+                    onClick={() => setVoicePickerLang(lang)}
+                    disabled={voiceDownloadState === 'downloading'}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${
+                      voicePickerLang === lang
+                        ? 'border-accent bg-accent/5 text-accent'
+                        : 'border-parchment-dark text-ink-muted hover:border-ink-muted'
+                    }`}
+                  >
+                    {lang === 'en' ? 'English only' : 'Multilingual'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-ink-primary mb-2">Model</label>
+              <select
+                value={voicePickerModel}
+                onChange={e => setVoicePickerModel(e.target.value)}
+                disabled={voiceDownloadState === 'downloading'}
+                className="w-full px-3 py-2 bg-parchment-base border border-parchment-dark rounded-lg text-sm text-ink-primary focus:outline-none focus:border-accent disabled:opacity-50"
+              >
+                {VOICE_TIER_MODELS.map(m => (
+                  <option key={m.name} value={m.name}>
+                    {m.label} — {m.sizeMb >= 1000 ? `${(m.sizeMb / 1000).toFixed(1)} GB` : `${m.sizeMb} MB`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {voiceDownloadState === 'idle' && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleVoiceDownload}
+                  className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+                <button
+                  onClick={() => { setVoiceShowPicker(false); setVoiceError(null) }}
+                  className="px-4 py-2 text-ink-muted hover:text-ink-primary text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {voiceDownloadState === 'downloading' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-ink-muted">
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Downloading…
+                  </span>
+                  <span>{voiceProgress}%</span>
+                </div>
+                <div className="h-1.5 bg-parchment-dark rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-accent rounded-full transition-all duration-300"
+                    style={{ width: `${voiceProgress}%` }}
+                  />
+                </div>
+                <button
+                  onClick={handleVoiceCancelDownload}
+                  className="text-xs text-ink-muted hover:text-ink-primary transition-colors"
+                >
+                  Cancel download
+                </button>
+              </div>
+            )}
+
+            {voiceDownloadState === 'error' && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <X className="w-3.5 h-3.5 flex-shrink-0" />
+                  {voiceError}
+                </div>
+                <button onClick={() => setVoiceDownloadState('idle')} className="text-xs text-accent hover:underline">
+                  Try again
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Advanced Tab ─────────────────────────────────────────────────────────────
+
+function AdvancedTab() {
+  const { setSetupComplete, setAbbey } = useAppStore()
+  const [resetStage, setResetStage] = useState<'idle' | 'confirm' | 'resetting'>('idle')
+  const [resetError, setResetError] = useState<string | null>(null)
 
   const handleReset = async () => {
     setResetStage('resetting')
@@ -127,12 +418,82 @@ export function SettingsView() {
     }
   }
 
-  const handleInputChange = (setter: (v: string) => void, value: string) => {
-    setter(value)
-    setTestStatus('idle')
-    setTestError(null)
-    setSaveStatus('idle')
-  }
+  return (
+    <div className="max-w-2xl mx-auto space-y-8">
+      <section>
+        <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Tools</h3>
+        <div className="bg-white rounded-xl p-6 border border-parchment-dark">
+          <p className="text-sm text-ink-muted">
+            Tool management will be available in a future update.
+            Currently, the agent has access to: read_file, write_file, move_file,
+            list_files, add_comment, write_epistle.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-medium text-red-500 uppercase tracking-wide mb-4">Danger Zone</h3>
+        <div className="bg-white rounded-xl p-6 border border-red-200">
+          <div className="flex items-start gap-4">
+            <div className="flex-1">
+              <span className="font-medium text-ink-primary text-sm">Reset Abbey</span>
+              <p className="text-xs text-ink-muted mt-0.5">
+                Deletes <code className="font-mono bg-parchment-sidebar px-1 rounded">_inbox</code>,{' '}
+                <code className="font-mono bg-parchment-sidebar px-1 rounded">_drafts</code>, and{' '}
+                <code className="font-mono bg-parchment-sidebar px-1 rounded">.scriptorium</code> from your
+                abbey folder. Your other notes are kept. The app will return to the setup wizard.
+              </p>
+              {resetError && <p className="text-xs text-red-600 mt-2">{resetError}</p>}
+            </div>
+
+            {resetStage === 'idle' && (
+              <button
+                onClick={() => setResetStage('confirm')}
+                className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
+              >
+                <Trash2 className="w-4 h-4" />
+                Reset
+              </button>
+            )}
+
+            {resetStage === 'confirm' && (
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-medium">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Are you sure?
+                </div>
+                <button
+                  onClick={handleReset}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Yes, reset
+                </button>
+                <button
+                  onClick={() => { setResetStage('idle'); setResetError(null) }}
+                  className="px-3 py-2 text-ink-muted hover:text-ink-primary text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {resetStage === 'resetting' && (
+              <div className="flex items-center gap-2 text-ink-muted text-sm flex-shrink-0">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Resetting…
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+// ─── SettingsView ─────────────────────────────────────────────────────────────
+
+export function SettingsView() {
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -144,382 +505,30 @@ export function SettingsView() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Tabs */}
+      <div className="flex gap-1 px-6 pt-4 border-b border-parchment-dark">
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px ${
+              activeTab === id
+                ? 'text-accent border-accent'
+                : 'text-ink-muted border-transparent hover:text-ink-primary'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-3xl mx-auto space-y-8">
-          {/* Abbey section */}
-          <section>
-            <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
-              Abbey
-            </h3>
-            <div className="bg-white rounded-xl p-6 border border-parchment-dark">
-              <div className="flex items-center gap-3 mb-4">
-                <Folder className="w-5 h-5 text-accent" />
-                <span className="font-medium text-ink-primary">Vault Path</span>
-              </div>
-              <div className="bg-parchment-sidebar rounded-lg px-4 py-3 font-mono text-sm text-ink-primary break-all">
-                {abbey?.path || 'No workspace configured'}
-              </div>
-              <p className="text-sm text-ink-muted mt-3">
-                All your notes are stored here as plain markdown files.
-              </p>
-            </div>
-          </section>
-
-          {/* Inference section */}
-          <section>
-            <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
-              Inference
-            </h3>
-            <div className="bg-white rounded-xl p-6 border border-parchment-dark space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-ink-primary mb-2">
-                  Base URL
-                </label>
-                <input
-                  type="text"
-                  value={baseUrl}
-                  onChange={(e) => handleInputChange(setBaseUrl, e.target.value)}
-                  className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-ink-primary mb-2">
-                  Model Name
-                </label>
-                <input
-                  type="text"
-                  value={model}
-                  onChange={(e) => handleInputChange(setModel, e.target.value)}
-                  className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-ink-primary mb-2">
-                  <Key className="w-4 h-4" />
-                  API Key
-                </label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => handleInputChange(setApiKey, e.target.value)}
-                  placeholder="Optional — for cloud providers"
-                  className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent"
-                />
-              </div>
-
-              <div className="flex items-center gap-3 pt-4 border-t border-parchment-dark">
-                <button
-                  onClick={handleTest}
-                  disabled={testStatus === 'testing' || !baseUrl || !model}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed ${
-                    testStatus === 'success'
-                      ? 'bg-green-600 text-white'
-                      : testStatus === 'error'
-                      ? 'bg-red-600 text-white'
-                      : 'border border-accent text-accent hover:bg-accent hover:text-white disabled:border-parchment-dark disabled:text-ink-muted'
-                  }`}
-                >
-                  {testStatus === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {testStatus === 'success' && <Check className="w-4 h-4" />}
-                  {testStatus === 'error' && <X className="w-4 h-4" />}
-                  {testStatus === 'testing' ? 'Testing…' : testStatus === 'success' ? 'Connected' : testStatus === 'error' ? 'Failed' : 'Test Connection'}
-                </button>
-
-                <button
-                  onClick={handleSave}
-                  disabled={!baseUrl || !model}
-                  className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:bg-ink-light disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  {saveStatus === 'saved' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                  {saveStatus === 'saved' ? 'Saved' : 'Save'}
-                </button>
-
-                {testError && (
-                  <span className="text-sm text-red-600">{testError}</span>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* Voice section */}
-          <section>
-            <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
-              Voice
-            </h3>
-            <div className="bg-white rounded-xl p-6 border border-parchment-dark space-y-4">
-              {/* Configured state */}
-              {voiceConfig && !voiceShowPicker && (
-                <>
-                  <div className="flex items-center gap-3">
-                    <Mic className="w-5 h-5 text-accent flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium text-ink-primary text-sm block">
-                        {VOICE_TIER_MODELS.find(m => m.name === voiceConfig.modelName)?.label ?? voiceConfig.modelName}
-                      </span>
-                      <span className="text-xs text-ink-muted">
-                        Language: {voiceConfig.language === 'en' ? 'English only' : 'Auto-detect'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => { setVoicePickerModel(voiceConfig.modelName); setVoicePickerLang(voiceConfig.language); setVoiceShowPicker(true) }}
-                        className="px-3 py-1.5 border border-accent text-accent hover:bg-accent hover:text-white rounded-lg text-xs font-medium transition-colors"
-                      >
-                        Change
-                      </button>
-                      <button
-                        onClick={handleVoiceRemove}
-                        className="px-3 py-1.5 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Not configured + no picker */}
-              {!voiceConfig && !voiceShowPicker && (
-                <>
-                  <p className="text-sm text-ink-muted">
-                    Voice capture lets you dictate drafts offline using Whisper.
-                    Download a model to enable it.
-                  </p>
-                  <button
-                    onClick={() => setVoiceShowPicker(true)}
-                    className="flex items-center gap-2 px-4 py-2 border border-accent text-accent hover:bg-accent hover:text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    Set Up Voice
-                  </button>
-                </>
-              )}
-
-              {/* Model picker + download */}
-              {voiceShowPicker && (
-                <div className="space-y-4">
-                  {/* Language */}
-                  <div>
-                    <label className="block text-xs font-medium text-ink-primary mb-2">Language</label>
-                    <div className="flex gap-2">
-                      {(['en', 'auto'] as const).map(lang => (
-                        <button
-                          key={lang}
-                          onClick={() => setVoicePickerLang(lang)}
-                          disabled={voiceDownloadState === 'downloading'}
-                          className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${
-                            voicePickerLang === lang
-                              ? 'border-accent bg-accent/5 text-accent'
-                              : 'border-parchment-dark text-ink-muted hover:border-ink-muted'
-                          }`}
-                        >
-                          {lang === 'en' ? 'English only' : 'Multilingual'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Model */}
-                  <div>
-                    <label className="block text-xs font-medium text-ink-primary mb-2">Model</label>
-                    <select
-                      value={voicePickerModel}
-                      onChange={e => setVoicePickerModel(e.target.value)}
-                      disabled={voiceDownloadState === 'downloading'}
-                      className="w-full px-3 py-2 bg-parchment-base border border-parchment-dark rounded-lg text-sm text-ink-primary focus:outline-none focus:border-accent disabled:opacity-50"
-                    >
-                      {VOICE_TIER_MODELS.map(m => (
-                        <option key={m.name} value={m.name}>
-                          {m.label} — {m.sizeMb >= 1000 ? `${(m.sizeMb / 1000).toFixed(1)} GB` : `${m.sizeMb} MB`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Download progress / actions */}
-                  {voiceDownloadState === 'idle' && (
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={handleVoiceDownload}
-                        className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        Download
-                      </button>
-                      <button
-                        onClick={() => { setVoiceShowPicker(false); setVoiceError(null) }}
-                        className="px-4 py-2 text-ink-muted hover:text-ink-primary text-sm transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-
-                  {voiceDownloadState === 'downloading' && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs text-ink-muted">
-                        <span className="flex items-center gap-1.5">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Downloading…
-                        </span>
-                        <span>{voiceProgress}%</span>
-                      </div>
-                      <div className="h-1.5 bg-parchment-dark rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-accent rounded-full transition-all duration-300"
-                          style={{ width: `${voiceProgress}%` }}
-                        />
-                      </div>
-                      <button
-                        onClick={handleVoiceCancelDownload}
-                        className="text-xs text-ink-muted hover:text-ink-primary transition-colors"
-                      >
-                        Cancel download
-                      </button>
-                    </div>
-                  )}
-
-                  {voiceDownloadState === 'error' && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                        <X className="w-3.5 h-3.5 flex-shrink-0" />
-                        {voiceError}
-                      </div>
-                      <button onClick={() => setVoiceDownloadState('idle')} className="text-xs text-accent hover:underline">
-                        Try again
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Wilfred section */}
-          <section>
-            <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
-              Wilfred
-            </h3>
-            <div className="bg-white rounded-xl p-6 border border-parchment-dark">
-              <p className="text-sm text-ink-muted mb-4">
-                Wilfred's persona and behavior can be customized by editing the
-                wilfred.md file in your abbey's .scriptorium folder.
-              </p>
-              <button className="px-4 py-2 border border-accent text-accent hover:bg-accent hover:text-white rounded-lg text-sm font-medium transition-colors">
-                Open wilfred.md
-              </button>
-            </div>
-          </section>
-
-          {/* Notes section */}
-          <section>
-            <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
-              Notes
-            </h3>
-            <div className="bg-white rounded-xl p-6 border border-parchment-dark">
-              <label className="flex items-center justify-between cursor-pointer">
-                <div>
-                  <span className="font-medium text-ink-primary text-sm">Show system folders</span>
-                  <p className="text-xs text-ink-muted mt-0.5">
-                    Display _inbox, _drafts, and .scriptorium in the file tree
-                  </p>
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={showSystemFolders}
-                  onClick={() => setShowSystemFolders(!showSystemFolders)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                    showSystemFolders ? 'bg-accent' : 'bg-ink-light'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200 ${
-                      showSystemFolders ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </label>
-            </div>
-          </section>
-
-          {/* Tools section */}
-          <section>
-            <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
-              Tools
-            </h3>
-            <div className="bg-white rounded-xl p-6 border border-parchment-dark">
-              <p className="text-sm text-ink-muted">
-                Tool management will be available in a future update.
-                Currently, Wilfred has access to: read_file, write_file, move_file,
-                list_files, add_comment, write_epistle.
-              </p>
-            </div>
-          </section>
-
-          {/* Danger Zone */}
-          <section>
-            <h3 className="text-sm font-medium text-red-500 uppercase tracking-wide mb-4">
-              Danger Zone
-            </h3>
-            <div className="bg-white rounded-xl p-6 border border-red-200">
-              <div className="flex items-start gap-4">
-                <div className="flex-1">
-                  <span className="font-medium text-ink-primary text-sm">Reset Abbey</span>
-                  <p className="text-xs text-ink-muted mt-0.5">
-                    Deletes <code className="font-mono bg-parchment-sidebar px-1 rounded">_inbox</code>,{' '}
-                    <code className="font-mono bg-parchment-sidebar px-1 rounded">_drafts</code>, and{' '}
-                    <code className="font-mono bg-parchment-sidebar px-1 rounded">.scriptorium</code> from your
-                    abbey folder. Your other notes are kept. The app will return to the setup wizard.
-                  </p>
-                  {resetError && (
-                    <p className="text-xs text-red-600 mt-2">{resetError}</p>
-                  )}
-                </div>
-
-                {resetStage === 'idle' && (
-                  <button
-                    onClick={() => setResetStage('confirm')}
-                    className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Reset
-                  </button>
-                )}
-
-                {resetStage === 'confirm' && (
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-medium">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      Are you sure?
-                    </div>
-                    <button
-                      onClick={handleReset}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Yes, reset
-                    </button>
-                    <button
-                      onClick={() => { setResetStage('idle'); setResetError(null) }}
-                      className="px-3 py-2 text-ink-muted hover:text-ink-primary text-sm transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-
-                {resetStage === 'resetting' && (
-                  <div className="flex items-center gap-2 text-ink-muted text-sm flex-shrink-0">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Resetting…
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-        </div>
+        {activeTab === 'general'   && <GeneralTab />}
+        {activeTab === 'inference' && <InferenceTab />}
+        {activeTab === 'voice'     && <VoiceTab />}
+        {activeTab === 'advanced'  && <AdvancedTab />}
       </div>
     </div>
   )

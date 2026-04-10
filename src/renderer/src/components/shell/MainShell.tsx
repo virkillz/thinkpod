@@ -4,8 +4,7 @@ import { Sidebar } from './Sidebar.js'
 import { NotesView } from '../views/NotesView.js'
 import { InboxView } from '../views/InboxView.js'
 import { DraftsView } from '../views/DraftsView.js'
-import { TasksView } from '../views/TasksView.js'
-import { ScheduleView } from '../views/ScheduleView.js'
+import { AgentsView } from '../views/AgentsView.js'
 import { SettingsView } from '../views/SettingsView.js'
 import { WilfredFAB } from './WilfredFAB.js'
 
@@ -24,10 +23,8 @@ export function MainShell() {
         return <InboxView />
       case 'drafts':
         return <DraftsView />
-      case 'tasks':
-        return <TasksView />
-      case 'schedule':
-        return <ScheduleView />
+      case 'agents':
+        return <AgentsView />
       case 'settings':
         return <SettingsView />
       default:

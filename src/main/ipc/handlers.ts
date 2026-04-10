@@ -129,26 +129,28 @@ export function setupIpcHandlers(
       await fs.mkdir(path.join(abbeyPath, '_drafts'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
-      
+
       // Create default folders
       await fs.mkdir(path.join(abbeyPath, 'Projects'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, 'People'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, 'Ideas'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, 'Journal'), { recursive: true })
-      
-      // Create default wilfred.md persona
-      const wilfredPersona = `# Wilfred's Persona
 
-You are Wilfred, a diligent monk in the Scriptorium. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
+      // Seed default agent profile in DB
+      if (!dbManager.getSetting('agentProfile')) {
+        dbManager.setSetting('agentProfile', {
+          name: 'Wilfred',
+          avatar: '✦',
+          systemPrompt: `You are Wilfred, a diligent monk in the Scriptorium. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
 
 Your character:
 - Methodical. You work through tasks step by step.
 - Humble. When you do not know where something belongs, you ask.
 - Brief. Your epistles are clear and concise — a monk does not ramble.
-- Faithful. You do exactly what the Rule asks, no more, no less.
-`
-      await fs.writeFile(path.join(abbeyPath, '.scriptorium', 'wilfred.md'), wilfredPersona, 'utf-8')
-      
+- Faithful. You do exactly what the Rule asks, no more, no less.`,
+        })
+      }
+
       // Create abbey config
       const config = {
         createdAt: new Date().toISOString(),
@@ -196,17 +198,20 @@ Your character:
     try {
       await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
 
-      const wilfredPersona = `# Wilfred's Persona
-
-You are Wilfred, a diligent monk in the Scriptorium. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
+      // Seed default agent profile in DB
+      if (!dbManager.getSetting('agentProfile')) {
+        dbManager.setSetting('agentProfile', {
+          name: 'Wilfred',
+          avatar: '✦',
+          systemPrompt: `You are Wilfred, a diligent monk in the Scriptorium. Your purpose is to organise and tend to the Abbey's manuscripts with care and patience.
 
 Your character:
 - Methodical. You work through tasks step by step.
 - Humble. When you do not know where something belongs, you ask.
 - Brief. Your epistles are clear and concise — a monk does not ramble.
-- Faithful. You do exactly what the Rule asks, no more, no less.
-`
-      await fs.writeFile(path.join(abbeyPath, '.scriptorium', 'wilfred.md'), wilfredPersona, 'utf-8')
+- Faithful. You do exactly what the Rule asks, no more, no less.`,
+        })
+      }
 
       const config = {
         createdAt: new Date().toISOString(),
@@ -486,14 +491,8 @@ Your character:
       return { success: false, error: 'LLM not configured' }
     }
 
-    // Load Wilfred's persona
-    let persona = ''
-    try {
-      const personaPath = path.join(abbey.abbeyPath, '.scriptorium', 'wilfred.md')
-      persona = await fs.readFile(personaPath, 'utf-8')
-    } catch {
-      persona = 'You are Wilfred, a diligent monk in the Scriptorium.'
-    }
+    const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; avatar?: string; systemPrompt?: string } | null
+    const persona = agentProfile?.systemPrompt ?? 'You are Wilfred, a diligent monk in the Scriptorium.'
 
     currentAgentLoop = new AgentLoop(
       {
@@ -530,14 +529,8 @@ Your character:
       return { success: false, error: 'LLM not configured' }
     }
 
-    let persona = 'You are Wilfred, a diligent monk in the Scriptorium. Respond briefly and in character.'
-    const abbeyChat = getAbbeyManager()
-    if (abbeyChat) {
-      try {
-        const personaPath = path.join(abbeyChat.abbeyPath, '.scriptorium', 'wilfred.md')
-        persona = await fs.readFile(personaPath, 'utf-8')
-      } catch { /* use default */ }
-    }
+    const agentProfileChat = dbManager.getSetting('agentProfile') as { name?: string; avatar?: string; systemPrompt?: string } | null
+    const persona = agentProfileChat?.systemPrompt ?? 'You are Wilfred, a diligent monk in the Scriptorium. Respond briefly and in character.'
 
     try {
       const client = new LLMClient(llmConfig)

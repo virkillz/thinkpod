@@ -1,21 +1,23 @@
-import { BookOpen, Mail, Inbox, Clock, Calendar, Settings, Menu, X } from 'lucide-react'
+import { BookOpen, Mail, Inbox, Bot, Settings, Menu, X } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 import { FileTree } from '../codex/FileTree.js'
 import { InkwellButton } from './InkwellButton.js'
 
 type NavItem = {
-  id: 'notes' | 'inbox' | 'drafts' | 'tasks' | 'schedule' | 'settings'
+  id: 'notes' | 'inbox' | 'drafts' | 'agents' | 'settings'
   label: string
   icon: React.ElementType
   badge?: number
 }
 
-const navItems: NavItem[] = [
+const mainNavItems: NavItem[] = [
   { id: 'inbox', label: 'Inbox', icon: Mail, badge: 0 },
   { id: 'drafts', label: 'Drafts', icon: Inbox },
   { id: 'notes', label: 'Notes', icon: BookOpen },
-  { id: 'tasks', label: 'Tasks', icon: Clock },
-  { id: 'schedule', label: 'Schedule', icon: Calendar },
+]
+
+const bottomNavItems: NavItem[] = [
+  { id: 'agents', label: 'Agents', icon: Bot },
 ]
 
 export function Sidebar() {
@@ -64,19 +66,10 @@ export function Sidebar() {
         <InkwellButton compact={!isSidebarOpen} />
       </div>
 
-      {/* Divider */}
-      <div className="border-b border-parchment-dark mx-4" />
-
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
-        {currentView === 'notes' && isSidebarOpen && (
-          <div className="mb-4">
-            <FileTree />
-          </div>
-        )}
-
         <div className="space-y-1">
-          {navItems.map((item) => {
+          {mainNavItems.map((item) => {
             const Icon = item.icon
             const isActive = currentView === item.id
             const badge = item.id === 'inbox' ? unreadInbox : item.badge
@@ -106,13 +99,16 @@ export function Sidebar() {
             )
           })}
         </div>
+
+        {isSidebarOpen && (
+          <div className="mt-4 mb-4">
+            <FileTree />
+          </div>
+        )}
       </nav>
 
-      {/* Divider */}
-      <div className="border-t border-parchment-dark mx-4" />
-
-      {/* Footer - Settings */}
-      <div className="p-3">
+      {/* Footer - Settings, Tasks, Schedule */}
+      <div className="p-3 space-y-1 border-t border-parchment-dark">
         <button
           onClick={() => setCurrentView('settings')}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
@@ -126,6 +122,36 @@ export function Sidebar() {
             <span className="flex-1 text-left text-sm font-medium">Settings</span>
           )}
         </button>
+
+        {bottomNavItems.map((item) => {
+          const Icon = item.icon
+          const isActive = currentView === item.id
+          const badge = item.badge
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => setCurrentView(item.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                isActive
+                  ? 'bg-accent/10 text-accent border-l-2 border-accent'
+                  : 'text-ink-muted hover:bg-parchment-dark hover:text-ink-primary'
+              } ${isSidebarOpen ? '' : 'justify-center'}`}
+            >
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              {isSidebarOpen && (
+                <>
+                  <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
+                  {badge && badge > 0 && (
+                    <span className="bg-accent text-white text-xs px-2 py-0.5 rounded-full">
+                      {badge}
+                    </span>
+                  )}
+                </>
+              )}
+            </button>
+          )
+        })}
 
         {isSidebarOpen && abbey && (
           <div className="mt-4 px-3 text-xs text-ink-muted truncate">
