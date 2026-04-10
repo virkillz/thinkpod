@@ -10,7 +10,7 @@ import type { ToolsConfig } from './tools/types.js'
 export type InvocationType = 'docs_review' | 'general_chat'
 
 export interface ChatAgentConfig {
-  abbeyPath: string
+  vaultPath: string
   dbManager: DatabaseManager
   llmConfig: {
     baseUrl: string
@@ -79,11 +79,11 @@ export class ChatAgent {
     contextKey: string,
     contextFilePath?: string
   ): Promise<{ agent: ChatAgent; sessionId: string; history: ChatMessage[] }> {
-    await ChatSession.ensure(config.abbeyPath)
+    await ChatSession.ensure(config.vaultPath)
 
     const { id: sessionId, isNew } = config.dbManager.getOrCreateChatSession(contextType, contextKey)
-    const session = new ChatSession(ChatSession.sessionsDir(config.abbeyPath), sessionId)
-    const executor = new ToolExecutor({ abbeyPath: config.abbeyPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
+    const session = new ChatSession(ChatSession.sessionsDir(config.vaultPath), sessionId)
+    const executor = new ToolExecutor({ vaultPath: config.vaultPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
 
     const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextFilePath)
 
@@ -108,13 +108,13 @@ export class ChatAgent {
     contextKey: string,
     contextFilePath?: string
   ): Promise<{ agent: ChatAgent; sessionId: string }> {
-    await ChatSession.ensure(config.abbeyPath)
+    await ChatSession.ensure(config.vaultPath)
 
     const sessionId = config.dbManager.replaceChatSession(contextType, contextKey)
-    const session = new ChatSession(ChatSession.sessionsDir(config.abbeyPath), sessionId)
+    const session = new ChatSession(ChatSession.sessionsDir(config.vaultPath), sessionId)
     await session.clear()
 
-    const executor = new ToolExecutor({ abbeyPath: config.abbeyPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
+    const executor = new ToolExecutor({ vaultPath: config.vaultPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
     const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextFilePath)
     const agent = new ChatAgent(
       new LLMClient(config.llmConfig),
@@ -197,7 +197,7 @@ export class ChatAgent {
     let invocationPrompt = templates[contextType]
 
     if (contextType === 'docs_review' && contextFilePath) {
-      const fullPath = path.join(config.abbeyPath, contextFilePath)
+      const fullPath = path.join(config.vaultPath, contextFilePath)
       let fileContent = ''
       try {
         fileContent = await fs.readFile(fullPath, 'utf-8')

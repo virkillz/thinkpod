@@ -6,7 +6,7 @@
 import { schedule, ScheduledTask } from 'node-cron'
 import { EventEmitter } from 'events'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
-import type { AbbeyManager } from '../abbey/AbbeyManager.js'
+import type { VaultManager } from '../vault/VaultManager.js'
 import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
 import fs from 'fs/promises'
 import path from 'node:path'
@@ -24,7 +24,7 @@ export class Scheduler extends EventEmitter {
 
   constructor(
     private dbManager: DatabaseManager,
-    private abbeyManager: AbbeyManager
+    private vaultManager: VaultManager
   ) {
     super()
   }
@@ -175,7 +175,7 @@ export class Scheduler extends EventEmitter {
 
     let persona = 'You are Wilfred, a diligent assistant in the Scriptorium.'
     try {
-      const personaPath = path.join(this.abbeyManager.abbeyPath, '.scriptorium', 'wilfred.md')
+      const personaPath = path.join(this.vaultManager.vaultPath, '.scriptorium', 'wilfred.md')
       persona = await fs.readFile(personaPath, 'utf-8')
     } catch {
       // use default
@@ -183,7 +183,7 @@ export class Scheduler extends EventEmitter {
 
     const loop = new AgentLoop(
       {
-        abbeyPath: this.abbeyManager.abbeyPath,
+        vaultPath: this.vaultManager.vaultPath,
         dbManager: this.dbManager,
         llmConfig,
         persona,

@@ -54,7 +54,7 @@ status: unread
 
 ${content}
 `
-    const fullPath = path.join(context.abbeyPath, '_inbox', filename)
+    const fullPath = path.join(context.vaultPath, '_inbox', filename)
     await fs.mkdir(path.dirname(fullPath), { recursive: true })
     await fs.writeFile(fullPath, frontmatter, 'utf-8')
     return { path: `_inbox/${filename}` }

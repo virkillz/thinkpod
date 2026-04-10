@@ -5,7 +5,7 @@ import { CommentPanel } from '../codex/CommentPanel.js'
 import { FileText } from 'lucide-react'
 
 export function NotesView() {
-  const { selectedFile, fileTree, abbey } = useAppStore()
+  const { selectedFile, fileTree, vault } = useAppStore()
   const [fileContent, setFileContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -57,8 +57,8 @@ export function NotesView() {
             <p className="text-ink-muted mb-2">Select a file from the sidebar</p>
             <p className="text-sm text-ink-light">
               {fileTree.length === 0
-                ? abbey
-                  ? 'Your workspace is empty. Create a draft to get started.'
+                ? vault
+                  ? 'Your workspace is empty. Create a thought to get started.'
                   : 'Open a workspace to begin.'
                 : `${fileTree.length} items in your workspace`
               }

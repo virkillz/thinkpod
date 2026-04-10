@@ -2,26 +2,26 @@ import { watch, FSWatcher } from 'chokidar'
 import path from 'path'
 import { EventEmitter } from 'events'
 
-export class AbbeyManager extends EventEmitter {
-  abbeyPath: string
+export class VaultManager extends EventEmitter {
+  vaultPath: string
   private watcher: FSWatcher | null = null
 
-  constructor(abbeyPath: string) {
+  constructor(vaultPath: string) {
     super()
-    this.abbeyPath = abbeyPath
+    this.vaultPath = vaultPath
   }
 
   async initialize(): Promise<void> {
     // Ensure required folders exist
-    // (actual folder creation happens during abbey:create)
-    
+    // (actual folder creation happens during vault:create)
+
     // Start watching for file changes
     this.startWatching()
   }
 
   private startWatching(): void {
     // Watch for changes to update the index
-    this.watcher = watch(this.abbeyPath, {
+    this.watcher = watch(this.vaultPath, {
       ignored: /(^|[\/\\])\./, // ignore dotfiles
       persistent: true,
       ignoreInitial: true,

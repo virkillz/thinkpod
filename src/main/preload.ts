@@ -2,14 +2,14 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 // Import channels as a simple object to avoid module resolution issues
 const IPC_CHANNELS = {
-  ABBEY_SELECT_FOLDER: 'abbey:select-folder',
-  ABBEY_CREATE: 'abbey:create',
-  ABBEY_INIT: 'abbey:init',
-  ABBEY_OPEN: 'abbey:open',
-  ABBEY_GET_INFO: 'abbey:get-info',
+  VAULT_SELECT_FOLDER: 'vault:select-folder',
+  VAULT_CREATE: 'vault:create',
+  VAULT_INIT: 'vault:init',
+  VAULT_OPEN: 'vault:open',
+  VAULT_GET_INFO: 'vault:get-info',
   TOOLS_GET_CONFIG: 'tools:get-config',
   TOOLS_SET_CONFIG: 'tools:set-config',
-  ABBEY_RESET: 'abbey:reset',
+  VAULT_RESET: 'vault:reset',
   FILES_LIST: 'files:list',
   FILES_READ: 'files:read',
   FILES_WRITE: 'files:write',
@@ -65,13 +65,13 @@ const IPC_CHANNELS = {
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Abbey
-  selectAbbeyFolder: () => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_SELECT_FOLDER),
-  createAbbey: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_CREATE, path),
-  initAbbey: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_INIT, path),
-  openAbbey: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_OPEN, path),
-  getAbbeyInfo: () => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_GET_INFO),
-  resetAbbey: () => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_RESET),
+  // Vault
+  selectVaultFolder: () => ipcRenderer.invoke(IPC_CHANNELS.VAULT_SELECT_FOLDER),
+  createVault: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.VAULT_CREATE, path),
+  initVault: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.VAULT_INIT, path),
+  openVault: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.VAULT_OPEN, path),
+  getVaultInfo: () => ipcRenderer.invoke(IPC_CHANNELS.VAULT_GET_INFO),
+  resetVault: () => ipcRenderer.invoke(IPC_CHANNELS.VAULT_RESET),
 
   // Files
   listFiles: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.FILES_LIST, path),

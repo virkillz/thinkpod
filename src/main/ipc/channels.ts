@@ -1,10 +1,10 @@
 export const IPC_CHANNELS = {
-  // Abbey
-  ABBEY_OPEN: 'abbey:open',
-  ABBEY_CREATE: 'abbey:create',
-  ABBEY_INIT: 'abbey:init',
-  ABBEY_GET_INFO: 'abbey:get-info',
-  ABBEY_SELECT_FOLDER: 'abbey:select-folder',
+  // Vault
+  VAULT_OPEN: 'vault:open',
+  VAULT_CREATE: 'vault:create',
+  VAULT_INIT: 'vault:init',
+  VAULT_GET_INFO: 'vault:get-info',
+  VAULT_SELECT_FOLDER: 'vault:select-folder',
 
   // Files
   FILES_LIST: 'files:list',
@@ -61,8 +61,8 @@ export const IPC_CHANNELS = {
   TOOLS_GET_CONFIG: 'tools:get-config',
   TOOLS_SET_CONFIG: 'tools:set-config',
 
-  // Abbey reset
-  ABBEY_RESET: 'abbey:reset',
+  // Vault reset
+  VAULT_RESET: 'vault:reset',
 
   // App
   APP_GET_VERSION: 'app:get-version',

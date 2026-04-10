@@ -1,11 +1,11 @@
 export interface ElectronAPI {
-  // Abbey
-  selectAbbeyFolder: () => Promise<string | null>
-  createAbbey: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>
-  initAbbey: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>
-  openAbbey: (path: string) => Promise<{ success: boolean; path?: string; error?: string; needsInit?: boolean }>
-  getAbbeyInfo: () => Promise<{ path: string; name: string } | null>
-  resetAbbey: () => Promise<{ success: boolean; error?: string }>
+  // Vault
+  selectVaultFolder: () => Promise<string | null>
+  createVault: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>
+  initVault: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>
+  openVault: (path: string) => Promise<{ success: boolean; path?: string; error?: string; needsInit?: boolean }>
+  getVaultInfo: () => Promise<{ path: string; name: string } | null>
+  resetVault: () => Promise<{ success: boolean; error?: string }>
 
   // Files
   listFiles: (path: string) => Promise<Array<{ name: string; path: string; isDirectory: boolean }>>

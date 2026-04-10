@@ -14,7 +14,7 @@ export interface ToolResult {
 }
 
 export interface ToolContext {
-  abbeyPath: string
+  vaultPath: string
   dbManager: DatabaseManager
   toolsConfig: ToolsConfig
 }

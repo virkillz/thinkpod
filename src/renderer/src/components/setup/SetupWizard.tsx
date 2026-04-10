@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { StepWelcome } from './StepWelcome.js'
-import { StepAbbey } from './StepAbbey.js'
+import { StepVault } from './StepVault.js'
 import { StepLLM } from './StepLLM.js'
 import { StepVoice } from './StepVoice.js'
 import { useAppStore } from '../../store/appStore.js'
@@ -10,21 +10,21 @@ interface SetupWizardProps {
   onComplete: () => void
 }
 
-type SetupStep = 'welcome' | 'abbey' | 'llm' | 'voice'
+type SetupStep = 'welcome' | 'vault' | 'llm' | 'voice'
 
-const STEPS: SetupStep[] = ['welcome', 'abbey', 'llm', 'voice']
+const STEPS: SetupStep[] = ['welcome', 'vault', 'llm', 'voice']
 
 export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>('welcome')
   const [selectedAbbeyPath, setSelectedAbbeyPath] = useState<string | null>(null)
-  const [abbeyError, setAbbeyError] = useState<string | null>(null)
-  const [abbeyNeedsInit, setAbbeyNeedsInit] = useState(false)
-  const { setAbbey, setLLMConfig } = useAppStore()
+  const [vaultError, setVaultError] = useState<string | null>(null)
+  const [vaultNeedsInit, setVaultNeedsInit] = useState(false)
+  const { setVault, setLLMConfig } = useAppStore()
 
   const handleStepComplete = () => {
     switch (currentStep) {
-      case 'welcome': setCurrentStep('abbey'); break
-      case 'abbey':   setCurrentStep('llm');   break
+      case 'welcome': setCurrentStep('vault'); break
+      case 'vault':   setCurrentStep('llm');   break
       case 'llm':     setCurrentStep('voice'); break
       case 'voice':   onComplete();            break
     }
@@ -32,57 +32,57 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
   const handleStepBack = () => {
     switch (currentStep) {
-      case 'abbey': setCurrentStep('welcome'); break
-      case 'llm':   setCurrentStep('abbey');   break
+      case 'vault': setCurrentStep('welcome'); break
+      case 'llm':   setCurrentStep('vault');   break
       case 'voice': setCurrentStep('llm');     break
     }
   }
 
   const handleAbbeySelected = async (path: string, isExisting: boolean) => {
     setSelectedAbbeyPath(path)
-    setAbbeyError(null)
-    setAbbeyNeedsInit(false)
+    setVaultError(null)
+    setVaultNeedsInit(false)
 
     try {
       if (isExisting) {
-        const result = await window.electronAPI.openAbbey(path)
+        const result = await window.electronAPI.openVault(path)
         if (result.success && result.path) {
-          setAbbey({ path: result.path, name: path.split('/').pop() || 'Abbey' })
+          setVault({ path: result.path, name: path.split('/').pop() || 'Vault' })
         } else if (result.needsInit) {
-          setAbbeyNeedsInit(true)
+          setVaultNeedsInit(true)
           return
         } else {
-          throw new Error(result.error || 'Failed to open abbey')
+          throw new Error(result.error || 'Failed to open vault')
         }
       } else {
-        const result = await window.electronAPI.createAbbey(path)
+        const result = await window.electronAPI.createVault(path)
         if (result.success && result.path) {
-          setAbbey({ path: result.path, name: path.split('/').pop() || 'Abbey' })
+          setVault({ path: result.path, name: path.split('/').pop() || 'Vault' })
         } else {
-          throw new Error(result.error || 'Failed to create abbey')
+          throw new Error(result.error || 'Failed to create vault')
         }
       }
       handleStepComplete()
     } catch (error) {
-      setAbbeyError((error as Error).message ?? 'Something went wrong setting up the abbey')
+      setVaultError((error as Error).message ?? 'Something went wrong setting up the vault')
     }
   }
 
   const handleConfirmInit = async () => {
     if (!selectedAbbeyPath) return
-    setAbbeyNeedsInit(false)
-    setAbbeyError(null)
+    setVaultNeedsInit(false)
+    setVaultError(null)
 
     try {
-      const result = await window.electronAPI.initAbbey(selectedAbbeyPath)
+      const result = await window.electronAPI.initVault(selectedAbbeyPath)
       if (result.success && result.path) {
-        setAbbey({ path: result.path, name: selectedAbbeyPath.split('/').pop() || 'Abbey' })
+        setVault({ path: result.path, name: selectedAbbeyPath.split('/').pop() || 'Vault' })
         handleStepComplete()
       } else {
-        throw new Error(result.error || 'Failed to initialise abbey')
+        throw new Error(result.error || 'Failed to initialise vault')
       }
     } catch (error) {
-      setAbbeyError((error as Error).message ?? 'Something went wrong initialising the abbey')
+      setVaultError((error as Error).message ?? 'Something went wrong initialising the vault')
     }
   }
 
@@ -145,12 +145,12 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               {currentStep === 'welcome' && (
                 <StepWelcome onContinue={handleStepComplete} />
               )}
-              {currentStep === 'abbey' && (
-                <StepAbbey
+              {currentStep === 'vault' && (
+                <StepVault
                   onContinue={handleAbbeySelected}
                   onBack={handleStepBack}
-                  error={abbeyError}
-                  needsInit={abbeyNeedsInit}
+                  error={vaultError}
+                  needsInit={vaultNeedsInit}
                   onConfirmInit={handleConfirmInit}
                 />
               )}

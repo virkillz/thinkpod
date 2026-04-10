@@ -15,7 +15,7 @@ interface ContextMenu {
   y: number
 }
 
-const SYSTEM_NAMES = new Set(['_inbox', '_drafts', '.scriptorium'])
+const SYSTEM_NAMES = new Set(['_inbox', '_thoughts', '.scriptorium'])
 
 export function FileTree() {
   const [tree, setTree] = useState<TreeNode[]>([])
@@ -25,7 +25,7 @@ export function FileTree() {
   const [renameValue, setRenameValue] = useState('')
   const [draggingPath, setDraggingPath] = useState<string | null>(null)
   const [dragOverPath, setDragOverPath] = useState<string | null>(null)
-  const { selectedFile, setSelectedFile, setCurrentView, abbey, showSystemFolders } = useAppStore()
+  const { selectedFile, setSelectedFile, setCurrentView, vault, showSystemFolders } = useAppStore()
 
   const loadDirectory = useCallback(async (path: string): Promise<TreeNode[]> => {
     try {
@@ -65,8 +65,8 @@ export function FileTree() {
   }, [loadDirectory, expandedPaths])
 
   useEffect(() => {
-    if (abbey) refreshTree()
-  }, [abbey, refreshTree])
+    if (vault) refreshTree()
+  }, [vault, refreshTree])
 
   // Close context menu on outside click
   useEffect(() => {

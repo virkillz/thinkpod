@@ -16,7 +16,7 @@ export type ToolsConfig = Record<string, ToolConfigEntry>
 // ─── Context passed to every handler ─────────────────────────────────────────
 
 export interface ToolContext {
-  abbeyPath: string
+  vaultPath: string
   dbManager: DatabaseManager
   toolsConfig: ToolsConfig
 }

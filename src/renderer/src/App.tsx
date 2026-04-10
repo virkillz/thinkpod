@@ -6,14 +6,14 @@ import { LoadingScreen } from './components/common/LoadingScreen.js'
 
 function App() {
   const [isLoading, setIsLoading] = useState(true)
-  const { isSetupComplete, setSetupComplete, setAbbey, setLLMConfig, setUserProfile } = useAppStore()
+  const { isSetupComplete, setSetupComplete, setVault, setLLMConfig, setUserProfile } = useAppStore()
 
   useEffect(() => {
-    const checkAbbey = async () => {
+    const checkVault = async () => {
       try {
-        const abbeyInfo = await window.electronAPI.getAbbeyInfo()
-        if (abbeyInfo) {
-          setAbbey(abbeyInfo)
+        const vaultInfo = await window.electronAPI.getVaultInfo()
+        if (vaultInfo) {
+          setVault(vaultInfo)
           setSetupComplete(true)
 
           // Restore persisted LLM config
@@ -41,14 +41,14 @@ function App() {
           }
         }
       } catch (error) {
-        console.error('Failed to check abbey:', error)
+        console.error('Failed to check vault:', error)
       } finally {
         setIsLoading(false)
       }
     }
 
-    checkAbbey()
-  }, [setAbbey, setSetupComplete, setLLMConfig, setUserProfile])
+    checkVault()
+  }, [setVault, setSetupComplete, setLLMConfig, setUserProfile])
 
   if (isLoading) {
     return <LoadingScreen />

@@ -7,7 +7,7 @@ export const writeFileTool: ToolEntry = {
   meta: {
     name: 'write_file',
     label: 'Write File',
-    description: 'Write or overwrite a file in the abbey.',
+    description: 'Write or overwrite a file in the vault.',
     category: 'core',
     defaultEnabled: true,
   },
@@ -15,11 +15,11 @@ export const writeFileTool: ToolEntry = {
     type: 'function',
     function: {
       name: 'write_file',
-      description: 'Write or overwrite a file in the abbey',
+      description: 'Write or overwrite a file in the vault',
       parameters: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Path to the file relative to abbey root' },
+          path: { type: 'string', description: 'Path to the file relative to vault root' },
           content: { type: 'string', description: 'Content to write to the file' },
         },
         required: ['path', 'content'],
@@ -28,7 +28,7 @@ export const writeFileTool: ToolEntry = {
   },
   handler: async (args: Record<string, unknown>, context: ToolContext) => {
     const { path: p, content } = args as { path: string; content: string }
-    const fullPath = resolvePath(context.abbeyPath, p)
+    const fullPath = resolvePath(context.vaultPath, p)
     await fs.mkdir(path.dirname(fullPath), { recursive: true })
     await fs.writeFile(fullPath, content, 'utf-8')
     return { path: p }

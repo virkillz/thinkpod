@@ -14,12 +14,12 @@ export class ChatSession {
     this.filePath = path.join(sessionsDir, `${sessionId}.jsonl`)
   }
 
-  static sessionsDir(abbeyPath: string): string {
-    return path.join(abbeyPath, '.scriptorium', 'sessions')
+  static sessionsDir(vaultPath: string): string {
+    return path.join(vaultPath, '.scriptorium', 'sessions')
   }
 
-  static async ensure(abbeyPath: string): Promise<void> {
-    await fs.mkdir(ChatSession.sessionsDir(abbeyPath), { recursive: true })
+  static async ensure(vaultPath: string): Promise<void> {
+    await fs.mkdir(ChatSession.sessionsDir(vaultPath), { recursive: true })
   }
 
   async readAll(): Promise<ChatMessage[]> {

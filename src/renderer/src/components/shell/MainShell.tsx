@@ -4,8 +4,8 @@ import type { ThemeId } from '../../store/appStore.js'
 import { Sidebar } from './Sidebar.js'
 import { NotesView } from '../views/NotesView.js'
 import { InboxView } from '../views/InboxView.js'
-import { DraftsView } from '../views/DraftsView.js'
-import { NewDraftView } from '../views/NewDraftView.js'
+import { ThoughtsView } from '../views/ThoughtsView.js'
+import { NewThoughtView } from '../views/NewThoughtView.js'
 import { AgentsView } from '../views/AgentsView.js'
 import { SettingsView } from '../views/SettingsView.js'
 import { AgentFAB } from './AgentFAB.js'
@@ -35,7 +35,7 @@ export function MainShell() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'n' && currentView !== 'settings') {
         e.preventDefault()
-        setCurrentView('newdraft')
+        setCurrentView('newthought')
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -48,10 +48,10 @@ export function MainShell() {
         return <NotesView />
       case 'inbox':
         return <InboxView />
-      case 'drafts':
-        return <DraftsView />
-      case 'newdraft':
-        return <NewDraftView />
+      case 'thoughts':
+        return <ThoughtsView />
+      case 'newthought':
+        return <NewThoughtView />
       case 'agents':
         return <AgentsView />
       case 'settings':

@@ -218,21 +218,21 @@ function ProfileSection() {
 // ─── General Tab ──────────────────────────────────────────────────────────────
 
 function GeneralTab() {
-  const { abbey, showSystemFolders, setShowSystemFolders } = useAppStore()
+  const { vault, showSystemFolders, setShowSystemFolders } = useAppStore()
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       <ProfileSection />
 
       <section>
-        <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Abbey</h3>
+        <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Vault</h3>
         <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark">
           <div className="flex items-center gap-3 mb-4">
             <Folder className="w-5 h-5 text-accent" />
             <span className="font-medium text-ink-primary">Vault Path</span>
           </div>
           <div className="bg-parchment-sidebar rounded-lg px-4 py-3 font-mono text-sm text-ink-primary break-all">
-            {abbey?.path || 'No workspace configured'}
+            {vault?.path || 'No workspace configured'}
           </div>
           <p className="text-sm text-ink-muted mt-3">
             All your notes are stored here as plain markdown files.
@@ -247,7 +247,7 @@ function GeneralTab() {
             <div>
               <span className="font-medium text-ink-primary text-sm">Show system folders</span>
               <p className="text-xs text-ink-muted mt-0.5">
-                Display _inbox, _drafts, and .scriptorium in the file tree
+                Display _inbox, _thoughts, and .scriptorium in the file tree
               </p>
             </div>
             <button
@@ -736,7 +736,7 @@ function ToolsTab() {
 // ─── Advanced Tab ─────────────────────────────────────────────────────────────
 
 function AdvancedTab() {
-  const { setSetupComplete, setAbbey } = useAppStore()
+  const { setSetupComplete, setVault } = useAppStore()
   const [resetStage, setResetStage] = useState<'idle' | 'confirm' | 'resetting'>('idle')
   const [resetError, setResetError] = useState<string | null>(null)
 
@@ -744,9 +744,9 @@ function AdvancedTab() {
     setResetStage('resetting')
     setResetError(null)
     try {
-      const result = await window.electronAPI.resetAbbey()
+      const result = await window.electronAPI.resetVault()
       if (result.success) {
-        setAbbey(null)
+        setVault(null)
         setSetupComplete(false)
       } else {
         setResetError(result.error || 'Reset failed')
@@ -765,12 +765,12 @@ function AdvancedTab() {
         <div className="bg-parchment-card rounded-xl p-6 border border-red-200">
           <div className="flex items-start gap-4">
             <div className="flex-1">
-              <span className="font-medium text-ink-primary text-sm">Reset Abbey</span>
+              <span className="font-medium text-ink-primary text-sm">Reset Vault</span>
               <p className="text-xs text-ink-muted mt-0.5">
                 Deletes <code className="font-mono bg-parchment-sidebar px-1 rounded">_inbox</code>,{' '}
-                <code className="font-mono bg-parchment-sidebar px-1 rounded">_drafts</code>, and{' '}
+                <code className="font-mono bg-parchment-sidebar px-1 rounded">_thoughts</code>, and{' '}
                 <code className="font-mono bg-parchment-sidebar px-1 rounded">.scriptorium</code> from your
-                abbey folder. Your other notes are kept. The app will return to the setup wizard.
+                vault folder. Your other notes are kept. The app will return to the setup wizard.
               </p>
               {resetError && <p className="text-xs text-red-600 mt-2">{resetError}</p>}
             </div>

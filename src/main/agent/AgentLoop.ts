@@ -20,7 +20,7 @@ export class TaskAbortedError extends Error {
 }
 
 export interface TaskConfig {
-  abbeyPath: string
+  vaultPath: string
   dbManager: DatabaseManager
   llmConfig: {
     baseUrl: string
@@ -62,7 +62,7 @@ export class AgentLoop {
   ) {
     this.client = new LLMClient(config.llmConfig)
     this.context = {
-      abbeyPath: config.abbeyPath,
+      vaultPath: config.vaultPath,
       dbManager: config.dbManager,
       toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG,
     }
@@ -92,12 +92,12 @@ export class AgentLoop {
       // Build initial system prompt
       const systemPrompt = this.buildSystemPrompt(taskName, instruction)
       
-      // Get abbey index for context
-      const abbeyIndex = await this.buildAbbeyIndex()
+      // Get vault index for context
+      const vaultIndex = await this.buildVaultIndex()
       
       this.messages = [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Abbey contents:\n${abbeyIndex}\n\nTask: ${instruction}` },
+        { role: 'user', content: `Vault contents:\n${vaultIndex}\n\nTask: ${instruction}` },
       ]
 
       // Start the loop
@@ -199,7 +199,7 @@ export class AgentLoop {
 You are executing a task: "${taskName}"
 Task instruction: ${instruction}
 
-You have access to tools to work with the abbey's files. When you complete your work, call finish_task().
+You have access to tools to work with the vault's files. When you complete your work, call finish_task().
 
 Rules:
 - Be methodical: work step by step
@@ -207,18 +207,18 @@ Rules:
 - Keep notes clear and concise
 - finish_task() when done
 
-Abbey root: ${this.config.abbeyPath}
+Vault root: ${this.config.vaultPath}
 Today: ${new Date().toISOString().split('T')[0]}`
   }
 
-  private async buildAbbeyIndex(): Promise<string> {
+  private async buildVaultIndex(): Promise<string> {
     try {
       // List recent folios
-      const foliosPath = path.join(this.context.abbeyPath, '_folios')
+      const foliosPath = path.join(this.context.vaultPath, '_folios')
       const files = await this.context.dbManager.getRecentFiles(20)
       
       if (files.length === 0) {
-        return 'Abbey is empty. No folios to triage.'
+        return 'Vault is empty. No folios to triage.'
       }
 
       return files.map(f => {
@@ -226,8 +226,8 @@ Today: ${new Date().toISOString().split('T')[0]}`
         return `- ${f.path} (${f.word_count} words, modified ${date})`
       }).join('\n')
     } catch (error) {
-      console.error('Failed to build abbey index:', error)
-      return 'Unable to read abbey contents'
+      console.error('Failed to build vault index:', error)
+      return 'Unable to read vault contents'
     }
   }
 

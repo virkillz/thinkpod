@@ -123,11 +123,11 @@ export class DatabaseManager {
       VALUES (?, ?, ?, ?, ?, ?)
     `)
 
-    // Triage Drafts (every 5 minutes)
+    // Triage Thoughts (every 5 minutes)
     stmt.run(
-      'Triage Drafts',
+      'Triage Thoughts',
       '*/5 * * * *',
-      'Review `_drafts/` for new files. For each: identify the project, person, or topic it belongs to. If context is missing, add a comment question. If context is clear, move it to the correct folder and write a brief message summarising what you did.',
+      'Review `_thoughts/` for new files. For each: identify the project, person, or topic it belongs to. If context is missing, add a comment question. If context is clear, move it to the correct folder and write a brief message summarising what you did.',
       JSON.stringify(['read_file', 'write_file', 'move_file', 'list_files', 'add_comment', 'write_inbox']),
       now,
       now
@@ -241,7 +241,7 @@ export class DatabaseManager {
     })()
   }
 
-  // Get recent files for abbey index
+  // Get recent files for vault index
   getRecentFiles(limit: number = 20): Array<{
     path: string
     title: string

@@ -3,16 +3,16 @@ import { useAppStore } from '../../store/appStore.js'
 import { FileTree } from '../codex/FileTree.js'
 
 type NavItem = {
-  id: 'notes' | 'inbox' | 'drafts' | 'agents' | 'settings' | 'newdraft'
+  id: 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought'
   label: string
   icon: React.ElementType
   badge?: number
 }
 
 const mainNavItems: NavItem[] = [
-  { id: 'newdraft', label: 'New Draft', icon: PenLine },
+  { id: 'newthought', label: 'New Thought', icon: PenLine },
   { id: 'inbox', label: 'Inbox', icon: Mail, badge: 0 },
-  { id: 'drafts', label: 'Drafts', icon: Inbox },
+  { id: 'thoughts', label: 'Thoughts', icon: Inbox },
   { id: 'notes', label: 'Notes', icon: BookOpen },
 ]
 
@@ -29,7 +29,7 @@ export function Sidebar() {
     isFileTreeVisible,
     toggleFileTree,
     unreadInbox,
-    abbey
+    vault
   } = useAppStore()
 
   return (
@@ -71,7 +71,7 @@ export function Sidebar() {
             const isActive = currentView === item.id
             const badge = item.id === 'inbox' ? unreadInbox : item.badge
 
-            const isNewDraft = item.id === 'newdraft'
+            const isNewDraft = item.id === 'newthought'
 
             return (
               <button
@@ -161,9 +161,9 @@ export function Sidebar() {
           )
         })}
 
-        {isSidebarOpen && abbey && (
+        {isSidebarOpen && vault && (
           <div className="mt-4 px-3 text-xs text-ink-muted truncate">
-            {abbey.name}
+            {vault.name}
           </div>
         )}
       </div>

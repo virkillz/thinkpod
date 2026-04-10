@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { FolderOpen, FolderPlus } from 'lucide-react'
 
-interface StepAbbeyProps {
+interface StepVaultProps {
   onContinue: (path: string, isExisting: boolean) => void
   onBack: () => void
   error?: string | null
@@ -9,7 +9,7 @@ interface StepAbbeyProps {
   onConfirmInit?: () => void
 }
 
-export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit }: StepAbbeyProps) {
+export function StepVault({ onContinue, onBack, error, needsInit, onConfirmInit }: StepVaultProps) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [mode, setMode] = useState<'create' | 'open' | null>(null)
@@ -18,7 +18,7 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
   const handleSelectFolder = async () => {
     setBrowseError(null)
     try {
-      const path = await window.electronAPI.selectAbbeyFolder()
+      const path = await window.electronAPI.selectVaultFolder()
       if (path) {
         setSelectedPath(path)
       }
@@ -28,9 +28,9 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
   }
 
   const handleContinue = async () => {
-    console.log('[StepAbbey] handleContinue called', { selectedPath, mode })
+    console.log('[StepVault] handleContinue called', { selectedPath, mode })
     if (!selectedPath || !mode) {
-      console.log('[StepAbbey] early return — missing selectedPath or mode')
+      console.log('[StepVault] early return — missing selectedPath or mode')
       return
     }
 
@@ -71,7 +71,7 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
           <FolderPlus className="w-8 h-8 text-accent mb-4" />
           <div className="font-medium text-ink-primary mb-1">Create New</div>
           <div className="text-sm text-ink-muted">
-            Start fresh with a new abbey
+            Start fresh with a new vault
           </div>
         </button>
 
@@ -95,7 +95,7 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
       {mode && (
         <div className="mb-8">
           <label className="block text-sm font-medium text-ink-primary mb-2">
-            Abbey Location
+            Vault Location
           </label>
           <div className="flex gap-3">
             <div className="flex-1 px-4 py-3 bg-parchment-sidebar rounded-lg border border-parchment-dark text-ink-primary truncate">
@@ -108,7 +108,7 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
               Browse…
             </button>
           </div>
-          
+
           {browseError && (
             <p className="mt-3 text-sm text-red-600">
               ✗ {browseError}
@@ -116,7 +116,7 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
           )}
           {mode === 'create' && selectedPath && (
             <p className="mt-3 text-sm text-ink-muted">
-              ✓ Wilfred will create <code>_draft/</code> and <code>_inbox/</code> inside this folder.
+              ✓ Wilfred will create <code>_thoughts/</code> and <code>_inbox/</code> inside this folder.
             </p>
           )}
         </div>
@@ -136,7 +136,7 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
             onClick={onConfirmInit}
             className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm rounded-lg font-medium transition-colors"
           >
-            Initialize as ThinkPod Vault
+            Initialize as Vault
           </button>
         </div>
       )}

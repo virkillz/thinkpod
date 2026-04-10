@@ -5,7 +5,7 @@ import captureWorkletUrl from '../../audio/captureWorklet.js?url'
 
 type VoiceState = 'idle' | 'listening' | 'stopping'
 
-export function NewDraftView() {
+export function NewThoughtView() {
   const [content, setContent] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
@@ -50,16 +50,16 @@ export function NewDraftView() {
     try {
       const date = new Date()
       const timestamp = date.toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      const slug = content.slice(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'draft'
+      const slug = content.slice(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'thought'
       const filename = `${timestamp}-${slug}.md`
-      await window.electronAPI.writeFile(`_drafts/${filename}`, content)
+      await window.electronAPI.writeFile(`_thoughts/${filename}`, content)
       await refreshFileTree()
       setContent('')
       transcriptBufRef.current = ''
-      // Navigate to drafts view after saving
-      setCurrentView('drafts')
+      // Navigate to thoughts view after saving
+      setCurrentView('thoughts')
     } catch (error) {
-      console.error('Failed to save folio:', error)
+      console.error('Failed to save thought:', error)
     } finally {
       setIsSaving(false)
     }
@@ -209,7 +209,7 @@ export function NewDraftView() {
             disabled={!content.trim() || isSaving || isListening}
             className="px-6 py-2 bg-accent hover:bg-accent-hover disabled:bg-ink-light disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
           >
-            {isSaving ? 'Saving…' : 'Save Draft'}
+            {isSaving ? 'Saving…' : 'Save Thought'}
           </button>
         </div>
       </div>

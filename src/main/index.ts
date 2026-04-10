@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import path from 'path'
 import { DatabaseManager } from './database/DatabaseManager.js'
-import { AbbeyManager } from './abbey/AbbeyManager.js'
+import { VaultManager } from './vault/VaultManager.js'
 import { IPC_CHANNELS } from './ipc/channels.js'
 import { setupIpcHandlers, setupScheduler } from './ipc/handlers.js'
 
@@ -9,20 +9,20 @@ const isDev = process.env.NODE_ENV === 'development'
 
 let mainWindow: BrowserWindow | null = null
 let dbManager: DatabaseManager | null = null
-let abbeyManager: AbbeyManager | null = null
+let vaultManager: VaultManager | null = null
 let schedulerStarted = false
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow
 }
 
-export function getAbbeyManager(): AbbeyManager | null {
-  return abbeyManager
+export function getVaultManager(): VaultManager | null {
+  return vaultManager
 }
 
-export async function initAbbeyManager(abbeyPath: string): Promise<void> {
-  abbeyManager = new AbbeyManager(abbeyPath)
-  await abbeyManager.initialize()
+export async function initVaultManager(vaultPath: string): Promise<void> {
+  vaultManager = new VaultManager(vaultPath)
+  await vaultManager.initialize()
   if (dbManager && !schedulerStarted) {
     schedulerStarted = true
     setupScheduler(dbManager)
@@ -65,12 +65,12 @@ async function initializeApp(): Promise<void> {
   dbManager = new DatabaseManager(appDataPath)
   await dbManager.initialize()
 
-  // Check for saved abbey path
-  const abbeyPath = dbManager.getSetting('abbeyPath') as string | null
-  
-  if (abbeyPath) {
-    abbeyManager = new AbbeyManager(abbeyPath)
-    await abbeyManager.initialize()
+  // Check for saved vault path
+  const vaultPath = dbManager.getSetting('vaultPath') as string | null
+
+  if (vaultPath) {
+    vaultManager = new VaultManager(vaultPath)
+    await vaultManager.initialize()
   }
 
   // Create window BEFORE setting up IPC handlers
@@ -79,8 +79,8 @@ async function initializeApp(): Promise<void> {
   // Setup IPC handlers (now mainWindow is available)
   setupIpcHandlers(dbManager)
 
-  // Start scheduler if abbey is ready
-  if (abbeyManager) {
+  // Start scheduler if vault is ready
+  if (vaultManager) {
     schedulerStarted = true
     setupScheduler(dbManager)
   }

@@ -19,7 +19,7 @@ export const listFilesTool: ToolEntry = {
       parameters: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Directory path relative to abbey root' },
+          path: { type: 'string', description: 'Directory path relative to vault root' },
           pattern: { type: 'string', description: 'Optional glob pattern filter' },
         },
         required: ['path'],
@@ -28,7 +28,7 @@ export const listFilesTool: ToolEntry = {
   },
   handler: async (args: Record<string, unknown>, context: ToolContext) => {
     const { path: p } = args as { path: string; pattern?: string }
-    const fullPath = resolvePath(context.abbeyPath, p)
+    const fullPath = resolvePath(context.vaultPath, p)
     const entries = await fs.readdir(fullPath, { withFileTypes: true })
 
     const files = entries

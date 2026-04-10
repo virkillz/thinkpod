@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export type ThemeId = 'parchment' | 'midnight' | 'forest' | 'slate' | 'rose'
 
-export interface AbbeyInfo {
+export interface VaultInfo {
   path: string
   name: string
 }
@@ -31,12 +31,12 @@ interface AppState {
   isSetupComplete: boolean
   setSetupComplete: (complete: boolean) => void
 
-  // Abbey
-  abbey: AbbeyInfo | null
-  setAbbey: (abbey: AbbeyInfo | null) => void
+  // Vault
+  vault: VaultInfo | null
+  setVault: (vault: VaultInfo | null) => void
 
   // Navigation
-  currentView: 'notes' | 'inbox' | 'drafts' | 'agents' | 'settings' | 'newdraft'
+  currentView: 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought'
   setCurrentView: (view: AppState['currentView']) => void
 
   // Files
@@ -83,9 +83,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   isSetupComplete: false,
   setSetupComplete: (complete) => set({ isSetupComplete: complete }),
 
-  // Abbey
-  abbey: null,
-  setAbbey: (abbey) => set({ abbey }),
+  // Vault
+  vault: null,
+  setVault: (vault) => set({ vault }),
 
   // Navigation
   currentView: 'notes',
@@ -97,8 +97,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   fileTree: [],
   setFileTree: (tree) => set({ fileTree: tree }),
   refreshFileTree: async () => {
-    const { abbey } = get()
-    if (!abbey) return
+    const { vault } = get()
+    if (!vault) return
 
     try {
       const files = await window.electronAPI.listFiles('.')

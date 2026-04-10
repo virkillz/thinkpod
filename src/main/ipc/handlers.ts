@@ -3,8 +3,8 @@ import path from 'path'
 import fs from 'fs/promises'
 import { IPC_CHANNELS } from './channels.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
-import type { AbbeyManager } from '../abbey/AbbeyManager.js'
-import { getMainWindow, getAbbeyManager, initAbbeyManager } from '../index.js'
+import type { VaultManager } from '../vault/VaultManager.js'
+import { getMainWindow, getVaultManager, initVaultManager } from '../index.js'
 import { LLMProcessManager } from '../agent/LLMProcessManager.js'
 import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
 import { LLMClient } from '../agent/LLMClient.js'
@@ -108,7 +108,7 @@ export function setupIpcHandlers(
     voiceCaptureService?.handleAudioChunk(buffer)
   })
   // Abbey: Select folder dialog
-  ipcMain.handle(IPC_CHANNELS.ABBEY_SELECT_FOLDER, async () => {
+  ipcMain.handle(IPC_CHANNELS.VAULT_SELECT_FOLDER, async () => {
     const mainWindow = getMainWindow()
     if (!mainWindow) {
       throw new Error('No main window available')
@@ -116,8 +116,8 @@ export function setupIpcHandlers(
     
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory', 'createDirectory'],
-      buttonLabel: 'Select Abbey',
-      message: 'Choose a folder for your Scriptorium Abbey',
+      buttonLabel: 'Select Vault',
+      message: 'Choose a folder for your Scriptorium Vault',
     })
     
     if (result.canceled || result.filePaths.length === 0) {
@@ -128,10 +128,10 @@ export function setupIpcHandlers(
   })
 
   // Abbey: Create new abbey
-  ipcMain.handle(IPC_CHANNELS.ABBEY_CREATE, async (_, abbeyPath: string) => {
+  ipcMain.handle(IPC_CHANNELS.VAULT_CREATE, async (_, abbeyPath: string) => {
     try {
       // Create abbey structure
-      await fs.mkdir(path.join(abbeyPath, '_drafts'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '_thoughts'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
 
@@ -173,8 +173,8 @@ export function setupIpcHandlers(
       )
       
       // Save abbey path to database and initialize manager
-      dbManager.setSetting('abbeyPath', abbeyPath)
-      await initAbbeyManager(abbeyPath)
+      dbManager.setSetting('vaultPath', abbeyPath)
+      await initVaultManager(abbeyPath)
 
       return { success: true, path: abbeyPath }
     } catch (error) {
@@ -183,23 +183,23 @@ export function setupIpcHandlers(
   })
 
   // Abbey: Open existing abbey
-  ipcMain.handle(IPC_CHANNELS.ABBEY_OPEN, async (_, abbeyPath: string) => {
+  ipcMain.handle(IPC_CHANNELS.VAULT_OPEN, async (_, abbeyPath: string) => {
     try {
       // Verify it's a valid abbey
       const scriptoriumPath = path.join(abbeyPath, '.scriptorium')
       const stat = await fs.stat(scriptoriumPath).catch(() => null)
 
       if (!stat?.isDirectory()) {
-        return { success: false, needsInit: true, error: 'This folder has not been set up as an abbey yet.' }
+        return { success: false, needsInit: true, error: 'This folder has not been set up as a vault yet.' }
       }
 
       // Ensure required directories exist
-      await fs.mkdir(path.join(abbeyPath, '_drafts'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '_thoughts'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
 
       // Save abbey path to database and initialize manager
-      dbManager.setSetting('abbeyPath', abbeyPath)
-      await initAbbeyManager(abbeyPath)
+      dbManager.setSetting('vaultPath', abbeyPath)
+      await initVaultManager(abbeyPath)
 
       return { success: true, path: abbeyPath }
     } catch (error) {
@@ -207,11 +207,11 @@ export function setupIpcHandlers(
     }
   })
 
-  // Abbey: Initialise an existing folder as an abbey (creates .scriptorium, _drafts, _inbox)
-  ipcMain.handle(IPC_CHANNELS.ABBEY_INIT, async (_, abbeyPath: string) => {
+  // Abbey: Initialise an existing folder as an abbey (creates .scriptorium, _thoughts, _inbox)
+  ipcMain.handle(IPC_CHANNELS.VAULT_INIT, async (_, abbeyPath: string) => {
     try {
       await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
-      await fs.mkdir(path.join(abbeyPath, '_drafts'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '_thoughts'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
 
       // Seed default agent profile in DB
@@ -244,8 +244,8 @@ export function setupIpcHandlers(
         'utf-8'
       )
 
-      dbManager.setSetting('abbeyPath', abbeyPath)
-      await initAbbeyManager(abbeyPath)
+      dbManager.setSetting('vaultPath', abbeyPath)
+      await initVaultManager(abbeyPath)
 
       return { success: true, path: abbeyPath }
     } catch (error) {
@@ -266,22 +266,22 @@ export function setupIpcHandlers(
     return { success: true }
   })
 
-  // Abbey: Reset — delete _inbox, _drafts, .scriptorium and clear saved path
-  ipcMain.handle(IPC_CHANNELS.ABBEY_RESET, async () => {
+  // Abbey: Reset — delete _inbox, _thoughts, .scriptorium and clear saved path
+  ipcMain.handle(IPC_CHANNELS.VAULT_RESET, async () => {
     try {
-      const abbeyPath = dbManager.getSetting('abbeyPath') as string | null
+      const abbeyPath = dbManager.getSetting('vaultPath') as string | null
       if (!abbeyPath) {
-        return { success: false, error: 'No abbey configured' }
+        return { success: false, error: 'No vault configured' }
       }
 
       // Delete the three system folders
-      for (const folder of ['_inbox', '_drafts', '.scriptorium']) {
+      for (const folder of ['_inbox', '_thoughts', '.scriptorium']) {
         const folderPath = path.join(abbeyPath, folder)
         await fs.rm(folderPath, { recursive: true, force: true })
       }
 
       // Clear the abbey path from the database
-      dbManager.setSetting('abbeyPath', null)
+      dbManager.setSetting('vaultPath', null)
 
       return { success: true }
     } catch (error) {
@@ -290,8 +290,8 @@ export function setupIpcHandlers(
   })
 
   // Abbey: Get info
-  ipcMain.handle(IPC_CHANNELS.ABBEY_GET_INFO, async () => {
-    const abbeyPath = dbManager.getSetting('abbeyPath') as string | null
+  ipcMain.handle(IPC_CHANNELS.VAULT_GET_INFO, async () => {
+    const abbeyPath = dbManager.getSetting('vaultPath') as string | null
     if (!abbeyPath) {
       return null
     }
@@ -304,12 +304,12 @@ export function setupIpcHandlers(
 
   // Files: List directory
   ipcMain.handle(IPC_CHANNELS.FILES_LIST, async (_, dirPath: string) => {
-    const abbey = getAbbeyManager()
+    const abbey = getVaultManager()
     if (!abbey) {
-      throw new Error('No abbey initialized')
+      throw new Error('No vault initialized')
     }
     
-    const fullPath = path.join(abbey.abbeyPath, dirPath)
+    const fullPath = path.join(abbey.vaultPath, dirPath)
     const entries = await fs.readdir(fullPath, { withFileTypes: true })
     
     return entries
@@ -329,24 +329,24 @@ export function setupIpcHandlers(
 
   // Files: Read file
   ipcMain.handle(IPC_CHANNELS.FILES_READ, async (_, filePath: string) => {
-    const abbey = getAbbeyManager()
+    const abbey = getVaultManager()
     if (!abbey) {
-      throw new Error('No abbey initialized')
+      throw new Error('No vault initialized')
     }
     
-    const fullPath = path.join(abbey.abbeyPath, filePath)
+    const fullPath = path.join(abbey.vaultPath, filePath)
     const content = await fs.readFile(fullPath, 'utf-8')
     return { content, path: filePath }
   })
 
   // Files: Write file
   ipcMain.handle(IPC_CHANNELS.FILES_WRITE, async (_, filePath: string, content: string) => {
-    const abbey = getAbbeyManager()
+    const abbey = getVaultManager()
     if (!abbey) {
-      throw new Error('No abbey initialized')
+      throw new Error('No vault initialized')
     }
 
-    const fullPath = path.join(abbey.abbeyPath, filePath)
+    const fullPath = path.join(abbey.vaultPath, filePath)
     await fs.mkdir(path.dirname(fullPath), { recursive: true })
     await fs.writeFile(fullPath, content, 'utf-8')
     return { success: true }
@@ -354,12 +354,12 @@ export function setupIpcHandlers(
 
   // Files: Move / rename
   ipcMain.handle(IPC_CHANNELS.FILES_MOVE, async (_, from: string, to: string) => {
-    const abbey = getAbbeyManager()
-    if (!abbey) return { success: false, error: 'No abbey initialized' }
+    const abbey = getVaultManager()
+    if (!abbey) return { success: false, error: 'No vault initialized' }
 
     try {
-      const fullFrom = path.join(abbey.abbeyPath, from)
-      const fullTo = path.join(abbey.abbeyPath, to)
+      const fullFrom = path.join(abbey.vaultPath, from)
+      const fullTo = path.join(abbey.vaultPath, to)
 
       const stat = await fs.stat(fullFrom)
       const isDirectory = stat.isDirectory()
@@ -381,11 +381,11 @@ export function setupIpcHandlers(
 
   // Files: Delete
   ipcMain.handle(IPC_CHANNELS.FILES_DELETE, async (_, filePath: string) => {
-    const abbey = getAbbeyManager()
-    if (!abbey) return { success: false, error: 'No abbey initialized' }
+    const abbey = getVaultManager()
+    if (!abbey) return { success: false, error: 'No vault initialized' }
 
     try {
-      const fullPath = path.join(abbey.abbeyPath, filePath)
+      const fullPath = path.join(abbey.vaultPath, filePath)
       const stat = await fs.stat(fullPath)
 
       if (stat.isDirectory()) {
@@ -538,9 +538,9 @@ export function setupIpcHandlers(
 
   // Agent: Run task
   ipcMain.handle(IPC_CHANNELS.AGENT_RUN_TASK, async (_, taskName: string, instruction: string) => {
-    const abbey = getAbbeyManager()
+    const abbey = getVaultManager()
     if (!abbey) {
-      return { success: false, error: 'No abbey initialized' }
+      return { success: false, error: 'No vault initialized' }
     }
 
     const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
@@ -555,7 +555,7 @@ export function setupIpcHandlers(
 
     currentAgentLoop = new AgentLoop(
       {
-        abbeyPath: abbey.abbeyPath,
+        vaultPath: abbey.vaultPath,
         dbManager,
         llmConfig,
         persona,
@@ -608,8 +608,8 @@ export function setupIpcHandlers(
   ipcMain.handle(
     IPC_CHANNELS.AGENT_CHAT_OPEN,
     async (_, contextType: InvocationType, contextKey: string, filePath?: string) => {
-      const abbey = getAbbeyManager()
-      if (!abbey) return { success: false, error: 'No abbey initialized' }
+      const abbey = getVaultManager()
+      if (!abbey) return { success: false, error: 'No vault initialized' }
 
       const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
@@ -620,7 +620,7 @@ export function setupIpcHandlers(
       try {
         const chatToolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
         const { agent, sessionId, history } = await ChatAgent.open(
-          { abbeyPath: abbey.abbeyPath, dbManager, llmConfig, persona, toolsConfig: chatToolsConfig ?? DEFAULT_TOOLS_CONFIG },
+          { vaultPath: abbey.vaultPath, dbManager, llmConfig, persona, toolsConfig: chatToolsConfig ?? DEFAULT_TOOLS_CONFIG },
           contextType,
           contextKey,
           filePath
@@ -653,8 +653,8 @@ export function setupIpcHandlers(
   ipcMain.handle(
     IPC_CHANNELS.AGENT_CHAT_NEW,
     async (_, contextType: InvocationType, contextKey: string, filePath?: string) => {
-      const abbey = getAbbeyManager()
-      if (!abbey) return { success: false, error: 'No abbey initialized' }
+      const abbey = getVaultManager()
+      if (!abbey) return { success: false, error: 'No vault initialized' }
 
       const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
@@ -665,7 +665,7 @@ export function setupIpcHandlers(
       try {
         const freshToolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
         const { agent, sessionId } = await ChatAgent.openFresh(
-          { abbeyPath: abbey.abbeyPath, dbManager, llmConfig, persona, toolsConfig: freshToolsConfig ?? DEFAULT_TOOLS_CONFIG },
+          { vaultPath: abbey.vaultPath, dbManager, llmConfig, persona, toolsConfig: freshToolsConfig ?? DEFAULT_TOOLS_CONFIG },
           contextType,
           contextKey,
           filePath
@@ -698,13 +698,13 @@ export function setupIpcHandlers(
 
   // Inbox: List
   ipcMain.handle(IPC_CHANNELS.INBOX_LIST, async () => {
-    const abbey = getAbbeyManager()
+    const abbey = getVaultManager()
     if (!abbey) {
       return []
     }
 
     try {
-      const inboxPath = path.join(abbey.abbeyPath, '_inbox')
+      const inboxPath = path.join(abbey.vaultPath, '_inbox')
       const entries = await fs.readdir(inboxPath, { withFileTypes: true })
 
       const items = await Promise.all(
@@ -753,24 +753,24 @@ export function setupIpcHandlers(
 
   // Inbox: Read
   ipcMain.handle(IPC_CHANNELS.INBOX_READ, async (_, filename: string) => {
-    const abbey = getAbbeyManager()
+    const abbey = getVaultManager()
     if (!abbey) {
-      throw new Error('No abbey initialized')
+      throw new Error('No vault initialized')
     }
 
-    const filePath = path.join(abbey.abbeyPath, '_inbox', filename)
+    const filePath = path.join(abbey.vaultPath, '_inbox', filename)
     const content = await fs.readFile(filePath, 'utf-8')
     return { content, path: `_inbox/${filename}` }
   })
 
   // Inbox: Mark read
   ipcMain.handle(IPC_CHANNELS.INBOX_MARK_READ, async (_, filename: string) => {
-    const abbey = getAbbeyManager()
+    const abbey = getVaultManager()
     if (!abbey) {
-      throw new Error('No abbey initialized')
+      throw new Error('No vault initialized')
     }
 
-    const filePath = path.join(abbey.abbeyPath, '_inbox', filename)
+    const filePath = path.join(abbey.vaultPath, '_inbox', filename)
     let content = await fs.readFile(filePath, 'utf-8')
 
     // Replace status: unread with status: read
@@ -794,9 +794,9 @@ export function setupIpcHandlers(
 
   // Schedule: Trigger manually
   ipcMain.handle(IPC_CHANNELS.SCHEDULE_TRIGGER, async (_, id: number) => {
-    const abbey = getAbbeyManager()
+    const abbey = getVaultManager()
     if (!abbey) {
-      return { success: false, error: 'No abbey initialized' }
+      return { success: false, error: 'No vault initialized' }
     }
     if (!scheduler) {
       return { success: false, error: 'Scheduler not started' }
@@ -883,9 +883,9 @@ export function setupIpcHandlers(
 }
 
 export function setupScheduler(dbManager: DatabaseManager): void {
-  const abbey = getAbbeyManager()
+  const abbey = getVaultManager()
   if (!abbey) {
-    throw new Error('Cannot start scheduler without abbey')
+    throw new Error('Cannot start scheduler without vault')
   }
   scheduler = new Scheduler(dbManager, abbey)
 
