@@ -19,7 +19,7 @@ export function MainShell() {
 
   useEffect(() => {
     window.electronAPI.getSetting('theme').then((saved) => {
-      const theme = (saved as ThemeId) || 'parchment'
+      const theme = (saved as ThemeId) || 'midnight'
       document.documentElement.dataset.theme = theme
       setTheme(theme)
     })

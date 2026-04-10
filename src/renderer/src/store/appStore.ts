@@ -115,7 +115,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleFileTree: () => set((state) => ({ isFileTreeVisible: !state.isFileTreeVisible })),
   showSystemFolders: false,
   setShowSystemFolders: (show) => set({ showSystemFolders: show }),
-  theme: 'parchment' as ThemeId,
+  theme: 'midnight' as ThemeId,
   setTheme: (theme) => {
     set({ theme })
     document.documentElement.dataset.theme = theme

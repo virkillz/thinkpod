@@ -84,7 +84,7 @@ export function AgentFAB() {
 
       <div
         className={`
-          fixed inset-0 z-30 bg-black/10 backdrop-blur-[2px]
+          fixed inset-0 z-30 bg-black/10
           transition-all duration-300 ease-out
           ${isChatOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
         `}

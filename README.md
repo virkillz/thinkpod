@@ -1,6 +1,6 @@
 # ThinkPod (Scriptorium)
 
-> An IDE for your thoughts, not your code.
+> An IDE for your thoughts, not your code. 100% Local.
 
 ThinkPod is a **fully local, AI-powered personal knowledge base** built as a desktop app. It is a note-taking app at its core — but the goal goes beyond that. The vision is to make you feel like there is a **smart, sentient being living inside your notes**: an entity that reads what you write, understands your thinking, asks the right questions, and helps you connect ideas you would have otherwise missed. Together, you and Wilfred become more than the sum of your parts — a unified system for unleashing your knowledge.
 
