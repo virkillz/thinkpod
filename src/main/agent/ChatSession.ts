@@ -15,7 +15,7 @@ export class ChatSession {
   }
 
   static sessionsDir(vaultPath: string): string {
-    return path.join(vaultPath, '.scriptorium', 'sessions')
+    return path.join(vaultPath, '.thinkpod', 'sessions')
   }
 
   static async ensure(vaultPath: string): Promise<void> {

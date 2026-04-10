@@ -78,32 +78,9 @@ wake up:
 
 
 
-
-
 both vault_index.md and agent_vault_index.md are injected into system prompt. 
 
 
 Let's talk about variety of agent initiative. This is what makes agent feels alive and active, not just a passive chatbot.
 
 - Silently gather information about user. Periodically Agent review 
-
-
-
-
-
-
-
-## TASK and SCHEDULE
-Currently there are no way to manage Task and Schedule in src/renderer/src/components/views/TasksView.tsx and src/renderer/src/components/views/ScheduleView.tsx
-
-Task is a way for us to schedule prompt one time, and schedule is a way for us to schedule prompt in recurring fashioned.
-
-create task
-We should be able to create Task which is basically prompt to agent, and set schedule whether it is active immidiately or set time in the future. 
-Task (if not yet done or not yet active) can be edited. 
-
-create schedule
-We also need to be able to create schedule with cron and prompt to agent.
-Schedule can be viewed, edit and deleted.
-
-

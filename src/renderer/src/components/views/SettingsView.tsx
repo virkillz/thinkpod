@@ -38,7 +38,7 @@ const THEMES: {
   {
     id: 'parchment',
     name: 'Parchment',
-    description: 'Warm amber & serif — the classic scriptorium look',
+    description: 'Warm amber & serif — the classic ThinkPod look',
     swatches: ['#F5F0E8', '#EDE8DC', '#8B6914', '#1C1917'],
     dark: false,
   },
@@ -247,7 +247,7 @@ function GeneralTab() {
             <div>
               <span className="font-medium text-ink-primary text-sm">Show system folders</span>
               <p className="text-xs text-ink-muted mt-0.5">
-                Display _inbox, _thoughts, and .scriptorium in the file tree
+                Display _inbox, _thoughts, and .thinkpod in the file tree
               </p>
             </div>
             <button
@@ -769,7 +769,7 @@ function AdvancedTab() {
               <p className="text-xs text-ink-muted mt-0.5">
                 Deletes <code className="font-mono bg-parchment-sidebar px-1 rounded">_inbox</code>,{' '}
                 <code className="font-mono bg-parchment-sidebar px-1 rounded">_thoughts</code>, and{' '}
-                <code className="font-mono bg-parchment-sidebar px-1 rounded">.scriptorium</code> from your
+                <code className="font-mono bg-parchment-sidebar px-1 rounded">.thinkpod</code> from your
                 vault folder. Your other notes are kept. The app will return to the setup wizard.
               </p>
               {resetError && <p className="text-xs text-red-600 mt-2">{resetError}</p>}

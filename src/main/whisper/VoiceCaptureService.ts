@@ -211,7 +211,7 @@ export class VoiceCaptureService extends EventEmitter {
       offset += chunk.length
     }
 
-    const wavPath = path.join(tmpdir(), `scriptorium-voice-${Date.now()}.wav`)
+    const wavPath = path.join(tmpdir(), `thinkpod-voice-${Date.now()}.wav`)
     await writeWav(wavPath, combined, SAMPLE_RATE)
 
     try {

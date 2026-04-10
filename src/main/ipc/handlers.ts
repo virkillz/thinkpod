@@ -117,7 +117,7 @@ export function setupIpcHandlers(
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory', 'createDirectory'],
       buttonLabel: 'Select Vault',
-      message: 'Choose a folder for your Scriptorium Vault',
+      message: 'Choose a folder for your ThinkPod Vault',
     })
     
     if (result.canceled || result.filePaths.length === 0) {
@@ -133,7 +133,7 @@ export function setupIpcHandlers(
       // Create abbey structure
       await fs.mkdir(path.join(abbeyPath, '_thoughts'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
-      await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '.thinkpod'), { recursive: true })
 
       // Create default folders
       await fs.mkdir(path.join(abbeyPath, 'Projects'), { recursive: true })
@@ -168,7 +168,7 @@ export function setupIpcHandlers(
         version: '0.1.0',
       }
       await fs.writeFile(
-        path.join(abbeyPath, '.scriptorium', 'config.json'),
+        path.join(abbeyPath, '.thinkpod', 'config.json'),
         JSON.stringify(config, null, 2),
         'utf-8'
       )
@@ -187,7 +187,7 @@ export function setupIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.VAULT_OPEN, async (_, abbeyPath: string) => {
     try {
       // Verify it's a valid abbey
-      const scriptoriumPath = path.join(abbeyPath, '.scriptorium')
+      const scriptoriumPath = path.join(abbeyPath, '.thinkpod')
       const stat = await fs.stat(scriptoriumPath).catch(() => null)
 
       if (!stat?.isDirectory()) {
@@ -208,10 +208,10 @@ export function setupIpcHandlers(
     }
   })
 
-  // Abbey: Initialise an existing folder as an abbey (creates .scriptorium, _thoughts, _inbox)
+  // Abbey: Initialise an existing folder as an abbey (creates .thinkpod, _thoughts, _inbox)
   ipcMain.handle(IPC_CHANNELS.VAULT_INIT, async (_, abbeyPath: string) => {
     try {
-      await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '.thinkpod'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '_thoughts'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
 
@@ -241,7 +241,7 @@ export function setupIpcHandlers(
         version: '0.1.0',
       }
       await fs.writeFile(
-        path.join(abbeyPath, '.scriptorium', 'config.json'),
+        path.join(abbeyPath, '.thinkpod', 'config.json'),
         JSON.stringify(config, null, 2),
         'utf-8'
       )
@@ -268,7 +268,7 @@ export function setupIpcHandlers(
     return { success: true }
   })
 
-  // Abbey: Reset — delete _inbox, _thoughts, .scriptorium and clear saved path
+  // Abbey: Reset — delete _inbox, _thoughts, .thinkpod and clear saved path
   ipcMain.handle(IPC_CHANNELS.VAULT_RESET, async () => {
     try {
       const abbeyPath = dbManager.getSetting('vaultPath') as string | null
@@ -277,7 +277,7 @@ export function setupIpcHandlers(
       }
 
       // Delete the three system folders
-      for (const folder of ['_inbox', '_thoughts', '.scriptorium']) {
+      for (const folder of ['_inbox', '_thoughts', '.thinkpod']) {
         const folderPath = path.join(abbeyPath, folder)
         await fs.rm(folderPath, { recursive: true, force: true })
       }
@@ -315,7 +315,7 @@ export function setupIpcHandlers(
     const entries = await fs.readdir(fullPath, { withFileTypes: true })
     
     return entries
-      .filter(entry => !entry.name.startsWith('.') || entry.name === '.scriptorium')
+      .filter(entry => !entry.name.startsWith('.') || entry.name === '.thinkpod')
       .map(entry => ({
         name: entry.name,
         path: path.join(dirPath, entry.name),

@@ -17,9 +17,17 @@ export interface SchedulerEvents {
   taskEnd: (run: TaskRun) => void
 }
 
+interface QueuedTask {
+  name: string
+  prompt: string
+  resolve: (run: TaskRun) => void
+  reject: (err: Error) => void
+}
+
 export class Scheduler extends EventEmitter {
   private jobs = new Map<number, ScheduledTask>()
   private runningTask: AgentLoop | null = null
+  private taskQueue: QueuedTask[] = []
   private pollInterval: NodeJS.Timeout | null = null
 
   constructor(
@@ -62,6 +70,10 @@ export class Scheduler extends EventEmitter {
       this.pollInterval = null
     }
     this.runningTask?.abort()
+    for (const queued of this.taskQueue) {
+      queued.reject(new Error('Scheduler stopped'))
+    }
+    this.taskQueue = []
   }
 
   /**
@@ -157,10 +169,18 @@ export class Scheduler extends EventEmitter {
     console.log(`[Scheduler] Scheduled "${name}" (${cronExpr})`)
   }
 
+  private runNextQueued(): void {
+    const next = this.taskQueue.shift()
+    if (!next) return
+    this.runTask(next.name, next.prompt).then(next.resolve).catch(next.reject)
+  }
+
   private async runTask(name: string, prompt: string): Promise<TaskRun> {
     if (this.runningTask) {
-      console.warn(`[Scheduler] Task already running, skipping "${name}"`)
-      throw new Error('A task is already running')
+      console.log(`[Scheduler] Task queued (queue length: ${this.taskQueue.length + 1}): "${name}"`)
+      return new Promise((resolve, reject) => {
+        this.taskQueue.push({ name, prompt, resolve, reject })
+      })
     }
 
     const llmConfig = this.dbManager.getSetting('llmConfig') as {
@@ -173,9 +193,9 @@ export class Scheduler extends EventEmitter {
       throw new Error('LLM not configured')
     }
 
-    let persona = 'You are Wilfred, a diligent assistant in the Scriptorium.'
+    let persona = 'You are Wilfred, a diligent assistant in ThinkPod.'
     try {
-      const personaPath = path.join(this.vaultManager.vaultPath, '.scriptorium', 'wilfred.md')
+      const personaPath = path.join(this.vaultManager.vaultPath, '.thinkpod', 'wilfred.md')
       persona = await fs.readFile(personaPath, 'utf-8')
     } catch {
       // use default
@@ -212,6 +232,7 @@ export class Scheduler extends EventEmitter {
       return result
     } finally {
       this.runningTask = null
+      this.runNextQueued()
     }
   }
 }

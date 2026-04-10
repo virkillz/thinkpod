@@ -6,7 +6,7 @@ export class DatabaseManager {
   private dbPath: string
 
   constructor(appDataPath: string) {
-    this.dbPath = path.join(appDataPath, 'scriptorium.db')
+    this.dbPath = path.join(appDataPath, 'thinkpod.db')
     this.db = new Database(this.dbPath)
   }
 

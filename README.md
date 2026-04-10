@@ -1,6 +1,8 @@
-# ThinkPod (Scriptorium)
+# ThinkPod
 
 > An IDE for your thoughts, not your code. 100% Local.
+
+![ThinkPod](./thinkpod.png)
 
 ThinkPod is a **fully local, AI-powered personal knowledge base** built as a desktop app. It is a note-taking app at its core — but the goal goes beyond that. The vision is to make you feel like there is a **smart, sentient being living inside your notes**: an entity that reads what you write, understands your thinking, asks the right questions, and helps you connect ideas you would have otherwise missed. Together, you and Wilfred become more than the sum of your parts — a unified system for unleashing your knowledge.
 
@@ -13,6 +15,27 @@ At its foundation, ThinkPod embeds an AI agent — **Wilfred** — deeply into e
 - **Local-first.** All your notes and AI processing run on your machine. No cloud, no subscription, no privacy trade-off.
 - **Agent-native.** Wilfred is not a chatbot bolted on top — he lives inside the app and participates in the lifecycle of your writing.
 - **Fast capture.** Ideas are fleeting. ThinkPod makes it as quick and frictionless as possible to get thoughts down, then helps you make them better.
+
+---
+
+## The Core Differentiator
+
+Most note-taking apps treat AI as a *reactive* tool — you ask, it answers. ThinkPod flips this: the agent is *proactive*, running continuously, building its own understanding of your vault over time. This is not just a feature difference. It's a philosophical one.
+
+The closest analogy: imagine a brilliant research assistant who lives in your library, reads everything you've written, thinks about it while you sleep, and leaves you notes in the morning. No other consumer tool does this at this level. Obsidian, Notion, Bear — all passive. This is the gap.
+
+---
+
+## Why Local Changes Everything
+
+Running 24/7 on a local model means:
+
+- **No API cost accumulation** — the agent can run continuously without billing anxiety
+- **Privacy** — the vault never leaves your machine; personal journals, family notes, sensitive ideas are safe
+- **Autonomy** — no rate limits, no dependency on cloud uptime
+- **True continuity** — the agent can take its time, revisit old conclusions
+
+This makes the "always-on thinking partner" viable in a way that cloud-only tools cannot match.
 
 ---
 

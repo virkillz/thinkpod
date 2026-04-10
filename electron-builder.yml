@@ -1,5 +1,5 @@
-appId: com.scriptorium.app
-productName: Scriptorium
+appId: com.thinkpod.app
+productName: ThinkPod
 directories:
   output: release
   buildResources: build

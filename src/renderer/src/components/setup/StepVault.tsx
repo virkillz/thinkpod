@@ -129,7 +129,7 @@ export function StepVault({ onContinue, onBack, error, needsInit, onConfirmInit 
             This folder is not set up as a vault yet.
           </p>
           <p className="text-sm text-amber-700 mb-3">
-            A <code className="font-mono">.scriptorium</code> folder will be created inside this folder to get it ready.
+            A <code className="font-mono">.thinkpod</code> folder will be created inside this folder to get it ready.
             Your existing files will not be changed.
           </p>
           <button

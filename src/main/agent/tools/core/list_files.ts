@@ -32,7 +32,7 @@ export const listFilesTool: ToolEntry = {
     const entries = await fs.readdir(fullPath, { withFileTypes: true })
 
     const files = entries
-      .filter(e => !e.name.startsWith('.') || e.name === '.scriptorium')
+      .filter(e => !e.name.startsWith('.') || e.name === '.thinkpod')
       .map(e => ({
         name: e.name,
         path: path.join(p, e.name),
