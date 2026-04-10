@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/appStore.js'
 import { MarkdownEditor } from '../codex/MarkdownEditor.js'
 import { MarkdownPreview } from '../codex/MarkdownPreview.js'
 import { CommentPanel } from '../codex/CommentPanel.js'
-import { FileText, Sparkles, X, Loader2, AlertTriangle, Eye, Pencil } from 'lucide-react'
+import { FileText, Sparkles, X, Loader2, AlertTriangle, Eye, Pencil, Save } from 'lucide-react'
 
 type EditMode = 'replace' | 'append'
 
@@ -23,6 +23,7 @@ export function NotesView() {
   const [fileContent, setFileContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'edit' | 'view'>('edit')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
   // AI Edit state
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -76,12 +77,28 @@ export function NotesView() {
 
   const handleSave = async (content: string) => {
     if (!selectedFile) return
+    setSaveStatus('saving')
     try {
       await window.electronAPI.writeFile(selectedFile, content)
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 2000)
     } catch (error) {
       console.error('Failed to save file:', error)
+      setSaveStatus('idle')
     }
   }
+
+  // CMD+S keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave(fileContent)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [fileContent, selectedFile])
 
   const runAiEdit = async () => {
     const instruction = selectedAction?.instruction ?? customInstruction.trim()
@@ -188,6 +205,20 @@ export function NotesView() {
                 Edit
               </button>
             </div>
+
+            {/* Save button */}
+            <button
+              onClick={() => handleSave(fileContent)}
+              disabled={saveStatus === 'saving'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
+            >
+              {saveStatus === 'saving' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+              {saveStatus === 'saved' ? 'Saved!' : 'Save'}
+            </button>
 
             {/* AI Edit button */}
             <button

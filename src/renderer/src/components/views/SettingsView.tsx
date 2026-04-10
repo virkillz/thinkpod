@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download, Wrench, Zap, Palette, User, TriangleAlert } from 'lucide-react'
+import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download, Wrench, Zap, Palette, User, TriangleAlert, FileText, Plus, Pencil } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 import type { ThemeId, UserProfile } from '../../store/appStore.js'
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
 type VoiceDownloadState = 'idle' | 'downloading' | 'error'
 type VoiceConfig = { modelName: string; language: 'en' | 'auto' }
-type SettingsTab = 'general' | 'appearance' | 'inference' | 'voice' | 'tools' | 'advanced'
+type SettingsTab = 'general' | 'appearance' | 'inference' | 'voice' | 'tools' | 'templates' | 'advanced'
 
 const VOICE_TIER_MODELS = [
   { name: 'small.en',       label: 'Fast · English',         sizeMb: 466  },
@@ -18,11 +18,12 @@ const VOICE_TIER_MODELS = [
 ]
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
-  { id: 'general',    label: 'General',    icon: Folder  },
-  { id: 'appearance', label: 'Appearance', icon: Palette },
-  { id: 'inference',  label: 'Inference',  icon: Zap     },
-  { id: 'voice',      label: 'Voice',      icon: Mic     },
-  { id: 'tools',      label: 'Tools',      icon: Wrench  },
+  { id: 'general',    label: 'General',    icon: Folder   },
+  { id: 'appearance', label: 'Appearance', icon: Palette  },
+  { id: 'inference',  label: 'Inference',  icon: Zap      },
+  { id: 'voice',      label: 'Voice',      icon: Mic      },
+  { id: 'tools',      label: 'Tools',      icon: Wrench   },
+  { id: 'templates',  label: 'Templates',  icon: FileText },
   { id: 'advanced',   label: 'Advanced',   icon: Settings },
 ]
 
@@ -733,6 +734,415 @@ function ToolsTab() {
   )
 }
 
+// ─── Templates Tab ────────────────────────────────────────────────────────────
+
+export interface NoteTemplate {
+  id: string
+  title: string
+  description: string
+  isEnabled: boolean
+  format: string
+  defaultFolder: string
+}
+
+const DEFAULT_TEMPLATES: NoteTemplate[] = [
+  {
+    id: 'journal',
+    title: 'Journal',
+    description: 'Daily reflection and personal notes',
+    isEnabled: true,
+    defaultFolder: 'journal/',
+    format: `# Journal — [date]
+
+## How am I feeling?
+
+[Write freely here]
+
+## What happened today?
+
+[Key events or moments]
+
+## Reflections
+
+[What did I learn or notice?]`,
+  },
+  {
+    id: 'meeting',
+    title: 'Meeting Notes',
+    description: 'Structured notes from a meeting with agenda and action items',
+    isEnabled: true,
+    defaultFolder: 'meetings/',
+    format: `# Meeting: [Subject]
+
+**Attendees:** [Name 1, Name 2]
+**Date:** [Date]
+
+## Agenda
+
+[Agenda description]
+
+## Notes
+
+- [Note 1]
+- [Note 2]
+
+## Action Items
+
+- [ ] [Who] — [What]`,
+  },
+  {
+    id: 'project',
+    title: 'Project Note',
+    description: 'Progress notes for a project including goals and blockers',
+    isEnabled: true,
+    defaultFolder: 'projects/',
+    format: `# Project: [Name]
+
+**Status:** [Active / On Hold / Done]
+
+## Goal
+
+[What are we trying to achieve?]
+
+## Progress
+
+[What has been done?]
+
+## Blockers
+
+- [Blocker 1]
+
+## Next Steps
+
+- [ ] [Next action]`,
+  },
+  {
+    id: 'todo',
+    title: 'Todo',
+    description: 'A simple checklist of tasks',
+    isEnabled: true,
+    defaultFolder: 'todos/',
+    format: `# Todo: [Subject]
+
+## Tasks
+
+- [ ] [Task 1]
+- [ ] [Task 2]
+- [ ] [Task 3]
+
+## Notes
+
+[Optional context]`,
+  },
+  {
+    id: 'bookmark',
+    title: 'Bookmark',
+    description: 'A saved link with context and tags',
+    isEnabled: true,
+    defaultFolder: 'bookmarks/',
+    format: `# [Page Title]
+
+**URL:** [URL]
+**Saved:** [Date]
+**Tags:** [tag1, tag2]
+
+## Why I saved this
+
+[Reason]
+
+## Key takeaways
+
+- [Point 1]
+- [Point 2]`,
+  },
+  {
+    id: 'ideas',
+    title: 'Ideas',
+    description: 'A captured idea with description and next steps',
+    isEnabled: true,
+    defaultFolder: 'ideas/',
+    format: `# Idea: [Title]
+
+## What is it?
+
+[Describe the idea]
+
+## Why it matters
+
+[Motivation or potential impact]
+
+## Next Steps
+
+- [ ] [First step]`,
+  },
+  {
+    id: 'braindump',
+    title: 'Braindump',
+    description: "Unstructured catch-all for anything that doesn't fit elsewhere",
+    isEnabled: true,
+    defaultFolder: 'inbox/',
+    format: `# Braindump — [date]
+
+[Write anything here, no structure needed]`,
+  },
+]
+
+function TemplatesTab() {
+  const [templates, setTemplates] = useState<NoteTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<NoteTemplate | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadTemplates()
+  }, [])
+
+  const loadTemplates = async () => {
+    const saved = await window.electronAPI.getSetting('noteTemplates') as NoteTemplate[] | null
+    if (saved && Array.isArray(saved) && saved.length > 0) {
+      setTemplates(saved)
+    } else {
+      setTemplates(DEFAULT_TEMPLATES)
+      await window.electronAPI.setSetting('noteTemplates', DEFAULT_TEMPLATES)
+    }
+    setLoading(false)
+  }
+
+  const persist = async (updated: NoteTemplate[]) => {
+    setTemplates(updated)
+    await window.electronAPI.setSetting('noteTemplates', updated)
+  }
+
+  const handleToggle = (id: string) => {
+    persist(templates.map(t => t.id === id ? { ...t, isEnabled: !t.isEnabled } : t))
+  }
+
+  const handleDelete = (id: string) => {
+    persist(templates.filter(t => t.id !== id))
+    setDeleteConfirmId(null)
+  }
+
+  const handleEdit = (template: NoteTemplate) => {
+    setEditDraft({ ...template })
+    setEditingId(template.id)
+  }
+
+  const handleNew = () => {
+    const draft: NoteTemplate = {
+      id: crypto.randomUUID(),
+      title: '',
+      description: '',
+      isEnabled: true,
+      format: '',
+      defaultFolder: '',
+    }
+    setEditDraft(draft)
+    setEditingId('new')
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editDraft) return
+    const isNew = editingId === 'new'
+    const updated = isNew
+      ? [...templates, editDraft]
+      : templates.map(t => t.id === editDraft.id ? editDraft : t)
+    await persist(updated)
+    setEditingId(null)
+    setEditDraft(null)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setEditDraft(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-5 h-5 animate-spin text-ink-muted" />
+      </div>
+    )
+  }
+
+  // ── Edit / New panel ──────────────────────────────────────────────────────
+  if (editingId !== null && editDraft) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={handleCancelEdit} className="text-ink-muted hover:text-ink-primary text-sm transition-colors">
+            ← Back
+          </button>
+          <span className="text-parchment-dark">|</span>
+          <h3 className="text-sm font-medium text-ink-primary">
+            {editingId === 'new' ? 'New Template' : 'Edit Template'}
+          </h3>
+        </div>
+
+        <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-ink-primary mb-2">Title</label>
+            <input
+              type="text"
+              value={editDraft.title}
+              onChange={e => setEditDraft({ ...editDraft, title: e.target.value })}
+              placeholder="e.g. Meeting Notes"
+              className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-primary mb-2">Description</label>
+            <input
+              type="text"
+              value={editDraft.description}
+              onChange={e => setEditDraft({ ...editDraft, description: e.target.value })}
+              placeholder="One-line description used by AI to classify notes"
+              className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-primary mb-2">Default Folder</label>
+            <input
+              type="text"
+              value={editDraft.defaultFolder}
+              onChange={e => setEditDraft({ ...editDraft, defaultFolder: e.target.value })}
+              placeholder="e.g. meetings/"
+              className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-primary mb-1">Template Format</label>
+            <p className="text-xs text-ink-muted mb-2">Markdown template. Use [brackets] for placeholders.</p>
+            <textarea
+              value={editDraft.format}
+              onChange={e => setEditDraft({ ...editDraft, format: e.target.value })}
+              rows={14}
+              placeholder={'# Title\n\n## Section\n\n[content here]'}
+              className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm font-mono resize-none leading-relaxed"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 pt-2 border-t border-parchment-dark">
+            <button
+              onClick={handleSaveEdit}
+              disabled={!editDraft.title.trim() || !editDraft.format.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:bg-ink-light disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Save className="w-4 h-4" />
+              Save Template
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              className="px-4 py-2 text-ink-muted hover:text-ink-primary text-sm transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── List view ─────────────────────────────────────────────────────────────
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-ink-muted">
+          Templates used by AI to classify and reformat notes during triage.
+        </p>
+        <button
+          onClick={handleNew}
+          className="flex items-center gap-2 px-3 py-1.5 border border-accent text-accent hover:bg-accent hover:text-white rounded-lg text-sm font-medium transition-colors flex-shrink-0 ml-4"
+        >
+          <Plus className="w-4 h-4" />
+          Add New
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {templates.map(template => (
+          <div
+            key={template.id}
+            className="bg-parchment-card rounded-xl border border-parchment-dark overflow-hidden"
+          >
+            <div className="flex items-center gap-4 px-4 py-3.5">
+              {/* Enable/disable toggle */}
+              <button
+                role="switch"
+                aria-checked={template.isEnabled}
+                onClick={() => handleToggle(template.id)}
+                className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                  template.isEnabled ? 'bg-accent' : 'bg-ink-light'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200 ${
+                    template.isEnabled ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`font-medium text-sm ${template.isEnabled ? 'text-ink-primary' : 'text-ink-muted'}`}>
+                    {template.title}
+                  </span>
+                  <span className="text-xs font-mono text-ink-light">{template.defaultFolder}</span>
+                </div>
+                {template.description && (
+                  <p className="text-xs text-ink-muted mt-0.5 truncate">{template.description}</p>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {deleteConfirmId === template.id ? (
+                  <>
+                    <span className="text-xs text-red-600 mr-1">Delete?</span>
+                    <button
+                      onClick={() => handleDelete(template.id)}
+                      className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium transition-colors"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmId(null)}
+                      className="px-2 py-1 text-ink-muted hover:text-ink-primary text-xs transition-colors"
+                    >
+                      No
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleEdit(template)}
+                      className="p-1.5 text-ink-muted hover:text-ink-primary hover:bg-parchment-sidebar rounded transition-colors"
+                      title="Edit template"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmId(template.id)}
+                      className="p-1.5 text-ink-muted hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="Delete template"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Advanced Tab ─────────────────────────────────────────────────────────────
 
 function AdvancedTab() {
@@ -859,6 +1269,7 @@ export function SettingsView() {
         {activeTab === 'inference'  && <InferenceTab />}
         {activeTab === 'voice'      && <VoiceTab />}
         {activeTab === 'tools'      && <ToolsTab />}
+        {activeTab === 'templates'  && <TemplatesTab />}
         {activeTab === 'advanced'   && <AdvancedTab />}
       </div>
     </div>

@@ -632,6 +632,61 @@ export function setupIpcHandlers(
     }
   })
 
+  // LLM: Suggest the best folder for a note's content
+  ipcMain.handle(IPC_CHANNELS.LLM_SUGGEST_FOLDER, async (_, content: string) => {
+    const abbey = getVaultManager()
+    if (!abbey) return { success: false, error: 'No vault initialized' }
+
+    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    if (!llmConfig) return { success: false, error: 'LLM not configured' }
+
+    const getFolders = async (dirPath: string, depth = 0): Promise<string[]> => {
+      if (depth > 2) return []
+      try {
+        const entries = await fs.readdir(dirPath, { withFileTypes: true })
+        const folders: string[] = []
+        for (const entry of entries) {
+          if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== '_thoughts') {
+            const rel = path.relative(abbey.vaultPath, path.join(dirPath, entry.name))
+            folders.push(rel)
+            const sub = await getFolders(path.join(dirPath, entry.name), depth + 1)
+            folders.push(...sub)
+          }
+        }
+        return folders
+      } catch {
+        return []
+      }
+    }
+
+    const folders = await getFolders(abbey.vaultPath)
+    if (folders.length === 0) return { success: false, error: 'No folders available in vault' }
+
+    try {
+      const client = new LLMClient({ ...llmConfig, maxTokens: 100 })
+      const response = await client.chat([
+        {
+          role: 'system',
+          content:
+            'You are a filing assistant. Given a note and a list of folders, respond with ONLY the most appropriate folder path from the list. No explanation, no punctuation — just the exact folder path as shown.',
+        },
+        {
+          role: 'user',
+          content: `Folders:\n${folders.map((f) => `- ${f}`).join('\n')}\n\nNote:\n${content.slice(0, 1500)}`,
+        },
+      ])
+      const suggested = response.content?.trim().replace(/^- /, '') ?? ''
+      if (folders.includes(suggested)) {
+        return { success: true, folder: suggested }
+      }
+      // Fuzzy fallback: find the folder that best overlaps with LLM output
+      const match = folders.find((f) => suggested.includes(f) || f.includes(suggested))
+      return { success: true, folder: match ?? folders[0] }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Agent: Open or resume a chat session
   ipcMain.handle(
     IPC_CHANNELS.AGENT_CHAT_OPEN,

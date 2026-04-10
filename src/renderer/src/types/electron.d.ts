@@ -43,6 +43,7 @@ export interface ElectronAPI {
   startLLMServer: (config: { model: string; port?: number }) => Promise<{ success: boolean; url?: string; error?: string }>
   stopLLMServer: () => Promise<{ success: boolean }>
   editText: (text: string, instruction: string) => Promise<{ success: boolean; content?: string; error?: string }>
+  suggestFolder: (content: string) => Promise<{ success: boolean; folder?: string; error?: string }>
 
   // Agent
   runAgentTask: (taskName: string, instruction: string) => Promise<{

@@ -924,7 +924,13 @@ function SchedulesTab() {
 
       {/* Schedules List */}
       {schedules.length === 0 ? (
-        <div className="text-center py-16 text-ink-muted">No scheduled tasks defined.</div>
+        <div className="bg-parchment-sidebar rounded-xl p-8 text-center">
+          <Calendar className="w-10 h-10 text-ink-light mx-auto mb-3" />
+          <p className="text-ink-muted font-medium">No schedules yet</p>
+          <p className="text-sm text-ink-light mt-1 max-w-sm mx-auto">
+            Create a schedule to have your agent run tasks automatically — daily summaries, weekly reviews, or any recurring work.
+          </p>
+        </div>
       ) : (
         <div className="space-y-4">
           {schedules.map((s) => (

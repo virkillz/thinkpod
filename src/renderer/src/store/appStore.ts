@@ -69,6 +69,10 @@ interface AppState {
   unreadInbox: number
   setUnreadInbox: (count: number) => void
 
+  // Thoughts
+  thoughtCount: number
+  refreshThoughtCount: () => Promise<void>
+
   // Agent
   isAgentRunning: boolean
   setAgentRunning: (running: boolean) => void
@@ -140,6 +144,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Inbox
   unreadInbox: 0,
   setUnreadInbox: (count) => set({ unreadInbox: count }),
+
+  // Thoughts
+  thoughtCount: 0,
+  refreshThoughtCount: async () => {
+    const { vault } = get()
+    if (!vault) return
+
+    try {
+      const files = await window.electronAPI.listFiles('_thoughts')
+      const count = files.filter((f: { isDirectory: boolean }) => !f.isDirectory).length
+      set({ thoughtCount: count })
+    } catch (error) {
+      console.error('Failed to refresh thought count:', error)
+    }
+  },
 
   // Agent
   isAgentRunning: false,

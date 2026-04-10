@@ -29,6 +29,7 @@ export function Sidebar() {
     isFileTreeVisible,
     toggleFileTree,
     unreadInbox,
+    thoughtCount,
     vault
   } = useAppStore()
 
@@ -69,7 +70,7 @@ export function Sidebar() {
           {mainNavItems.map((item) => {
             const Icon = item.icon
             const isActive = currentView === item.id
-            const badge = item.id === 'inbox' ? unreadInbox : item.badge
+            const badge = item.id === 'inbox' ? unreadInbox : item.id === 'thoughts' ? thoughtCount : item.badge
 
             const isNewDraft = item.id === 'newthought'
 

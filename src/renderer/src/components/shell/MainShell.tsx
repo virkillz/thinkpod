@@ -11,11 +11,12 @@ import { SettingsView } from '../views/SettingsView.js'
 import { AgentFAB } from './AgentFAB.js'
 
 export function MainShell() {
-  const { currentView, refreshFileTree, setTheme, setCurrentView, setAgentProfile } = useAppStore()
+  const { currentView, refreshFileTree, refreshThoughtCount, setTheme, setCurrentView, setAgentProfile } = useAppStore()
 
   useEffect(() => {
     refreshFileTree()
-  }, [refreshFileTree])
+    refreshThoughtCount()
+  }, [refreshFileTree, refreshThoughtCount])
 
   useEffect(() => {
     window.electronAPI.getSetting('theme').then((saved) => {

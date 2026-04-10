@@ -25,6 +25,7 @@ const IPC_CHANNELS = {
   LLM_START_SERVER: 'llm:start-server',
   LLM_STOP_SERVER: 'llm:stop-server',
   LLM_EDIT_TEXT: 'llm:edit-text',
+  LLM_SUGGEST_FOLDER: 'llm:suggest-folder',
   AGENT_RUN_TASK: 'agent:run-task',
   AGENT_ABORT_TASK: 'agent:abort-task',
   AGENT_GET_TASKS: 'agent:get-tasks',
@@ -98,6 +99,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startLLMServer: (config: { model: string; port?: number }) => ipcRenderer.invoke(IPC_CHANNELS.LLM_START_SERVER, config),
   stopLLMServer: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_STOP_SERVER),
   editText: (text: string, instruction: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_EDIT_TEXT, text, instruction),
+  suggestFolder: (content: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SUGGEST_FOLDER, content),
 
   // Agent
   runAgentTask: (taskName: string, instruction: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_RUN_TASK, taskName, instruction),
