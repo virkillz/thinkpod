@@ -3,7 +3,7 @@ import path from 'path'
 import { DatabaseManager } from './database/DatabaseManager.js'
 import { AbbeyManager } from './abbey/AbbeyManager.js'
 import { IPC_CHANNELS } from './ipc/channels.js'
-import { setupIpcHandlers } from './ipc/handlers.js'
+import { setupIpcHandlers, setupScheduler } from './ipc/handlers.js'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -60,6 +60,11 @@ async function initializeApp(): Promise<void> {
 
   // Setup IPC handlers (now mainWindow is available)
   setupIpcHandlers(dbManager, abbeyManager)
+
+  // Start scheduler if abbey is ready
+  if (abbeyManager) {
+    setupScheduler(dbManager, abbeyManager)
+  }
 }
 
 app.whenReady().then(initializeApp)

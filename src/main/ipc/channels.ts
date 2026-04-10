@@ -32,14 +32,24 @@ export const IPC_CHANNELS = {
   AGENT_RUN_TASK: 'agent:run-task',
   AGENT_ABORT_TASK: 'agent:abort-task',
   AGENT_GET_TASKS: 'agent:get-tasks',
+  AGENT_CHAT: 'agent:chat',
   
   // Epistles
   EPISTLES_LIST: 'epistles:list',
   EPISTLES_READ: 'epistles:read',
   EPISTLES_MARK_READ: 'epistles:mark-read',
-  
+
+  // Canonical hours
+  HOURS_LIST: 'hours:list',
+  HOURS_TOGGLE: 'hours:toggle',
+  HOURS_TRIGGER: 'hours:trigger',
+
   // App
   APP_GET_VERSION: 'app:get-version',
+
+  // Push (main → renderer)
+  PUSH_TASK_UPDATE: 'push:task-update',
+  PUSH_TASK_END: 'push:task-end',
 } as const
 
 export type IpcChannels = typeof IPC_CHANNELS

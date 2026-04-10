@@ -105,27 +105,37 @@ scriptorium/
 └── build/                  # Build resources
 ```
 
-### What's Next (Phase 2)
+## Phase 2: Agent Core ✅ COMPLETE
 
 #### Agent Core
-- [ ] LLM client (OpenAI-compatible HTTP)
-- [ ] `mlx_lm` child process manager
-- [ ] Tool definitions: read_file, write_file, move_file, list_files, add_comment, write_epistle, finish_task
-- [ ] Agent loop with token budget + iteration cap
+- ✅ LLM client (OpenAI-compatible HTTP) — `LLMClient.ts`
+- ✅ `mlx_lm` child process manager — `LLMProcessManager.ts`
+- ✅ Tool definitions: read_file, write_file, move_file, list_files, add_comment, write_epistle, finish_task
+- ✅ Agent loop with token budget + iteration cap — `AgentLoop.ts`
 
-#### Phase 3
-- [ ] `node-cron` scheduler
-- [ ] Epistles viewer with unread badge (live)
-- [ ] Wilfred's comments as CodeMirror line decorations
+## Phase 3: Scheduler + Live Views ✅ COMPLETE
 
-#### Phase 4
-- [ ] Chapter timeline with live task log
-- [ ] Manual task trigger ("ring the bell")
+- ✅ `node-cron` scheduler — `Scheduler.ts`, starts with app when abbey is ready
+- ✅ Canonical hours CRUD (list, toggle active) in `DatabaseManager`
+- ✅ IPC channels: `hours:list`, `hours:toggle`, `hours:trigger`
+- ✅ Push events main → renderer: `push:task-update`, `push:task-end`
+- ✅ HoursView wired to real DB (toggle active, live schedule)
+- ✅ ChapterView wired to real task history + live running task display
+
+## Phase 4: Manual Trigger ✅ COMPLETE
+
+- ✅ "Ring the Bell" — per-hour manual trigger buttons in ChapterView
+- ✅ Live task progress (iterations, tool calls) via push events
+- ✅ Task archive with status icons, duration, and summary
+
+### What's Next
 
 #### Phase 5
+- [ ] Wilfred's comments as CodeMirror line decorations
 - [ ] Voice capture via Whisper
 - [ ] Brave Search tool integration
-- [ ] Obsidian exclusion for `.scriptorium/`
+- [ ] Hide `_epistles`, `_folios`, `.scriptorium` in Codex file tree by default; toggle in Rule page
+- [ ] Wire Wilfred chat panel to the real agent loop
 
 ### Running the App
 

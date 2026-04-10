@@ -45,6 +45,8 @@ interface AppState {
   // UI State
   isSidebarOpen: boolean
   toggleSidebar: () => void
+  showSystemFolders: boolean
+  setShowSystemFolders: (show: boolean) => void
   
   // Epistles
   unreadEpistles: number
@@ -100,6 +102,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // UI State
   isSidebarOpen: true,
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+  showSystemFolders: false,
+  setShowSystemFolders: (show) => set({ showSystemFolders: show }),
   
   // Epistles
   unreadEpistles: 0,

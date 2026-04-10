@@ -1,8 +1,54 @@
-import { Settings, Folder, ExternalLink, Key } from 'lucide-react'
+import { useState } from 'react'
+import { Settings, Folder, Key, Check, X, Loader2, Save } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
+type TestStatus = 'idle' | 'testing' | 'success' | 'error'
+
 export function RuleView() {
-  const { abbey, llmConfig, setLLMConfig } = useAppStore()
+  const { abbey, llmConfig, setLLMConfig, showSystemFolders, setShowSystemFolders } = useAppStore()
+
+  const [baseUrl, setBaseUrl] = useState(llmConfig.baseUrl)
+  const [model, setModel] = useState(llmConfig.model)
+  const [apiKey, setApiKey] = useState(llmConfig.apiKey)
+  const [testStatus, setTestStatus] = useState<TestStatus>('idle')
+  const [testError, setTestError] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
+
+  const handleTest = async () => {
+    setTestStatus('testing')
+    setTestError(null)
+    try {
+      const result = await window.electronAPI.testLLMConnection({
+        baseUrl,
+        model,
+        apiKey: apiKey || undefined,
+      })
+      if (result.success) {
+        setTestStatus('success')
+      } else {
+        setTestStatus('error')
+        setTestError(result.error || 'Connection failed')
+      }
+    } catch (err) {
+      setTestStatus('error')
+      setTestError((err as Error).message)
+    }
+  }
+
+  const handleSave = async () => {
+    const config = { baseUrl, model, apiKey }
+    setLLMConfig(config)
+    await window.electronAPI.setSetting('llmConfig', config)
+    setSaveStatus('saved')
+    setTimeout(() => setSaveStatus('idle'), 2000)
+  }
+
+  const handleInputChange = (setter: (v: string) => void, value: string) => {
+    setter(value)
+    setTestStatus('idle')
+    setTestError(null)
+    setSaveStatus('idle')
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -48,8 +94,8 @@ export function RuleView() {
                 </label>
                 <input
                   type="text"
-                  value={llmConfig.baseUrl}
-                  onChange={(e) => setLLMConfig({ baseUrl: e.target.value })}
+                  value={baseUrl}
+                  onChange={(e) => handleInputChange(setBaseUrl, e.target.value)}
                   className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent"
                 />
               </div>
@@ -60,8 +106,8 @@ export function RuleView() {
                 </label>
                 <input
                   type="text"
-                  value={llmConfig.model}
-                  onChange={(e) => setLLMConfig({ model: e.target.value })}
+                  value={model}
+                  onChange={(e) => handleInputChange(setModel, e.target.value)}
                   className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent"
                 />
               </div>
@@ -73,21 +119,43 @@ export function RuleView() {
                 </label>
                 <input
                   type="password"
-                  value={llmConfig.apiKey}
-                  onChange={(e) => setLLMConfig({ apiKey: e.target.value })}
+                  value={apiKey}
+                  onChange={(e) => handleInputChange(setApiKey, e.target.value)}
                   placeholder="Optional — for cloud providers"
                   className="w-full px-4 py-3 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent"
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-4 border-t border-parchment-dark">
-                <button className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors">
-                  <ExternalLink className="w-4 h-4" />
-                  Test Connection
+              <div className="flex items-center gap-3 pt-4 border-t border-parchment-dark">
+                <button
+                  onClick={handleTest}
+                  disabled={testStatus === 'testing' || !baseUrl || !model}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed ${
+                    testStatus === 'success'
+                      ? 'bg-green-600 text-white'
+                      : testStatus === 'error'
+                      ? 'bg-red-600 text-white'
+                      : 'border border-accent text-accent hover:bg-accent hover:text-white disabled:border-parchment-dark disabled:text-ink-muted'
+                  }`}
+                >
+                  {testStatus === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {testStatus === 'success' && <Check className="w-4 h-4" />}
+                  {testStatus === 'error' && <X className="w-4 h-4" />}
+                  {testStatus === 'testing' ? 'Testing…' : testStatus === 'success' ? 'Connected' : testStatus === 'error' ? 'Failed' : 'Test Connection'}
                 </button>
-                <button className="px-4 py-2 text-accent hover:bg-accent/10 rounded-lg text-sm font-medium transition-colors">
-                  Reset to Defaults
+
+                <button
+                  onClick={handleSave}
+                  disabled={!baseUrl || !model}
+                  className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:bg-ink-light disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  {saveStatus === 'saved' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                  {saveStatus === 'saved' ? 'Saved' : 'Save'}
                 </button>
+
+                {testError && (
+                  <span className="text-sm text-red-600">{testError}</span>
+                )}
               </div>
             </div>
           </section>
@@ -105,6 +173,37 @@ export function RuleView() {
               <button className="px-4 py-2 border border-accent text-accent hover:bg-accent hover:text-white rounded-lg text-sm font-medium transition-colors">
                 Open wilfred.md
               </button>
+            </div>
+          </section>
+
+          {/* Codex section */}
+          <section>
+            <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
+              Codex
+            </h3>
+            <div className="bg-white rounded-xl p-6 border border-parchment-dark">
+              <label className="flex items-center justify-between cursor-pointer">
+                <div>
+                  <span className="font-medium text-ink-primary text-sm">Show system folders</span>
+                  <p className="text-xs text-ink-muted mt-0.5">
+                    Display _epistles, _folios, and .scriptorium in the file tree
+                  </p>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={showSystemFolders}
+                  onClick={() => setShowSystemFolders(!showSystemFolders)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                    showSystemFolders ? 'bg-accent' : 'bg-ink-light'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200 ${
+                      showSystemFolders ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </label>
             </div>
           </section>
 

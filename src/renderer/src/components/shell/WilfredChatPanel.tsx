@@ -28,10 +28,11 @@ export function WilfredChatPanel({ isOpen, onClose }: WilfredChatPanelProps) {
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
 
+    const text = input.trim()
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: text,
       timestamp: Date.now(),
     }
 
@@ -39,18 +40,28 @@ export function WilfredChatPanel({ isOpen, onClose }: WilfredChatPanelProps) {
     setInput('')
     setIsLoading(true)
 
-    // TODO: Integrate with actual agent loop in Phase 2
-    // For now, simulate a response
-    setTimeout(() => {
+    try {
+      const result = await window.electronAPI.agentChat(text)
       const wilfredResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: 'wilfred',
-        content: "I hear you. The agent loop will be connected in Phase 2, when I can truly tend to your manuscripts.",
+        content: result.success && result.content
+          ? result.content
+          : result.error ?? 'I was unable to respond. Please check the LLM configuration in the Rule page.',
         timestamp: Date.now(),
       }
       setMessages(prev => [...prev, wilfredResponse])
+    } catch (error) {
+      const wilfredResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'wilfred',
+        content: 'Something went wrong. Please check the LLM configuration in the Rule page.',
+        timestamp: Date.now(),
+      }
+      setMessages(prev => [...prev, wilfredResponse])
+    } finally {
       setIsLoading(false)
-    }, 1500)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

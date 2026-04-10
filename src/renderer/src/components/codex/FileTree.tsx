@@ -10,17 +10,23 @@ interface TreeNode {
   isExpanded?: boolean
 }
 
+const SYSTEM_NAMES = new Set(['_epistles', '_folios', '.scriptorium'])
+
 export function FileTree() {
   const [tree, setTree] = useState<TreeNode[]>([])
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(['.']))
-  const { selectedFile, setSelectedFile, abbey } = useAppStore()
+  const { selectedFile, setSelectedFile, abbey, showSystemFolders } = useAppStore()
 
   const loadDirectory = useCallback(async (path: string): Promise<TreeNode[]> => {
     try {
       const entries = await window.electronAPI.listFiles(path)
       
+      const visible = showSystemFolders
+        ? entries
+        : entries.filter(e => !SYSTEM_NAMES.has(e.name))
+
       // Sort: directories first, then alphabetically
-      const sorted = entries.sort((a, b) => {
+      const sorted = visible.sort((a, b) => {
         if (a.isDirectory === b.isDirectory) {
           return a.name.localeCompare(b.name)
         }

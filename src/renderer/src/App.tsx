@@ -6,16 +6,27 @@ import { LoadingScreen } from './components/common/LoadingScreen.js'
 
 function App() {
   const [isLoading, setIsLoading] = useState(true)
-  const { isSetupComplete, setSetupComplete, setAbbey } = useAppStore()
+  const { isSetupComplete, setSetupComplete, setAbbey, setLLMConfig } = useAppStore()
 
   useEffect(() => {
-    // Check if there's already an abbey configured
     const checkAbbey = async () => {
       try {
         const abbeyInfo = await window.electronAPI.getAbbeyInfo()
         if (abbeyInfo) {
           setAbbey(abbeyInfo)
           setSetupComplete(true)
+
+          // Restore persisted LLM config
+          const saved = await window.electronAPI.getSetting('llmConfig') as {
+            baseUrl?: string; model?: string; apiKey?: string
+          } | null
+          if (saved?.baseUrl) {
+            setLLMConfig({
+              baseUrl: saved.baseUrl,
+              model: saved.model ?? '',
+              apiKey: saved.apiKey ?? '',
+            })
+          }
         }
       } catch (error) {
         console.error('Failed to check abbey:', error)
@@ -25,7 +36,7 @@ function App() {
     }
 
     checkAbbey()
-  }, [setAbbey, setSetupComplete])
+  }, [setAbbey, setSetupComplete, setLLMConfig])
 
   if (isLoading) {
     return <LoadingScreen />

@@ -24,10 +24,16 @@ const IPC_CHANNELS = {
   AGENT_RUN_TASK: 'agent:run-task',
   AGENT_ABORT_TASK: 'agent:abort-task',
   AGENT_GET_TASKS: 'agent:get-tasks',
+  AGENT_CHAT: 'agent:chat',
   EPISTLES_LIST: 'epistles:list',
   EPISTLES_READ: 'epistles:read',
   EPISTLES_MARK_READ: 'epistles:mark-read',
+  HOURS_LIST: 'hours:list',
+  HOURS_TOGGLE: 'hours:toggle',
+  HOURS_TRIGGER: 'hours:trigger',
   APP_GET_VERSION: 'app:get-version',
+  PUSH_TASK_UPDATE: 'push:task-update',
+  PUSH_TASK_END: 'push:task-end',
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -68,12 +74,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runAgentTask: (taskName: string, instruction: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_RUN_TASK, taskName, instruction),
   abortAgentTask: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_ABORT_TASK),
   getAgentTasks: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_GET_TASKS),
+  agentChat: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_CHAT, message),
 
   // Epistles
   listEpistles: () => ipcRenderer.invoke(IPC_CHANNELS.EPISTLES_LIST),
   readEpistle: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.EPISTLES_READ, filename),
   markEpistleRead: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.EPISTLES_MARK_READ, filename),
 
+  // Canonical hours
+  listHours: () => ipcRenderer.invoke(IPC_CHANNELS.HOURS_LIST),
+  toggleHour: (id: number, isActive: boolean) => ipcRenderer.invoke(IPC_CHANNELS.HOURS_TOGGLE, id, isActive),
+  triggerHour: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.HOURS_TRIGGER, id),
+
   // App
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
+
+  // Push events (main → renderer)
+  onTaskUpdate: (callback: (run: unknown) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_TASK_UPDATE, (_, run) => callback(run))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_TASK_UPDATE)
+  },
+  onTaskEnd: (callback: (run: unknown) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_TASK_END, (_, run) => callback(run))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_TASK_END)
+  },
 })

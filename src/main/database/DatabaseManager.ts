@@ -216,6 +216,35 @@ export class DatabaseManager {
     )
   }
 
+  // Canonical hours
+  getCanonicalHours(): Array<{
+    id: number
+    name: string
+    schedule: string
+    prompt: string
+    tools: string
+    is_active: number
+  }> {
+    return this.db.prepare(`
+      SELECT id, name, schedule, prompt, tools, is_active
+      FROM canonical_hours
+      ORDER BY id ASC
+    `).all() as Array<{
+      id: number
+      name: string
+      schedule: string
+      prompt: string
+      tools: string
+      is_active: number
+    }>
+  }
+
+  toggleCanonicalHour(id: number, isActive: boolean): void {
+    this.db.prepare(`
+      UPDATE canonical_hours SET is_active = ?, updated_at = ? WHERE id = ?
+    `).run(isActive ? 1 : 0, Date.now(), id)
+  }
+
   getRecentTaskRuns(limit: number = 10): Array<{
     id: number
     task_name: string

@@ -5,6 +5,7 @@
  * the abort signal and throw TaskAbortedError when cancelled.
  */
 
+import path from 'node:path'
 import { LLMClient, LLMMessage, ToolCall } from './LLMClient.js'
 import { TOOL_DEFINITIONS } from './ToolDefinitions.js'
 import { ToolExecutor, ToolContext } from './ToolExecutor.js'
@@ -104,7 +105,7 @@ export class AgentLoop {
         this.onUpdate(this.taskRun)
 
         // Get LLM response
-        const response = await this.client.chatWithTools(this.messages, TOOL_DEFINITIONS)
+        const response = await this.client.chatWithTools(this.messages, TOOL_DEFINITIONS as unknown as unknown[])
         
         // Add assistant message
         this.messages.push({
@@ -132,7 +133,7 @@ export class AgentLoop {
             // Check if task is finished
             if (toolCall.function.name === 'finish_task' && result.success) {
               this.taskRun.status = 'done'
-              this.taskRun.summary = result.data?.summary || 'Task completed'
+              this.taskRun.summary = (result.data as { summary?: string })?.summary || 'Task completed'
               this.taskRun.endedAt = Date.now()
               return this.taskRun
             }

@@ -67,6 +67,7 @@ export interface ElectronAPI {
     status: string
     summary: string
   }>>
+  agentChat: (message: string) => Promise<{ success: boolean; content?: string; error?: string }>
 
   // Epistles
   listEpistles: () => Promise<Array<{
@@ -80,8 +81,37 @@ export interface ElectronAPI {
   readEpistle: (filename: string) => Promise<{ content: string; path: string }>
   markEpistleRead: (filename: string) => Promise<{ success: boolean }>
 
+  // Canonical hours
+  listHours: () => Promise<Array<{
+    id: number
+    name: string
+    schedule: string
+    prompt: string
+    tools: string
+    is_active: number
+  }>>
+  toggleHour: (id: number, isActive: boolean) => Promise<{ success: boolean }>
+  triggerHour: (id: number) => Promise<{ success: boolean; result?: unknown; error?: string }>
+
   // App
   getAppVersion: () => Promise<string>
+
+  // Push events (main → renderer)
+  onTaskUpdate: (callback: (run: TaskRun) => void) => () => void
+  onTaskEnd: (callback: (run: TaskRun) => void) => () => void
+}
+
+interface TaskRun {
+  id: string
+  taskName: string
+  prompt: string
+  status: 'running' | 'done' | 'error' | 'aborted' | 'budget_exceeded'
+  startedAt: number
+  endedAt?: number
+  iterations: number
+  toolCalls: number
+  summary?: string
+  error?: string
 }
 
 declare global {

@@ -7,10 +7,18 @@ import type { AbbeyManager } from '../abbey/AbbeyManager.js'
 import { getMainWindow } from '../index.js'
 import { LLMProcessManager } from '../agent/LLMProcessManager.js'
 import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
+import { LLMClient } from '../agent/LLMClient.js'
+import { Scheduler } from '../scheduler/Scheduler.js'
 
 // Agent state
 let llmProcessManager: LLMProcessManager | null = null
 let currentAgentLoop: AgentLoop | null = null
+let scheduler: Scheduler | null = null
+
+function pushToRenderer(channel: string, data: unknown): void {
+  const win = getMainWindow()
+  win?.webContents.send(channel, data)
+}
 
 export function setupIpcHandlers(
   dbManager: DatabaseManager,
@@ -208,12 +216,6 @@ Your character:
     return { success: true }
   })
 
-  // LLM: Get status
-  ipcMain.handle(IPC_CHANNELS.LLM_GET_STATUS, async () => {
-    // TODO: Implement actual LLM status checking in Phase 2
-    return { connected: false, model: null }
-  })
-
   // LLM: Test connection
   ipcMain.handle(IPC_CHANNELS.LLM_TEST_CONNECTION, async (_, config: { baseUrl: string; model: string; apiKey?: string }) => {
     try {
@@ -362,6 +364,33 @@ Your character:
     return { success: result.status === 'done', result }
   })
 
+  // Agent: Chat (single LLM call, no tool loop)
+  ipcMain.handle(IPC_CHANNELS.AGENT_CHAT, async (_, message: string) => {
+    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    if (!llmConfig) {
+      return { success: false, error: 'LLM not configured' }
+    }
+
+    let persona = 'You are Wilfred, a diligent monk in the Scriptorium. Respond briefly and in character.'
+    if (abbeyManager) {
+      try {
+        const personaPath = path.join(abbeyManager.abbeyPath, '.scriptorium', 'wilfred.md')
+        persona = await fs.readFile(personaPath, 'utf-8')
+      } catch { /* use default */ }
+    }
+
+    try {
+      const client = new LLMClient(llmConfig)
+      const response = await client.chat([
+        { role: 'system', content: persona },
+        { role: 'user', content: message },
+      ])
+      return { success: true, content: response.content }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Agent: Abort task
   ipcMain.handle(IPC_CHANNELS.AGENT_ABORT_TASK, async () => {
     currentAgentLoop?.abort()
@@ -421,7 +450,7 @@ Your character:
           })
       )
 
-      return epistles.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+      return epistles.sort((a, b) => new Date(b.created as string).getTime() - new Date(a.created as string).getTime())
     } catch {
       return []
     }
@@ -446,11 +475,53 @@ Your character:
 
     const filePath = path.join(abbeyManager.abbeyPath, '_epistles', filename)
     let content = await fs.readFile(filePath, 'utf-8')
-    
+
     // Replace status: unread with status: read
     content = content.replace(/status: unread/, 'status: read')
-    
+
     await fs.writeFile(filePath, content, 'utf-8')
     return { success: true }
   })
+
+  // Canonical hours: List
+  ipcMain.handle(IPC_CHANNELS.HOURS_LIST, async () => {
+    return dbManager.getCanonicalHours()
+  })
+
+  // Canonical hours: Toggle active
+  ipcMain.handle(IPC_CHANNELS.HOURS_TOGGLE, async (_, id: number, isActive: boolean) => {
+    dbManager.toggleCanonicalHour(id, isActive)
+    scheduler?.reloadHour(id)
+    return { success: true }
+  })
+
+  // Canonical hours: Trigger manually (Ring the Bell)
+  ipcMain.handle(IPC_CHANNELS.HOURS_TRIGGER, async (_, id: number) => {
+    if (!abbeyManager) {
+      return { success: false, error: 'No abbey initialized' }
+    }
+    if (!scheduler) {
+      return { success: false, error: 'Scheduler not started' }
+    }
+    try {
+      const result = await scheduler.triggerNow(id)
+      return { success: true, result }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+}
+
+export function setupScheduler(dbManager: DatabaseManager, abbeyManager: AbbeyManager): void {
+  scheduler = new Scheduler(dbManager, abbeyManager)
+
+  scheduler.on('taskUpdate', (run: TaskRun) => {
+    pushToRenderer(IPC_CHANNELS.PUSH_TASK_UPDATE, run)
+  })
+
+  scheduler.on('taskEnd', (run: TaskRun) => {
+    pushToRenderer(IPC_CHANNELS.PUSH_TASK_END, run)
+  })
+
+  scheduler.start()
 }
