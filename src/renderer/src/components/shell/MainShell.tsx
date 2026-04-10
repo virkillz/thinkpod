@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/appStore.js'
 import { Sidebar } from './Sidebar.js'
 import { CodexView } from '../views/CodexView.js'
 import { EpistlesView } from '../views/EpistlesView.js'
+import { FoliosView } from '../views/FoliosView.js'
 import { ChapterView } from '../views/ChapterView.js'
 import { HoursView } from '../views/HoursView.js'
 import { RuleView } from '../views/RuleView.js'
@@ -21,6 +22,8 @@ export function MainShell() {
         return <CodexView />
       case 'epistles':
         return <EpistlesView />
+      case 'folios':
+        return <FoliosView />
       case 'chapter':
         return <ChapterView />
       case 'hours':

@@ -28,7 +28,7 @@ interface AppState {
   setAbbey: (abbey: AbbeyInfo | null) => void
   
   // Navigation
-  currentView: 'codex' | 'epistles' | 'chapter' | 'hours' | 'rule'
+  currentView: 'codex' | 'epistles' | 'folios' | 'chapter' | 'hours' | 'rule'
   setCurrentView: (view: AppState['currentView']) => void
   
   // Files

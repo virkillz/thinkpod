@@ -1,10 +1,10 @@
-import { BookOpen, Mail, Clock, Calendar, Settings, PenLine, Menu, X } from 'lucide-react'
+import { BookOpen, Mail, Inbox, Clock, Calendar, Settings, Menu, X } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 import { FileTree } from '../codex/FileTree.js'
 import { InkwellButton } from './InkwellButton.js'
 
 type NavItem = {
-  id: 'codex' | 'epistles' | 'chapter' | 'hours' | 'rule'
+  id: 'codex' | 'epistles' | 'folios' | 'chapter' | 'hours' | 'rule'
   label: string
   icon: React.ElementType
   badge?: number
@@ -13,6 +13,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { id: 'codex', label: 'Codex', icon: BookOpen },
   { id: 'epistles', label: 'Epistles', icon: Mail, badge: 0 },
+  { id: 'folios', label: 'Folios', icon: Inbox },
   { id: 'chapter', label: 'Chapter', icon: Clock },
   { id: 'hours', label: 'Hours', icon: Calendar },
 ]
