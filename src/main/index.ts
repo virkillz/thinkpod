@@ -15,6 +15,10 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow
 }
 
+export function getAbbeyManager(): AbbeyManager | null {
+  return abbeyManager
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -59,11 +63,11 @@ async function initializeApp(): Promise<void> {
   createWindow()
 
   // Setup IPC handlers (now mainWindow is available)
-  setupIpcHandlers(dbManager, abbeyManager)
+  setupIpcHandlers(dbManager)
 
   // Start scheduler if abbey is ready
   if (abbeyManager) {
-    setupScheduler(dbManager, abbeyManager)
+    setupScheduler(dbManager)
   }
 }
 

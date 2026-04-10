@@ -35,6 +35,16 @@ const IPC_CHANNELS = {
   APP_GET_VERSION: 'app:get-version',
   PUSH_TASK_UPDATE: 'push:task-update',
   PUSH_TASK_END: 'push:task-end',
+  WHISPER_GET_CONFIG: 'whisper:get-config',
+  WHISPER_SET_CONFIG: 'whisper:set-config',
+  WHISPER_DOWNLOAD_MODEL: 'whisper:download-model',
+  WHISPER_CANCEL_DOWNLOAD: 'whisper:cancel-download',
+  WHISPER_DELETE_MODEL: 'whisper:delete-model',
+  WHISPER_START_CAPTURE: 'whisper:start-capture',
+  WHISPER_STOP_CAPTURE: 'whisper:stop-capture',
+  WHISPER_AUDIO_CHUNK: 'whisper:audio-chunk',
+  PUSH_VOICE_DOWNLOAD_PROGRESS: 'push:voice-download-progress',
+  PUSH_VOICE_TRANSCRIPT: 'push:voice-transcript',
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -91,6 +101,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // App
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
 
+  // Whisper / Voice
+  getWhisperConfig: () => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_GET_CONFIG),
+  setWhisperConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_SET_CONFIG, config),
+  downloadWhisperModel: (modelName: string) => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_DOWNLOAD_MODEL, modelName),
+  cancelWhisperDownload: () => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_CANCEL_DOWNLOAD),
+  deleteWhisperModel: (modelName: string) => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_DELETE_MODEL, modelName),
+  startVoiceCapture: () => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_START_CAPTURE),
+  stopVoiceCapture: () => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_STOP_CAPTURE),
+  sendAudioChunk: (buffer: ArrayBuffer) => ipcRenderer.send(IPC_CHANNELS.WHISPER_AUDIO_CHUNK, buffer),
+
   // Push events (main → renderer)
   onTaskUpdate: (callback: (run: unknown) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PUSH_TASK_UPDATE, (_, run) => callback(run))
@@ -99,5 +119,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onTaskEnd: (callback: (run: unknown) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PUSH_TASK_END, (_, run) => callback(run))
     return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_TASK_END)
+  },
+  onVoiceDownloadProgress: (callback: (data: { modelName: string; progress: number }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_VOICE_DOWNLOAD_PROGRESS, (_, data) => callback(data))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_VOICE_DOWNLOAD_PROGRESS)
+  },
+  onVoiceTranscript: (callback: (data: { text: string; isFinal: boolean }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_VOICE_TRANSCRIPT, (_, data) => callback(data))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_VOICE_TRANSCRIPT)
   },
 })

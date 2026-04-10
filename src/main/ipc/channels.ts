@@ -50,9 +50,21 @@ export const IPC_CHANNELS = {
   // App
   APP_GET_VERSION: 'app:get-version',
 
+  // Whisper / Voice
+  WHISPER_GET_CONFIG: 'whisper:get-config',
+  WHISPER_SET_CONFIG: 'whisper:set-config',
+  WHISPER_DOWNLOAD_MODEL: 'whisper:download-model',
+  WHISPER_CANCEL_DOWNLOAD: 'whisper:cancel-download',
+  WHISPER_DELETE_MODEL: 'whisper:delete-model',
+  WHISPER_START_CAPTURE: 'whisper:start-capture',
+  WHISPER_STOP_CAPTURE: 'whisper:stop-capture',
+  WHISPER_AUDIO_CHUNK: 'whisper:audio-chunk',
+
   // Push (main → renderer)
   PUSH_TASK_UPDATE: 'push:task-update',
   PUSH_TASK_END: 'push:task-end',
+  PUSH_VOICE_DOWNLOAD_PROGRESS: 'push:voice-download-progress',
+  PUSH_VOICE_TRANSCRIPT: 'push:voice-transcript',
 } as const
 
 export type IpcChannels = typeof IPC_CHANNELS

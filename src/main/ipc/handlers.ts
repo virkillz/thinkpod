@@ -4,16 +4,22 @@ import fs from 'fs/promises'
 import { IPC_CHANNELS } from './channels.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
 import type { AbbeyManager } from '../abbey/AbbeyManager.js'
-import { getMainWindow } from '../index.js'
+import { getMainWindow, getAbbeyManager } from '../index.js'
 import { LLMProcessManager } from '../agent/LLMProcessManager.js'
 import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
 import { LLMClient } from '../agent/LLMClient.js'
 import { Scheduler } from '../scheduler/Scheduler.js'
+import { WhisperManager, WHISPER_MODELS, type VoiceConfig } from '../whisper/WhisperManager.js'
+import { VoiceCaptureService } from '../whisper/VoiceCaptureService.js'
 
 // Agent state
 let llmProcessManager: LLMProcessManager | null = null
 let currentAgentLoop: AgentLoop | null = null
 let scheduler: Scheduler | null = null
+
+// Whisper state
+let whisperManager: WhisperManager | null = null
+let voiceCaptureService: VoiceCaptureService | null = null
 
 function pushToRenderer(channel: string, data: unknown): void {
   const win = getMainWindow()
@@ -21,9 +27,79 @@ function pushToRenderer(channel: string, data: unknown): void {
 }
 
 export function setupIpcHandlers(
-  dbManager: DatabaseManager,
-  abbeyManager: AbbeyManager | null
+  dbManager: DatabaseManager
 ): void {
+  // Initialise whisper manager (lazy, no heavy work until needed)
+  whisperManager = new WhisperManager(dbManager)
+
+  // Whisper: Get config + available models
+  ipcMain.handle(IPC_CHANNELS.WHISPER_GET_CONFIG, async () => {
+    const config = await whisperManager!.getConfig()
+    const downloaded = await whisperManager!.listDownloadedModels()
+    return { config, models: WHISPER_MODELS, downloaded }
+  })
+
+  // Whisper: Set config
+  ipcMain.handle(IPC_CHANNELS.WHISPER_SET_CONFIG, async (_, config: VoiceConfig | null) => {
+    await whisperManager!.setConfig(config)
+    return { success: true }
+  })
+
+  // Whisper: Download model (streams progress via push event)
+  ipcMain.handle(IPC_CHANNELS.WHISPER_DOWNLOAD_MODEL, async (_, modelName: string) => {
+    try {
+      await whisperManager!.downloadModel(modelName, (progress) => {
+        pushToRenderer(IPC_CHANNELS.PUSH_VOICE_DOWNLOAD_PROGRESS, { modelName, progress })
+      })
+      return { success: true }
+    } catch (error) {
+      const message = (error as Error).message
+      if (message === 'Download cancelled') {
+        return { success: false, cancelled: true }
+      }
+      return { success: false, error: message }
+    }
+  })
+
+  // Whisper: Cancel download
+  ipcMain.handle(IPC_CHANNELS.WHISPER_CANCEL_DOWNLOAD, async () => {
+    whisperManager!.cancelDownload()
+    return { success: true }
+  })
+
+  // Whisper: Delete model
+  ipcMain.handle(IPC_CHANNELS.WHISPER_DELETE_MODEL, async (_, modelName: string) => {
+    try {
+      await whisperManager!.deleteModel(modelName)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Whisper: Start capture
+  ipcMain.handle(IPC_CHANNELS.WHISPER_START_CAPTURE, async () => {
+    if (voiceCaptureService) return { success: false, error: 'Already capturing' }
+
+    voiceCaptureService = new VoiceCaptureService(whisperManager!)
+    voiceCaptureService.on('transcript', (data: { text: string; isFinal: boolean }) => {
+      pushToRenderer(IPC_CHANNELS.PUSH_VOICE_TRANSCRIPT, data)
+    })
+    voiceCaptureService.start()
+    return { success: true }
+  })
+
+  // Whisper: Stop capture
+  ipcMain.handle(IPC_CHANNELS.WHISPER_STOP_CAPTURE, async () => {
+    voiceCaptureService?.stop()
+    voiceCaptureService = null
+    return { success: true }
+  })
+
+  // Whisper: Audio chunk from renderer AudioWorklet
+  ipcMain.on(IPC_CHANNELS.WHISPER_AUDIO_CHUNK, (_, buffer: ArrayBuffer) => {
+    voiceCaptureService?.handleAudioChunk(buffer)
+  })
   // Abbey: Select folder dialog
   ipcMain.handle(IPC_CHANNELS.ABBEY_SELECT_FOLDER, async () => {
     const mainWindow = getMainWindow()
@@ -184,11 +260,12 @@ Your character:
 
   // Files: List directory
   ipcMain.handle(IPC_CHANNELS.FILES_LIST, async (_, dirPath: string) => {
-    if (!abbeyManager) {
+    const abbey = getAbbeyManager()
+    if (!abbey) {
       throw new Error('No abbey initialized')
     }
     
-    const fullPath = path.join(abbeyManager.abbeyPath, dirPath)
+    const fullPath = path.join(abbey.abbeyPath, dirPath)
     const entries = await fs.readdir(fullPath, { withFileTypes: true })
     
     return entries
@@ -208,22 +285,24 @@ Your character:
 
   // Files: Read file
   ipcMain.handle(IPC_CHANNELS.FILES_READ, async (_, filePath: string) => {
-    if (!abbeyManager) {
+    const abbey = getAbbeyManager()
+    if (!abbey) {
       throw new Error('No abbey initialized')
     }
     
-    const fullPath = path.join(abbeyManager.abbeyPath, filePath)
+    const fullPath = path.join(abbey.abbeyPath, filePath)
     const content = await fs.readFile(fullPath, 'utf-8')
     return { content, path: filePath }
   })
 
   // Files: Write file
   ipcMain.handle(IPC_CHANNELS.FILES_WRITE, async (_, filePath: string, content: string) => {
-    if (!abbeyManager) {
+    const abbey = getAbbeyManager()
+    if (!abbey) {
       throw new Error('No abbey initialized')
     }
     
-    const fullPath = path.join(abbeyManager.abbeyPath, filePath)
+    const fullPath = path.join(abbey.abbeyPath, filePath)
     await fs.writeFile(fullPath, content, 'utf-8')
     return { success: true }
   })
@@ -341,7 +420,8 @@ Your character:
 
   // Agent: Run task
   ipcMain.handle(IPC_CHANNELS.AGENT_RUN_TASK, async (_, taskName: string, instruction: string) => {
-    if (!abbeyManager) {
+    const abbey = getAbbeyManager()
+    if (!abbey) {
       return { success: false, error: 'No abbey initialized' }
     }
 
@@ -353,7 +433,7 @@ Your character:
     // Load Wilfred's persona
     let persona = ''
     try {
-      const personaPath = path.join(abbeyManager.abbeyPath, '.scriptorium', 'wilfred.md')
+      const personaPath = path.join(abbey.abbeyPath, '.scriptorium', 'wilfred.md')
       persona = await fs.readFile(personaPath, 'utf-8')
     } catch {
       persona = 'You are Wilfred, a diligent monk in the Scriptorium.'
@@ -361,7 +441,7 @@ Your character:
 
     currentAgentLoop = new AgentLoop(
       {
-        abbeyPath: abbeyManager.abbeyPath,
+        abbeyPath: abbey.abbeyPath,
         dbManager,
         llmConfig,
         persona,
@@ -395,9 +475,10 @@ Your character:
     }
 
     let persona = 'You are Wilfred, a diligent monk in the Scriptorium. Respond briefly and in character.'
-    if (abbeyManager) {
+    const abbeyChat = getAbbeyManager()
+    if (abbeyChat) {
       try {
-        const personaPath = path.join(abbeyManager.abbeyPath, '.scriptorium', 'wilfred.md')
+        const personaPath = path.join(abbeyChat.abbeyPath, '.scriptorium', 'wilfred.md')
         persona = await fs.readFile(personaPath, 'utf-8')
       } catch { /* use default */ }
     }
@@ -427,12 +508,13 @@ Your character:
 
   // Epistles: List
   ipcMain.handle(IPC_CHANNELS.EPISTLES_LIST, async () => {
-    if (!abbeyManager) {
+    const abbey = getAbbeyManager()
+    if (!abbey) {
       return []
     }
 
     try {
-      const epistlesPath = path.join(abbeyManager.abbeyPath, '_epistles')
+      const epistlesPath = path.join(abbey.abbeyPath, '_epistles')
       const entries = await fs.readdir(epistlesPath, { withFileTypes: true })
       
       const epistles = await Promise.all(
@@ -481,22 +563,24 @@ Your character:
 
   // Epistles: Read
   ipcMain.handle(IPC_CHANNELS.EPISTLES_READ, async (_, filename: string) => {
-    if (!abbeyManager) {
+    const abbey = getAbbeyManager()
+    if (!abbey) {
       throw new Error('No abbey initialized')
     }
 
-    const filePath = path.join(abbeyManager.abbeyPath, '_epistles', filename)
+    const filePath = path.join(abbey.abbeyPath, '_epistles', filename)
     const content = await fs.readFile(filePath, 'utf-8')
     return { content, path: `_epistles/${filename}` }
   })
 
   // Epistles: Mark read
   ipcMain.handle(IPC_CHANNELS.EPISTLES_MARK_READ, async (_, filename: string) => {
-    if (!abbeyManager) {
+    const abbey = getAbbeyManager()
+    if (!abbey) {
       throw new Error('No abbey initialized')
     }
 
-    const filePath = path.join(abbeyManager.abbeyPath, '_epistles', filename)
+    const filePath = path.join(abbey.abbeyPath, '_epistles', filename)
     let content = await fs.readFile(filePath, 'utf-8')
 
     // Replace status: unread with status: read
@@ -520,7 +604,8 @@ Your character:
 
   // Canonical hours: Trigger manually (Ring the Bell)
   ipcMain.handle(IPC_CHANNELS.HOURS_TRIGGER, async (_, id: number) => {
-    if (!abbeyManager) {
+    const abbey = getAbbeyManager()
+    if (!abbey) {
       return { success: false, error: 'No abbey initialized' }
     }
     if (!scheduler) {
@@ -535,8 +620,12 @@ Your character:
   })
 }
 
-export function setupScheduler(dbManager: DatabaseManager, abbeyManager: AbbeyManager): void {
-  scheduler = new Scheduler(dbManager, abbeyManager)
+export function setupScheduler(dbManager: DatabaseManager): void {
+  const abbey = getAbbeyManager()
+  if (!abbey) {
+    throw new Error('Cannot start scheduler without abbey')
+  }
+  scheduler = new Scheduler(dbManager, abbey)
 
   scheduler.on('taskUpdate', (run: TaskRun) => {
     pushToRenderer(IPC_CHANNELS.PUSH_TASK_UPDATE, run)

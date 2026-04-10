@@ -1,8 +1,18 @@
-import { useState } from 'react'
-import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
+type VoiceDownloadState = 'idle' | 'downloading' | 'error'
+
+const VOICE_TIER_MODELS = [
+  { name: 'small.en',         label: 'Fast · English',      sizeMb: 466  },
+  { name: 'small',            label: 'Fast · Multilingual',  sizeMb: 466  },
+  { name: 'large-v3-turbo',   label: 'Accurate (recommended)', sizeMb: 805  },
+  { name: 'medium.en',        label: 'Medium · English',    sizeMb: 1533 },
+  { name: 'medium',           label: 'Medium · Multilingual', sizeMb: 1533 },
+  { name: 'large-v3',         label: 'Large v3',            sizeMb: 3094 },
+]
 
 export function RuleView() {
   const { abbey, llmConfig, setLLMConfig, showSystemFolders, setShowSystemFolders, setSetupComplete, setAbbey } = useAppStore()
@@ -15,6 +25,60 @@ export function RuleView() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
   const [resetStage, setResetStage] = useState<'idle' | 'confirm' | 'resetting'>('idle')
   const [resetError, setResetError] = useState<string | null>(null)
+
+  // Voice state
+  const [voiceConfig, setVoiceConfig] = useState<VoiceConfig | null>(null)
+  const [voiceShowPicker, setVoiceShowPicker] = useState(false)
+  const [voicePickerModel, setVoicePickerModel] = useState('large-v3-turbo')
+  const [voicePickerLang, setVoicePickerLang] = useState<'en' | 'auto'>('en')
+  const [voiceDownloadState, setVoiceDownloadState] = useState<VoiceDownloadState>('idle')
+  const [voiceProgress, setVoiceProgress] = useState(0)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+
+  useEffect(() => {
+    window.electronAPI.getWhisperConfig().then(({ config }) => {
+      setVoiceConfig(config)
+    })
+  }, [])
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.onVoiceDownloadProgress(({ modelName, progress }) => {
+      if (modelName === voicePickerModel) setVoiceProgress(progress)
+    })
+    return cleanup
+  }, [voicePickerModel])
+
+  const handleVoiceDownload = async () => {
+    setVoiceDownloadState('downloading')
+    setVoiceProgress(0)
+    setVoiceError(null)
+
+    const result = await window.electronAPI.downloadWhisperModel(voicePickerModel)
+    if (result.success) {
+      const newConfig: VoiceConfig = { modelName: voicePickerModel, language: voicePickerLang }
+      await window.electronAPI.setWhisperConfig(newConfig)
+      setVoiceConfig(newConfig)
+      setVoiceDownloadState('idle')
+      setVoiceShowPicker(false)
+    } else if (!result.cancelled) {
+      setVoiceDownloadState('error')
+      setVoiceError(result.error ?? 'Download failed')
+    } else {
+      setVoiceDownloadState('idle')
+    }
+  }
+
+  const handleVoiceCancelDownload = async () => {
+    await window.electronAPI.cancelWhisperDownload()
+    setVoiceDownloadState('idle')
+    setVoiceProgress(0)
+  }
+
+  const handleVoiceRemove = async () => {
+    if (!voiceConfig) return
+    await window.electronAPI.deleteWhisperModel(voiceConfig.modelName)
+    setVoiceConfig(null)
+  }
 
   const handleTest = async () => {
     setTestStatus('testing')
@@ -177,6 +241,160 @@ export function RuleView() {
                   <span className="text-sm text-red-600">{testError}</span>
                 )}
               </div>
+            </div>
+          </section>
+
+          {/* Voice section */}
+          <section>
+            <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
+              Voice
+            </h3>
+            <div className="bg-white rounded-xl p-6 border border-parchment-dark space-y-4">
+              {/* Configured state */}
+              {voiceConfig && !voiceShowPicker && (
+                <>
+                  <div className="flex items-center gap-3">
+                    <Mic className="w-5 h-5 text-accent flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium text-ink-primary text-sm block">
+                        {VOICE_TIER_MODELS.find(m => m.name === voiceConfig.modelName)?.label ?? voiceConfig.modelName}
+                      </span>
+                      <span className="text-xs text-ink-muted">
+                        Language: {voiceConfig.language === 'en' ? 'English only' : 'Auto-detect'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => { setVoicePickerModel(voiceConfig.modelName); setVoicePickerLang(voiceConfig.language); setVoiceShowPicker(true) }}
+                        className="px-3 py-1.5 border border-accent text-accent hover:bg-accent hover:text-white rounded-lg text-xs font-medium transition-colors"
+                      >
+                        Change
+                      </button>
+                      <button
+                        onClick={handleVoiceRemove}
+                        className="px-3 py-1.5 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Not configured + no picker */}
+              {!voiceConfig && !voiceShowPicker && (
+                <>
+                  <p className="text-sm text-ink-muted">
+                    Voice capture lets you dictate folios offline using Whisper.
+                    Download a model to enable it.
+                  </p>
+                  <button
+                    onClick={() => setVoiceShowPicker(true)}
+                    className="flex items-center gap-2 px-4 py-2 border border-accent text-accent hover:bg-accent hover:text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Set Up Voice
+                  </button>
+                </>
+              )}
+
+              {/* Model picker + download */}
+              {voiceShowPicker && (
+                <div className="space-y-4">
+                  {/* Language */}
+                  <div>
+                    <label className="block text-xs font-medium text-ink-primary mb-2">Language</label>
+                    <div className="flex gap-2">
+                      {(['en', 'auto'] as const).map(lang => (
+                        <button
+                          key={lang}
+                          onClick={() => setVoicePickerLang(lang)}
+                          disabled={voiceDownloadState === 'downloading'}
+                          className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${
+                            voicePickerLang === lang
+                              ? 'border-accent bg-accent/5 text-accent'
+                              : 'border-parchment-dark text-ink-muted hover:border-ink-muted'
+                          }`}
+                        >
+                          {lang === 'en' ? 'English only' : 'Multilingual'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Model */}
+                  <div>
+                    <label className="block text-xs font-medium text-ink-primary mb-2">Model</label>
+                    <select
+                      value={voicePickerModel}
+                      onChange={e => setVoicePickerModel(e.target.value)}
+                      disabled={voiceDownloadState === 'downloading'}
+                      className="w-full px-3 py-2 bg-parchment-base border border-parchment-dark rounded-lg text-sm text-ink-primary focus:outline-none focus:border-accent disabled:opacity-50"
+                    >
+                      {VOICE_TIER_MODELS.map(m => (
+                        <option key={m.name} value={m.name}>
+                          {m.label} — {m.sizeMb >= 1000 ? `${(m.sizeMb / 1000).toFixed(1)} GB` : `${m.sizeMb} MB`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Download progress / actions */}
+                  {voiceDownloadState === 'idle' && (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleVoiceDownload}
+                        className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download
+                      </button>
+                      <button
+                        onClick={() => { setVoiceShowPicker(false); setVoiceError(null) }}
+                        className="px-4 py-2 text-ink-muted hover:text-ink-primary text-sm transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+
+                  {voiceDownloadState === 'downloading' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs text-ink-muted">
+                        <span className="flex items-center gap-1.5">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Downloading…
+                        </span>
+                        <span>{voiceProgress}%</span>
+                      </div>
+                      <div className="h-1.5 bg-parchment-dark rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-accent rounded-full transition-all duration-300"
+                          style={{ width: `${voiceProgress}%` }}
+                        />
+                      </div>
+                      <button
+                        onClick={handleVoiceCancelDownload}
+                        className="text-xs text-ink-muted hover:text-ink-primary transition-colors"
+                      >
+                        Cancel download
+                      </button>
+                    </div>
+                  )}
+
+                  {voiceDownloadState === 'error' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                        <X className="w-3.5 h-3.5 flex-shrink-0" />
+                        {voiceError}
+                      </div>
+                      <button onClick={() => setVoiceDownloadState('idle')} className="text-xs text-accent hover:underline">
+                        Try again
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 

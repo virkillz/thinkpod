@@ -2,18 +2,18 @@ import { useState } from 'react'
 import { StepWelcome } from './StepWelcome.js'
 import { StepAbbey } from './StepAbbey.js'
 import { StepLLM } from './StepLLM.js'
+import { StepVoice } from './StepVoice.js'
 import { useAppStore } from '../../store/appStore.js'
 
 interface SetupWizardProps {
   onComplete: () => void
 }
 
-type SetupStep = 'welcome' | 'abbey' | 'llm'
+type SetupStep = 'welcome' | 'abbey' | 'llm' | 'voice'
 
 export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>('welcome')
   const [selectedAbbeyPath, setSelectedAbbeyPath] = useState<string | null>(null)
-  const [isExistingAbbey, setIsExistingAbbey] = useState(false)
   const [abbeyError, setAbbeyError] = useState<string | null>(null)
   const [abbeyNeedsInit, setAbbeyNeedsInit] = useState(false)
   const { setAbbey, setLLMConfig } = useAppStore()
@@ -27,6 +27,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         setCurrentStep('llm')
         break
       case 'llm':
+        setCurrentStep('voice')
+        break
+      case 'voice':
         onComplete()
         break
     }
@@ -40,12 +43,14 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       case 'llm':
         setCurrentStep('abbey')
         break
+      case 'voice':
+        setCurrentStep('llm')
+        break
     }
   }
 
   const handleAbbeySelected = async (path: string, isExisting: boolean) => {
     setSelectedAbbeyPath(path)
-    setIsExistingAbbey(isExisting)
     setAbbeyError(null)
     setAbbeyNeedsInit(false)
 
@@ -104,13 +109,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         {/* Step indicator */}
         <div className="flex justify-end mb-8">
           <div className="flex gap-2">
-            {(['welcome', 'abbey', 'llm'] as const).map((step, index) => (
+            {(['welcome', 'abbey', 'llm', 'voice'] as const).map((step, index) => (
               <div
                 key={step}
                 className={`w-2 h-2 rounded-full transition-colors ${
                   step === currentStep
                     ? 'bg-accent'
-                    : ['welcome', 'abbey', 'llm'].indexOf(currentStep) > index
+                    : ['welcome', 'abbey', 'llm', 'voice'].indexOf(currentStep) > index
                     ? 'bg-ink-muted'
                     : 'bg-parchment-dark'
                 }`}
@@ -139,6 +144,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               onBack={handleStepBack}
             />
           )}
+          {currentStep === 'voice' && (
+            <StepVoice
+              onContinue={handleStepComplete}
+              onBack={handleStepBack}
+              onSkip={onComplete}
+            />
+          )}
         </div>
 
         {/* Wilfred avatar (decorative) */}
@@ -156,6 +168,11 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           {currentStep === 'llm' && (
             <div className="bg-white rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
               "Tell me where to find the words."
+            </div>
+          )}
+          {currentStep === 'voice' && (
+            <div className="bg-white rounded-xl rounded-br-none shadow-lg p-4 max-w-xs text-sm text-ink-muted">
+              "Speak, and I shall transcribe."
             </div>
           )}
           <div className="w-14 h-14 bg-accent rounded-full flex items-center justify-center shadow-lg animate-breathe">

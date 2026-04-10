@@ -3,7 +3,7 @@ export interface ElectronAPI {
   selectAbbeyFolder: () => Promise<string | null>
   createAbbey: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>
   initAbbey: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>
-  openAbbey: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>
+  openAbbey: (path: string) => Promise<{ success: boolean; path?: string; error?: string; needsInit?: boolean }>
   getAbbeyInfo: () => Promise<{ path: string; name: string } | null>
   resetAbbey: () => Promise<{ success: boolean; error?: string }>
 
@@ -97,9 +97,39 @@ export interface ElectronAPI {
   // App
   getAppVersion: () => Promise<string>
 
+  // Whisper / Voice
+  getWhisperConfig: () => Promise<{
+    config: VoiceConfig | null
+    models: ModelInfo[]
+    downloaded: string[]
+  }>
+  setWhisperConfig: (config: VoiceConfig | null) => Promise<{ success: boolean }>
+  downloadWhisperModel: (modelName: string) => Promise<{ success: boolean; cancelled?: boolean; error?: string }>
+  cancelWhisperDownload: () => Promise<{ success: boolean }>
+  deleteWhisperModel: (modelName: string) => Promise<{ success: boolean; error?: string }>
+  startVoiceCapture: () => Promise<{ success: boolean; error?: string }>
+  stopVoiceCapture: () => Promise<{ success: boolean }>
+  sendAudioChunk: (buffer: ArrayBuffer) => void
+
   // Push events (main → renderer)
   onTaskUpdate: (callback: (run: TaskRun) => void) => () => void
   onTaskEnd: (callback: (run: TaskRun) => void) => () => void
+  onVoiceDownloadProgress: (callback: (data: { modelName: string; progress: number }) => void) => () => void
+  onVoiceTranscript: (callback: (data: { text: string; isFinal: boolean }) => void) => () => void
+}
+
+interface VoiceConfig {
+  modelName: string
+  language: 'en' | 'auto'
+}
+
+interface ModelInfo {
+  name: string
+  label: string
+  description: string
+  sizeMb: number
+  tier: 'fast' | 'accurate' | 'custom'
+  languages: 'english-only' | 'multilingual'
 }
 
 interface TaskRun {
