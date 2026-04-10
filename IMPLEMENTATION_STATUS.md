@@ -128,14 +128,14 @@ scriptorium/
 - ✅ Live task progress (iterations, tool calls) via push events
 - ✅ Task archive with status icons, duration, and summary
 
-### What's Next
+## Phase 5: Polish + Features 🔄 IN PROGRESS
 
-#### Phase 5
+- ✅ Hide `_epistles`, `_folios`, `.scriptorium` in Codex file tree by default; toggle in Rule page (fixed reactivity bug in FileTree)
+- ✅ Wire Wilfred chat panel to the real agent loop (`agentChat` IPC)
+- ✅ Reset Abbey in Rule page — deletes system folders and returns to setup wizard
 - [ ] Wilfred's comments as CodeMirror line decorations
 - [ ] Voice capture via Whisper
 - [ ] Brave Search tool integration
-- [ ] Hide `_epistles`, `_folios`, `.scriptorium` in Codex file tree by default; toggle in Rule page
-- [ ] Wire Wilfred chat panel to the real agent loop
 
 ### Running the App
 

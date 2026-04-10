@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Settings, Folder, Key, Check, X, Loader2, Save } from 'lucide-react'
+import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2 } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
 
 export function RuleView() {
-  const { abbey, llmConfig, setLLMConfig, showSystemFolders, setShowSystemFolders } = useAppStore()
+  const { abbey, llmConfig, setLLMConfig, showSystemFolders, setShowSystemFolders, setSetupComplete, setAbbey } = useAppStore()
 
   const [baseUrl, setBaseUrl] = useState(llmConfig.baseUrl)
   const [model, setModel] = useState(llmConfig.model)
@@ -13,6 +13,8 @@ export function RuleView() {
   const [testStatus, setTestStatus] = useState<TestStatus>('idle')
   const [testError, setTestError] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
+  const [resetStage, setResetStage] = useState<'idle' | 'confirm' | 'resetting'>('idle')
+  const [resetError, setResetError] = useState<string | null>(null)
 
   const handleTest = async () => {
     setTestStatus('testing')
@@ -41,6 +43,24 @@ export function RuleView() {
     await window.electronAPI.setSetting('llmConfig', config)
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
+  }
+
+  const handleReset = async () => {
+    setResetStage('resetting')
+    setResetError(null)
+    try {
+      const result = await window.electronAPI.resetAbbey()
+      if (result.success) {
+        setAbbey(null)
+        setSetupComplete(false)
+      } else {
+        setResetError(result.error || 'Reset failed')
+        setResetStage('confirm')
+      }
+    } catch (err) {
+      setResetError((err as Error).message)
+      setResetStage('confirm')
+    }
   }
 
   const handleInputChange = (setter: (v: string) => void, value: string) => {
@@ -215,9 +235,70 @@ export function RuleView() {
             <div className="bg-white rounded-xl p-6 border border-parchment-dark">
               <p className="text-sm text-ink-muted">
                 Tool management will be available in a future update.
-                Currently, Wilfred has access to: read_file, write_file, move_file, 
+                Currently, Wilfred has access to: read_file, write_file, move_file,
                 list_files, add_comment, write_epistle.
               </p>
+            </div>
+          </section>
+
+          {/* Danger Zone */}
+          <section>
+            <h3 className="text-sm font-medium text-red-500 uppercase tracking-wide mb-4">
+              Danger Zone
+            </h3>
+            <div className="bg-white rounded-xl p-6 border border-red-200">
+              <div className="flex items-start gap-4">
+                <div className="flex-1">
+                  <span className="font-medium text-ink-primary text-sm">Reset Abbey</span>
+                  <p className="text-xs text-ink-muted mt-0.5">
+                    Deletes <code className="font-mono bg-parchment-sidebar px-1 rounded">_epistles</code>,{' '}
+                    <code className="font-mono bg-parchment-sidebar px-1 rounded">_folios</code>, and{' '}
+                    <code className="font-mono bg-parchment-sidebar px-1 rounded">.scriptorium</code> from your
+                    abbey folder. Your other manuscripts are kept. The app will return to the setup wizard.
+                  </p>
+                  {resetError && (
+                    <p className="text-xs text-red-600 mt-2">{resetError}</p>
+                  )}
+                </div>
+
+                {resetStage === 'idle' && (
+                  <button
+                    onClick={() => setResetStage('confirm')}
+                    className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Reset
+                  </button>
+                )}
+
+                {resetStage === 'confirm' && (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-medium">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Are you sure?
+                    </div>
+                    <button
+                      onClick={handleReset}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Yes, reset
+                    </button>
+                    <button
+                      onClick={() => { setResetStage('idle'); setResetError(null) }}
+                      className="px-3 py-2 text-ink-muted hover:text-ink-primary text-sm transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {resetStage === 'resetting' && (
+                  <div className="flex items-center gap-2 text-ink-muted text-sm flex-shrink-0">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Resetting…
+                  </div>
+                )}
+              </div>
             </div>
           </section>
         </div>

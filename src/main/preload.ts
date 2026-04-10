@@ -7,6 +7,7 @@ const IPC_CHANNELS = {
   ABBEY_INIT: 'abbey:init',
   ABBEY_OPEN: 'abbey:open',
   ABBEY_GET_INFO: 'abbey:get-info',
+  ABBEY_RESET: 'abbey:reset',
   FILES_LIST: 'files:list',
   FILES_READ: 'files:read',
   FILES_WRITE: 'files:write',
@@ -45,6 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   initAbbey: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_INIT, path),
   openAbbey: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_OPEN, path),
   getAbbeyInfo: () => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_GET_INFO),
+  resetAbbey: () => ipcRenderer.invoke(IPC_CHANNELS.ABBEY_RESET),
 
   // Files
   listFiles: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.FILES_LIST, path),

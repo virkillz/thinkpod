@@ -44,6 +44,9 @@ export const IPC_CHANNELS = {
   HOURS_TOGGLE: 'hours:toggle',
   HOURS_TRIGGER: 'hours:trigger',
 
+  // Abbey reset
+  ABBEY_RESET: 'abbey:reset',
+
   // App
   APP_GET_VERSION: 'app:get-version',
 

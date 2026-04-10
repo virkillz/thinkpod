@@ -146,6 +146,29 @@ Your character:
     }
   })
 
+  // Abbey: Reset — delete _epistles, _folios, .scriptorium and clear saved path
+  ipcMain.handle(IPC_CHANNELS.ABBEY_RESET, async () => {
+    try {
+      const abbeyPath = dbManager.getSetting('abbeyPath') as string | null
+      if (!abbeyPath) {
+        return { success: false, error: 'No abbey configured' }
+      }
+
+      // Delete the three system folders
+      for (const folder of ['_epistles', '_folios', '.scriptorium']) {
+        const folderPath = path.join(abbeyPath, folder)
+        await fs.rm(folderPath, { recursive: true, force: true })
+      }
+
+      // Clear the abbey path from the database
+      dbManager.setSetting('abbeyPath', null)
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Abbey: Get info
   ipcMain.handle(IPC_CHANNELS.ABBEY_GET_INFO, async () => {
     const abbeyPath = dbManager.getSetting('abbeyPath') as string | null

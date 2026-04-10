@@ -20,7 +20,7 @@ export function FileTree() {
   const loadDirectory = useCallback(async (path: string): Promise<TreeNode[]> => {
     try {
       const entries = await window.electronAPI.listFiles(path)
-      
+
       const visible = showSystemFolders
         ? entries
         : entries.filter(e => !SYSTEM_NAMES.has(e.name))
@@ -41,7 +41,7 @@ export function FileTree() {
       console.error('Failed to load directory:', error)
       return []
     }
-  }, [expandedPaths])
+  }, [expandedPaths, showSystemFolders])
 
   const refreshTree = useCallback(async () => {
     const root = await loadDirectory('.')

@@ -5,6 +5,7 @@ export interface ElectronAPI {
   initAbbey: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>
   openAbbey: (path: string) => Promise<{ success: boolean; path?: string; error?: string }>
   getAbbeyInfo: () => Promise<{ path: string; name: string } | null>
+  resetAbbey: () => Promise<{ success: boolean; error?: string }>
 
   // Files
   listFiles: (path: string) => Promise<Array<{ name: string; path: string; isDirectory: boolean }>>
