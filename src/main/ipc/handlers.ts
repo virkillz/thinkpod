@@ -604,6 +604,32 @@ export function setupIpcHandlers(
     }
   })
 
+  // LLM: Edit text with a natural language instruction
+  ipcMain.handle(IPC_CHANNELS.LLM_EDIT_TEXT, async (_, text: string, instruction: string) => {
+    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    if (!llmConfig) {
+      return { success: false, error: 'LLM not configured' }
+    }
+
+    try {
+      const client = new LLMClient({ ...llmConfig, maxTokens: 4096 })
+      const response = await client.chat([
+        {
+          role: 'system',
+          content:
+            'You are a precise text editor. Apply the user\'s instruction to the provided text and return ONLY the edited text. Do not add explanations, commentary, or formatting outside the text itself.',
+        },
+        {
+          role: 'user',
+          content: `Instruction: ${instruction}\n\nText:\n${text}`,
+        },
+      ])
+      return { success: true, content: response.content ?? '' }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Agent: Open or resume a chat session
   ipcMain.handle(
     IPC_CHANNELS.AGENT_CHAT_OPEN,

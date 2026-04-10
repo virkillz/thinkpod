@@ -42,6 +42,7 @@ export interface ElectronAPI {
   getLLMStatus: () => Promise<{ running: boolean; url: string | null; managed: boolean }>
   startLLMServer: (config: { model: string; port?: number }) => Promise<{ success: boolean; url?: string; error?: string }>
   stopLLMServer: () => Promise<{ success: boolean }>
+  editText: (text: string, instruction: string) => Promise<{ success: boolean; content?: string; error?: string }>
 
   // Agent
   runAgentTask: (taskName: string, instruction: string) => Promise<{

@@ -24,6 +24,7 @@ const IPC_CHANNELS = {
   LLM_GET_STATUS: 'llm:get-status',
   LLM_START_SERVER: 'llm:start-server',
   LLM_STOP_SERVER: 'llm:stop-server',
+  LLM_EDIT_TEXT: 'llm:edit-text',
   AGENT_RUN_TASK: 'agent:run-task',
   AGENT_ABORT_TASK: 'agent:abort-task',
   AGENT_GET_TASKS: 'agent:get-tasks',
@@ -96,6 +97,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLLMStatus: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_GET_STATUS),
   startLLMServer: (config: { model: string; port?: number }) => ipcRenderer.invoke(IPC_CHANNELS.LLM_START_SERVER, config),
   stopLLMServer: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_STOP_SERVER),
+  editText: (text: string, instruction: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_EDIT_TEXT, text, instruction),
 
   // Agent
   runAgentTask: (taskName: string, instruction: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_RUN_TASK, taskName, instruction),

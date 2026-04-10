@@ -27,6 +27,7 @@ export const IPC_CHANNELS = {
   LLM_GET_STATUS: 'llm:get-status',
   LLM_START_SERVER: 'llm:start-server',
   LLM_STOP_SERVER: 'llm:stop-server',
+  LLM_EDIT_TEXT: 'llm:edit-text',
 
   // Agent
   AGENT_RUN_TASK: 'agent:run-task',
