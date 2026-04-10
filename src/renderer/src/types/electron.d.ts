@@ -136,6 +136,10 @@ export interface ElectronAPI {
   stopVoiceCapture: () => Promise<{ success: boolean }>
   sendAudioChunk: (buffer: ArrayBuffer) => void
 
+  // Tools
+  getToolsConfig: () => Promise<{ config: Record<string, { enabled: boolean; config?: Record<string, string> }>; metas: unknown[] }>
+  setToolsConfig: (config: Record<string, { enabled: boolean; config?: Record<string, string> }>) => Promise<{ success: boolean }>
+
   // Push events (main → renderer)
   onTaskUpdate: (callback: (run: TaskRun) => void) => () => void
   onTaskEnd: (callback: (run: TaskRun) => void) => () => void

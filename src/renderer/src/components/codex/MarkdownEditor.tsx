@@ -83,7 +83,7 @@ export function MarkdownEditor({ content, onChange, onSave, filePath }: Markdown
         }
       }),
       saveKeymap(),
-      EditorState.readOnly.of(filePath.startsWith('_epistles/')),
+      EditorState.readOnly.of(filePath.startsWith('_inbox/')),
     ]
 
     const state = EditorState.create({

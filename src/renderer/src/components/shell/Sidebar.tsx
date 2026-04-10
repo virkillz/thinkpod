@@ -39,7 +39,7 @@ export function Sidebar() {
       }`}
     >
       {/* Header */}
-      <div className="p-4 border-b border-parchment-dark flex items-center justify-between">
+      <div className="px-4 pb-4 pt-8 border-b border-parchment-dark flex items-center justify-between">
         {isSidebarOpen ? (
           <>
             <div className="flex items-center gap-2">

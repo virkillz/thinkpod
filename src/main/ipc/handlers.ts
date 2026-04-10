@@ -11,6 +11,7 @@ import { LLMClient } from '../agent/LLMClient.js'
 import { ChatAgent, InvocationType } from '../agent/ChatAgent.js'
 import { Scheduler } from '../scheduler/Scheduler.js'
 import { WhisperManager, WHISPER_MODELS, type VoiceConfig } from '../whisper/WhisperManager.js'
+import { getToolMetas, DEFAULT_TOOLS_CONFIG } from '../agent/tools/index.js'
 import { VoiceCaptureService } from '../whisper/VoiceCaptureService.js'
 
 // Agent state
@@ -153,7 +154,7 @@ export function setupIpcHandlers(
           Your character:
           - Methodical. You work through tasks step by step.
           - Humble. When you do not know where something belongs, you ask.
-          - Brief. Your epistles are clear and concise — a monk does not ramble.
+          - Brief. Your note are clear and concise — do not ramble.
           - Eiger. You want to do things. With tools, instead of talking. 
           - Diligent. You persistent to achieve your goal.
           - Initiative. You can interprete intent and execute without too much ask for clarification.`,
@@ -226,7 +227,7 @@ export function setupIpcHandlers(
           Your character:
           - Methodical. You work through tasks step by step.
           - Humble. When you do not know where something belongs, you ask.
-          - Brief. Your epistles are clear and concise — a monk does not ramble.
+          - Brief. Your notes are clear and concise — do not ramble.
           - Eiger. You want to do things. With tools, instead of talking. 
           - Diligent. You persistent to achieve your goal.
           - Initiative. You can interprete intent and execute without too much ask for clarification.`,
@@ -250,6 +251,19 @@ export function setupIpcHandlers(
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }
+  })
+
+  // Tools: Get config + metas
+  ipcMain.handle(IPC_CHANNELS.TOOLS_GET_CONFIG, () => {
+    const saved = dbManager.getSetting('toolsConfig') as Record<string, unknown> | null
+    const config = saved ?? DEFAULT_TOOLS_CONFIG
+    return { config, metas: getToolMetas() }
+  })
+
+  // Tools: Save config
+  ipcMain.handle(IPC_CHANNELS.TOOLS_SET_CONFIG, (_, config: unknown) => {
+    dbManager.setSetting('toolsConfig', config)
+    return { success: true }
   })
 
   // Abbey: Reset — delete _inbox, _drafts, .scriptorium and clear saved path
@@ -537,12 +551,15 @@ export function setupIpcHandlers(
     const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; avatar?: string; systemPrompt?: string } | null
     const persona = agentProfile?.systemPrompt ?? 'You are Wilfred, a note taking assistant'
 
+    const toolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
+
     currentAgentLoop = new AgentLoop(
       {
         abbeyPath: abbey.abbeyPath,
         dbManager,
         llmConfig,
         persona,
+        toolsConfig: toolsConfig ?? DEFAULT_TOOLS_CONFIG,
       },
       (run) => {
         // Task updates logged to database
@@ -601,8 +618,9 @@ export function setupIpcHandlers(
       const persona = agentProfile?.systemPrompt ?? 'You are a diligent assistant in the Scriptorium.'
 
       try {
+        const chatToolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
         const { agent, sessionId, history } = await ChatAgent.open(
-          { abbeyPath: abbey.abbeyPath, dbManager, llmConfig, persona },
+          { abbeyPath: abbey.abbeyPath, dbManager, llmConfig, persona, toolsConfig: chatToolsConfig ?? DEFAULT_TOOLS_CONFIG },
           contextType,
           contextKey,
           filePath
@@ -645,8 +663,9 @@ export function setupIpcHandlers(
       const persona = agentProfile?.systemPrompt ?? 'You are a diligent assistant in the Scriptorium.'
 
       try {
+        const freshToolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
         const { agent, sessionId } = await ChatAgent.openFresh(
-          { abbeyPath: abbey.abbeyPath, dbManager, llmConfig, persona },
+          { abbeyPath: abbey.abbeyPath, dbManager, llmConfig, persona, toolsConfig: freshToolsConfig ?? DEFAULT_TOOLS_CONFIG },
           contextType,
           contextKey,
           filePath

@@ -116,7 +116,7 @@ export function StepAbbey({ onContinue, onBack, error, needsInit, onConfirmInit 
           )}
           {mode === 'create' && selectedPath && (
             <p className="mt-3 text-sm text-ink-muted">
-              ✓ Wilfred will create <code>_folios/</code> and <code>_epistles/</code> inside this folder.
+              ✓ Wilfred will create <code>_draft/</code> and <code>_inbox/</code> inside this folder.
             </p>
           )}
         </div>

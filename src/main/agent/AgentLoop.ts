@@ -6,9 +6,10 @@
  */
 
 import path from 'node:path'
-import { LLMClient, LLMMessage, ToolCall } from './LLMClient.js'
-import { TOOL_DEFINITIONS } from './ToolDefinitions.js'
+import { LLMClient, LLMMessage } from './LLMClient.js'
+import { getEnabledToolDefinitions, DEFAULT_TOOLS_CONFIG } from './ToolDefinitions.js'
 import { ToolExecutor, ToolContext } from './ToolExecutor.js'
+import type { ToolsConfig } from './tools/types.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
 
 export class TaskAbortedError extends Error {
@@ -27,6 +28,7 @@ export interface TaskConfig {
     apiKey?: string
   }
   persona: string
+  toolsConfig?: ToolsConfig
 }
 
 export interface TaskRun {
@@ -62,6 +64,7 @@ export class AgentLoop {
     this.context = {
       abbeyPath: config.abbeyPath,
       dbManager: config.dbManager,
+      toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG,
     }
     this.executor = new ToolExecutor(this.context)
     
@@ -105,7 +108,8 @@ export class AgentLoop {
         this.onUpdate(this.taskRun)
 
         // Get LLM response
-        const response = await this.client.chatWithTools(this.messages, TOOL_DEFINITIONS as unknown as unknown[])
+        const toolDefs = getEnabledToolDefinitions(this.config.toolsConfig ?? DEFAULT_TOOLS_CONFIG)
+        const response = await this.client.chatWithTools(this.messages, toolDefs as unknown[])
         
         // Add assistant message
         this.messages.push({
@@ -139,10 +143,10 @@ export class AgentLoop {
             }
           }
         } else {
-          // No tool calls - treat as natural end, write epistle
-          await this.writeEpistleFromResponse(response.content || '')
+          // No tool calls - treat as natural end, write to Inbox
+          await this.writeInboxFromResponse(response.content || '')
           this.taskRun.status = 'done'
-          this.taskRun.summary = 'Written to epistle'
+          this.taskRun.summary = 'Written to inbox'
           this.taskRun.endedAt = Date.now()
           return this.taskRun
         }
@@ -200,7 +204,7 @@ You have access to tools to work with the abbey's files. When you complete your 
 Rules:
 - Be methodical: work step by step
 - When uncertain, use add_comment() to ask rather than guess
-- Keep epistles clear and concise
+- Keep notes clear and concise
 - finish_task() when done
 
 Abbey root: ${this.config.abbeyPath}
@@ -227,12 +231,12 @@ Today: ${new Date().toISOString().split('T')[0]}`
     }
   }
 
-  private async writeEpistleFromResponse(content: string): Promise<void> {
+  private async writeInboxFromResponse(content: string): Promise<void> {
     await this.executor.execute({
-      id: 'epistle-from-response',
+      id: 'inbox-from-response',
       type: 'function',
       function: {
-        name: 'write_epistle',
+        name: 'write_inbox',
         arguments: JSON.stringify({
           title: 'Response from Wilfred',
           content,

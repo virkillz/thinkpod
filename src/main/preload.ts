@@ -7,6 +7,8 @@ const IPC_CHANNELS = {
   ABBEY_INIT: 'abbey:init',
   ABBEY_OPEN: 'abbey:open',
   ABBEY_GET_INFO: 'abbey:get-info',
+  TOOLS_GET_CONFIG: 'tools:get-config',
+  TOOLS_SET_CONFIG: 'tools:set-config',
   ABBEY_RESET: 'abbey:reset',
   FILES_LIST: 'files:list',
   FILES_READ: 'files:read',
@@ -135,6 +137,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // App
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
   selectUserImage: () => ipcRenderer.invoke(IPC_CHANNELS.USER_SELECT_IMAGE),
+
+  // Tools
+  getToolsConfig: () => ipcRenderer.invoke(IPC_CHANNELS.TOOLS_GET_CONFIG),
+  setToolsConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.TOOLS_SET_CONFIG, config),
 
   // Whisper / Voice
   getWhisperConfig: () => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_GET_CONFIG),

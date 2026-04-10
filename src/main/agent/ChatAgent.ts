@@ -2,9 +2,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { LLMClient, LLMMessage } from './LLMClient.js'
 import { ChatSession, ChatMessage } from './ChatSession.js'
-import { CHAT_TOOL_DEFINITIONS } from './ToolDefinitions.js'
+import { getEnabledToolDefinitions, DEFAULT_TOOLS_CONFIG } from './ToolDefinitions.js'
 import { ToolExecutor } from './ToolExecutor.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
+import type { ToolsConfig } from './tools/types.js'
 
 export type InvocationType = 'docs_review' | 'general_chat'
 
@@ -17,6 +18,7 @@ export interface ChatAgentConfig {
     apiKey?: string
   }
   persona: string
+  toolsConfig?: ToolsConfig
 }
 
 export type OnToolUse = (toolName: string, args: Record<string, unknown>) => void
@@ -44,6 +46,7 @@ export class ChatAgent {
   private sessionId: string
   private systemPrompt: string
   private messages: LLMMessage[] = []
+  private toolsConfig: ToolsConfig
 
   private constructor(
     client: LLMClient,
@@ -51,13 +54,15 @@ export class ChatAgent {
     executor: ToolExecutor,
     sessionId: string,
     systemPrompt: string,
-    history: ChatMessage[]
+    history: ChatMessage[],
+    toolsConfig: ToolsConfig
   ) {
     this.client = client
     this.session = session
     this.executor = executor
     this.sessionId = sessionId
     this.systemPrompt = systemPrompt
+    this.toolsConfig = toolsConfig
 
     // Reconstruct in-memory message list from JSONL history (excluding system)
     this.messages = [
@@ -78,7 +83,7 @@ export class ChatAgent {
 
     const { id: sessionId, isNew } = config.dbManager.getOrCreateChatSession(contextType, contextKey)
     const session = new ChatSession(ChatSession.sessionsDir(config.abbeyPath), sessionId)
-    const executor = new ToolExecutor({ abbeyPath: config.abbeyPath, dbManager: config.dbManager })
+    const executor = new ToolExecutor({ abbeyPath: config.abbeyPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
 
     const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextFilePath)
 
@@ -90,7 +95,8 @@ export class ChatAgent {
       executor,
       sessionId,
       systemPrompt,
-      history
+      history,
+      config.toolsConfig ?? DEFAULT_TOOLS_CONFIG
     )
 
     return { agent, sessionId, history }
@@ -108,7 +114,7 @@ export class ChatAgent {
     const session = new ChatSession(ChatSession.sessionsDir(config.abbeyPath), sessionId)
     await session.clear()
 
-    const executor = new ToolExecutor({ abbeyPath: config.abbeyPath, dbManager: config.dbManager })
+    const executor = new ToolExecutor({ abbeyPath: config.abbeyPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
     const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextFilePath)
     const agent = new ChatAgent(
       new LLMClient(config.llmConfig),
@@ -116,7 +122,8 @@ export class ChatAgent {
       executor,
       sessionId,
       systemPrompt,
-      []
+      [],
+      config.toolsConfig ?? DEFAULT_TOOLS_CONFIG
     )
 
     return { agent, sessionId }
@@ -134,10 +141,8 @@ export class ChatAgent {
     while (iterations < MAX_CHAT_ITERATIONS) {
       iterations++
 
-      const response = await this.client.chatWithTools(
-        this.messages,
-        CHAT_TOOL_DEFINITIONS as unknown as unknown[]
-      )
+      const chatTools = getEnabledToolDefinitions(this.toolsConfig, { includeFinishTask: false })
+      const response = await this.client.chatWithTools(this.messages, chatTools as unknown[])
 
       if (!response.toolCalls || response.toolCalls.length === 0) {
         // Natural text response — end of turn

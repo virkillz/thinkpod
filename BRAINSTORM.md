@@ -1,33 +1,3 @@
-The idea of this platform is note taking app where we feel like AI Agent also live inside of it. We can discuss document with it, ask agent to do anything with it, summarize, rewrite, edit, even delete. 
-
-
-- When I open Floating Chat Button, I want the agent to be aware of the content of current page so i can discuss the docs with it. 
-
-This means we will have chat session files (JSONL) connected to markdown file, recorded in SQL. Each file have its own session. 
-
-The conversation history (this.messages) currently is stored only in memory — it lives on the AgentLoop instance as a plain array (private messages: LLMMessage[] = [] at AgentLoop.ts:54). It's initialized fresh each time a task runs (line 95) and is never written to disk or a database.
-
-Currently there's no JSONL file or persistent storage for conversation history in this project. The messages exist only for the duration of a single task run, then are discarded when the AgentLoop instance is garbage collected.
-
-
-Ultimately we also want to chat with Agent when we are in any pages including settings and agent have context about it, but we will implement this later. Meaning we will have session for settings_page, agent_page.
-
-
-So when we open documents, we should inject the content of the document into system prompt as context.
-
-SYSTEM PROMPT = 
-DEFAULT_SYSTEM_PROMPT 
-
-+ INVOCATION_PROMPT : 
-
-"You are currently review markdown document {full path of the docs}. User may want to discuss the content and ask you to do edit, summarize, or other things. Use tools available to you whenever appropriate. Here's the content:
-
-{docs content}"
-
-
-
-
-
 ## AGENT PROMPT MANAGEMENT
 
 Because we will have multiple agent invocation based on task, schedule, docs review, etc, we need to be able to review and manage the system prompt for different kind of invocation type.
@@ -73,7 +43,54 @@ Imagine if Agent create index.md containing short map and link to the vault.
 we can have additional hidden folder called _agent_vault
 Here Agent have also personal space to write things. This also have index.md.
 
+
+_agent_vault/
+  index.md 
+  human_profile.md
+  human_interest.md
+  human_family.md
+  agent_interest.md
+
+
+### Schedule: kyh (know your human)
+How it automatically know human better and make a note?
+
+wake up:
+- read human_profile.md 
+- create list of question. 
+- how to get answer?
+- find information from vault?
+- update human_profile.md
+
+### Schedule: get random insight 
+- pick random file in vault
+- ask llm if theres something interesting about it. 
+- use search to get relevant note. 
+- make comment
+- sent to inbox. 
+
+### Schedule: Bonding
+- find a relevant topic 
+- use brave search 
+- sent to inbox.
+
+
+
+
+
+
+
 both vault_index.md and agent_vault_index.md are injected into system prompt. 
+
+
+Let's talk about variety of agent initiative. This is what makes agent feels alive and active, not just a passive chatbot.
+
+- Silently gather information about user. Periodically Agent review 
+
+
+
+
+
 
 
 ## TASK and SCHEDULE

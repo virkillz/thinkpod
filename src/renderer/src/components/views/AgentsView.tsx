@@ -95,7 +95,7 @@ const DEFAULT_PROFILE: AgentProfile = {
           Your character:
           - Methodical. You work through tasks step by step.
           - Humble. When you do not know where something belongs, you ask.
-          - Brief. Your epistles are clear and concise — a monk does not ramble.
+          - Brief. Your note are clear and concise — do not ramble.
           - Eiger. You want to do things. With tools, instead of talking. 
           - Diligent. You persistent to achieve your goal.
           - Initiative. You can interprete intent and execute without too much ask for clarification.`,
@@ -729,10 +729,12 @@ function SchedulesTab() {
   const [toggling, setToggling] = useState<number | null>(null)
 
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [form, setForm] = useState<ScheduleFormState>(EMPTY_SCHEDULE_FORM)
   const [customCron, setCustomCron] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   useEffect(() => {
     loadSchedules()
@@ -757,11 +759,26 @@ function SchedulesTab() {
     setForm(EMPTY_SCHEDULE_FORM)
     setCustomCron('')
     setFormError(null)
+    setEditingId(null)
+    setShowForm(true)
+  }
+
+  const openEdit = (s: Schedule) => {
+    const isPreset = SCHEDULE_OPTIONS.some(opt => opt.value === s.schedule)
+    setForm({
+      name: s.name,
+      prompt: s.prompt,
+      schedule: isPreset ? s.schedule : 'custom'
+    })
+    setCustomCron(isPreset ? '' : s.schedule)
+    setFormError(null)
+    setEditingId(s.id)
     setShowForm(true)
   }
 
   const cancelForm = () => {
     setShowForm(false)
+    setEditingId(null)
     setFormError(null)
   }
 
@@ -775,14 +792,28 @@ function SchedulesTab() {
     setSaving(true)
     setFormError(null)
     try {
-      const res = await window.electronAPI.createSchedule(form.name.trim(), scheduleValue, form.prompt.trim())
-      if (!res.success) { setFormError(res.error ?? 'Failed to create schedule'); return }
+      if (editingId !== null) {
+        const res = await window.electronAPI.updateSchedule(editingId, form.name.trim(), scheduleValue, form.prompt.trim())
+        if (!res.success) { setFormError(res.error ?? 'Failed to update schedule'); return }
+      } else {
+        const res = await window.electronAPI.createSchedule(form.name.trim(), scheduleValue, form.prompt.trim())
+        if (!res.success) { setFormError(res.error ?? 'Failed to create schedule'); return }
+      }
       setShowForm(false)
+      setEditingId(null)
       setForm(EMPTY_SCHEDULE_FORM)
       setCustomCron('')
       await loadSchedules()
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    const res = await window.electronAPI.deleteSchedule(id)
+    if (res.success) {
+      setDeletingId(null)
+      await loadSchedules()
     }
   }
 
@@ -808,11 +839,13 @@ function SchedulesTab() {
         </button>
       </div>
 
-      {/* Create Schedule Form */}
+      {/* Create/Edit Schedule Form */}
       {showForm && (
         <section>
           <div className="bg-parchment-card border border-accent/30 rounded-xl p-6 space-y-4">
-            <h3 className="font-medium text-ink-primary text-sm">New Schedule</h3>
+            <h3 className="font-medium text-ink-primary text-sm">
+              {editingId !== null ? 'Edit Schedule' : 'New Schedule'}
+            </h3>
 
             <div className="space-y-3">
               <div>
@@ -881,7 +914,7 @@ function SchedulesTab() {
                 className="flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Save
+                {editingId !== null ? 'Update' : 'Save'}
               </button>
             </div>
           </div>
@@ -894,33 +927,69 @@ function SchedulesTab() {
       ) : (
         <div className="space-y-4">
           {schedules.map((s) => (
-            <div key={s.id} className="bg-parchment-card rounded-xl p-6 border border-parchment-dark hover:border-accent transition-colors">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="font-medium text-ink-primary">{s.name}</h3>
-                  <p className="text-sm text-ink-muted mt-1">{formatSchedule(s.schedule)}</p>
-                  <p className="text-xs text-ink-light mt-2 line-clamp-2">{s.prompt}</p>
+            <div key={s.id} className="bg-parchment-card rounded-xl border border-parchment-dark hover:border-accent transition-colors">
+              {deletingId === s.id ? (
+                <div className="p-6 flex items-center justify-between gap-4">
+                  <p className="text-sm text-ink-primary">Delete schedule <span className="font-medium">{s.name}</span>?</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setDeletingId(null)}
+                      className="px-3 py-1.5 text-xs text-ink-muted hover:text-ink-primary transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleDelete(s.id)}
+                      className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => handleToggle(s.id, s.is_active === 1)}
-                  disabled={toggling === s.id}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50"
-                  style={
-                    s.is_active
-                      ? { borderColor: 'var(--color-success)', color: 'var(--color-success)' }
-                      : { borderColor: 'var(--color-ink-light)', color: 'var(--color-ink-light)' }
-                  }
-                >
-                  {toggling === s.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : s.is_active ? (
-                    <Check className="w-3.5 h-3.5" />
-                  ) : (
-                    <X className="w-3.5 h-3.5" />
-                  )}
-                  {s.is_active ? 'Active' : 'Paused'}
-                </button>
-              </div>
+              ) : (
+                <div className="p-6 flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-ink-primary">{s.name}</h3>
+                    <p className="text-sm text-ink-muted mt-1">{formatSchedule(s.schedule)}</p>
+                    <p className="text-xs text-ink-light mt-2 line-clamp-2">{s.prompt}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => openEdit(s)}
+                      disabled={showForm}
+                      className="p-1.5 text-ink-muted hover:text-ink-primary disabled:opacity-40 transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setDeletingId(s.id)}
+                      disabled={showForm}
+                      className="p-1.5 text-ink-muted hover:text-red-500 disabled:opacity-40 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleToggle(s.id, s.is_active === 1)}
+                      disabled={toggling === s.id}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50"
+                      style={
+                        s.is_active
+                          ? { borderColor: 'var(--color-success)', color: 'var(--color-success)' }
+                          : { borderColor: 'var(--color-ink-light)', color: 'var(--color-ink-light)' }
+                      }
+                    >
+                      {toggling === s.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : s.is_active ? (
+                        <Check className="w-3.5 h-3.5" />
+                      ) : (
+                        <X className="w-3.5 h-3.5" />
+                      )}
+                      {s.is_active ? 'Active' : 'Paused'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

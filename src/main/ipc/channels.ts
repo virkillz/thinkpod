@@ -57,6 +57,10 @@ export const IPC_CHANNELS = {
   TASK_DELETE: 'task:delete',
   TASK_LIST: 'task:list',
 
+  // Tools
+  TOOLS_GET_CONFIG: 'tools:get-config',
+  TOOLS_SET_CONFIG: 'tools:set-config',
+
   // Abbey reset
   ABBEY_RESET: 'abbey:reset',
 

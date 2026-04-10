@@ -128,7 +128,7 @@ export class DatabaseManager {
       'Triage Drafts',
       '*/5 * * * *',
       'Review `_drafts/` for new files. For each: identify the project, person, or topic it belongs to. If context is missing, add a comment question. If context is clear, move it to the correct folder and write a brief message summarising what you did.',
-      JSON.stringify(['read_file', 'write_file', 'move_file', 'list_files', 'add_comment', 'write_epistle']),
+      JSON.stringify(['read_file', 'write_file', 'move_file', 'list_files', 'add_comment', 'write_inbox']),
       now,
       now
     )
@@ -138,7 +138,7 @@ export class DatabaseManager {
       'Weekly Reflection',
       '0 20 * * 0',
       'Review all files modified this week. Identify patterns, stale content, orphaned notes, or connections worth surfacing. Write a weekly digest message.',
-      JSON.stringify(['read_file', 'list_files', 'write_epistle']),
+      JSON.stringify(['read_file', 'list_files', 'write_inbox']),
       now,
       now
     )

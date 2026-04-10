@@ -8,7 +8,7 @@ const TOOL_LABELS: Record<string, string> = {
   move_file: 'Moving file',
   list_files: 'Listing files',
   add_comment: 'Adding comment',
-  write_epistle: 'Writing epistle',
+  write_inbox: 'Writing inbox',
 }
 
 function useExitAnimation(isOpen: boolean, duration: number = 200) {
