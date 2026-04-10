@@ -14,7 +14,7 @@ const VOICE_TIER_MODELS = [
   { name: 'large-v3',         label: 'Large v3',            sizeMb: 3094 },
 ]
 
-export function RuleView() {
+export function SettingsView() {
   const { abbey, llmConfig, setLLMConfig, showSystemFolders, setShowSystemFolders, setSetupComplete, setAbbey } = useAppStore()
 
   const [baseUrl, setBaseUrl] = useState(llmConfig.baseUrl)
@@ -140,7 +140,7 @@ export function RuleView() {
       <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
         <div className="flex items-center gap-3">
           <Settings className="w-5 h-5 text-accent" />
-          <h2 className="font-serif font-medium text-lg text-ink-primary">Rule</h2>
+          <h2 className="font-serif font-medium text-lg text-ink-primary">Settings</h2>
         </div>
       </div>
 
@@ -158,10 +158,10 @@ export function RuleView() {
                 <span className="font-medium text-ink-primary">Vault Path</span>
               </div>
               <div className="bg-parchment-sidebar rounded-lg px-4 py-3 font-mono text-sm text-ink-primary break-all">
-                {abbey?.path || 'No abbey configured'}
+                {abbey?.path || 'No workspace configured'}
               </div>
               <p className="text-sm text-ink-muted mt-3">
-                All your manuscripts are stored here as plain markdown files.
+                All your notes are stored here as plain markdown files.
               </p>
             </div>
           </section>
@@ -285,7 +285,7 @@ export function RuleView() {
               {!voiceConfig && !voiceShowPicker && (
                 <>
                   <p className="text-sm text-ink-muted">
-                    Voice capture lets you dictate folios offline using Whisper.
+                    Voice capture lets you dictate drafts offline using Whisper.
                     Download a model to enable it.
                   </p>
                   <button
@@ -414,17 +414,17 @@ export function RuleView() {
             </div>
           </section>
 
-          {/* Codex section */}
+          {/* Notes section */}
           <section>
             <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
-              Codex
+              Notes
             </h3>
             <div className="bg-white rounded-xl p-6 border border-parchment-dark">
               <label className="flex items-center justify-between cursor-pointer">
                 <div>
                   <span className="font-medium text-ink-primary text-sm">Show system folders</span>
                   <p className="text-xs text-ink-muted mt-0.5">
-                    Display _epistles, _folios, and .scriptorium in the file tree
+                    Display _inbox, _drafts, and .scriptorium in the file tree
                   </p>
                 </div>
                 <button
@@ -445,10 +445,10 @@ export function RuleView() {
             </div>
           </section>
 
-          {/* Reliquary section */}
+          {/* Tools section */}
           <section>
             <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
-              Reliquary (Tools)
+              Tools
             </h3>
             <div className="bg-white rounded-xl p-6 border border-parchment-dark">
               <p className="text-sm text-ink-muted">
@@ -469,10 +469,10 @@ export function RuleView() {
                 <div className="flex-1">
                   <span className="font-medium text-ink-primary text-sm">Reset Abbey</span>
                   <p className="text-xs text-ink-muted mt-0.5">
-                    Deletes <code className="font-mono bg-parchment-sidebar px-1 rounded">_epistles</code>,{' '}
-                    <code className="font-mono bg-parchment-sidebar px-1 rounded">_folios</code>, and{' '}
+                    Deletes <code className="font-mono bg-parchment-sidebar px-1 rounded">_inbox</code>,{' '}
+                    <code className="font-mono bg-parchment-sidebar px-1 rounded">_drafts</code>, and{' '}
                     <code className="font-mono bg-parchment-sidebar px-1 rounded">.scriptorium</code> from your
-                    abbey folder. Your other manuscripts are kept. The app will return to the setup wizard.
+                    abbey folder. Your other notes are kept. The app will return to the setup wizard.
                   </p>
                   {resetError && (
                     <p className="text-xs text-red-600 mt-2">{resetError}</p>

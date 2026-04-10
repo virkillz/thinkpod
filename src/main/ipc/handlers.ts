@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import { IPC_CHANNELS } from './channels.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
 import type { AbbeyManager } from '../abbey/AbbeyManager.js'
-import { getMainWindow, getAbbeyManager } from '../index.js'
+import { getMainWindow, getAbbeyManager, initAbbeyManager } from '../index.js'
 import { LLMProcessManager } from '../agent/LLMProcessManager.js'
 import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
 import { LLMClient } from '../agent/LLMClient.js'
@@ -126,8 +126,8 @@ export function setupIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.ABBEY_CREATE, async (_, abbeyPath: string) => {
     try {
       // Create abbey structure
-      await fs.mkdir(path.join(abbeyPath, '_folios'), { recursive: true })
-      await fs.mkdir(path.join(abbeyPath, '_epistles'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '_drafts'), { recursive: true })
+      await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '.scriptorium'), { recursive: true })
       
       // Create default folders
@@ -160,9 +160,10 @@ Your character:
         'utf-8'
       )
       
-      // Save abbey path to database
+      // Save abbey path to database and initialize manager
       dbManager.setSetting('abbeyPath', abbeyPath)
-      
+      await initAbbeyManager(abbeyPath)
+
       return { success: true, path: abbeyPath }
     } catch (error) {
       return { success: false, error: (error as Error).message }
@@ -180,8 +181,9 @@ Your character:
         return { success: false, needsInit: true, error: 'This folder has not been set up as an abbey yet.' }
       }
 
-      // Save abbey path to database
+      // Save abbey path to database and initialize manager
       dbManager.setSetting('abbeyPath', abbeyPath)
+      await initAbbeyManager(abbeyPath)
 
       return { success: true, path: abbeyPath }
     } catch (error) {
@@ -217,6 +219,7 @@ Your character:
       )
 
       dbManager.setSetting('abbeyPath', abbeyPath)
+      await initAbbeyManager(abbeyPath)
 
       return { success: true, path: abbeyPath }
     } catch (error) {
@@ -224,7 +227,7 @@ Your character:
     }
   })
 
-  // Abbey: Reset — delete _epistles, _folios, .scriptorium and clear saved path
+  // Abbey: Reset — delete _inbox, _drafts, .scriptorium and clear saved path
   ipcMain.handle(IPC_CHANNELS.ABBEY_RESET, async () => {
     try {
       const abbeyPath = dbManager.getSetting('abbeyPath') as string | null
@@ -233,7 +236,7 @@ Your character:
       }
 
       // Delete the three system folders
-      for (const folder of ['_epistles', '_folios', '.scriptorium']) {
+      for (const folder of ['_inbox', '_drafts', '.scriptorium']) {
         const folderPath = path.join(abbeyPath, folder)
         await fs.rm(folderPath, { recursive: true, force: true })
       }
@@ -509,28 +512,28 @@ Your character:
     return dbManager.getRecentTaskRuns(20)
   })
 
-  // Epistles: List
-  ipcMain.handle(IPC_CHANNELS.EPISTLES_LIST, async () => {
+  // Inbox: List
+  ipcMain.handle(IPC_CHANNELS.INBOX_LIST, async () => {
     const abbey = getAbbeyManager()
     if (!abbey) {
       return []
     }
 
     try {
-      const epistlesPath = path.join(abbey.abbeyPath, '_epistles')
-      const entries = await fs.readdir(epistlesPath, { withFileTypes: true })
-      
-      const epistles = await Promise.all(
+      const inboxPath = path.join(abbey.abbeyPath, '_inbox')
+      const entries = await fs.readdir(inboxPath, { withFileTypes: true })
+
+      const items = await Promise.all(
         entries
           .filter(e => e.isFile() && e.name.endsWith('.md'))
           .map(async (e) => {
-            const filePath = path.join(epistlesPath, e.name)
+            const filePath = path.join(inboxPath, e.name)
             const content = await fs.readFile(filePath, 'utf-8')
-            
+
             // Parse frontmatter quickly
             const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/)
             const frontmatter: Record<string, unknown> = {}
-            
+
             if (frontmatterMatch) {
               const lines = frontmatterMatch[1].split('\n')
               for (const line of lines) {
@@ -549,7 +552,7 @@ Your character:
 
             return {
               id: e.name,
-              path: `_epistles/${e.name}`,
+              path: `_inbox/${e.name}`,
               title: content.match(/^# (.+)$/m)?.[1] ?? e.name,
               type: frontmatter.type ?? 'insight',
               created: frontmatter.created ?? new Date().toISOString(),
@@ -558,32 +561,32 @@ Your character:
           })
       )
 
-      return epistles.sort((a, b) => new Date(b.created as string).getTime() - new Date(a.created as string).getTime())
+      return items.sort((a, b) => new Date(b.created as string).getTime() - new Date(a.created as string).getTime())
     } catch {
       return []
     }
   })
 
-  // Epistles: Read
-  ipcMain.handle(IPC_CHANNELS.EPISTLES_READ, async (_, filename: string) => {
+  // Inbox: Read
+  ipcMain.handle(IPC_CHANNELS.INBOX_READ, async (_, filename: string) => {
     const abbey = getAbbeyManager()
     if (!abbey) {
       throw new Error('No abbey initialized')
     }
 
-    const filePath = path.join(abbey.abbeyPath, '_epistles', filename)
+    const filePath = path.join(abbey.abbeyPath, '_inbox', filename)
     const content = await fs.readFile(filePath, 'utf-8')
-    return { content, path: `_epistles/${filename}` }
+    return { content, path: `_inbox/${filename}` }
   })
 
-  // Epistles: Mark read
-  ipcMain.handle(IPC_CHANNELS.EPISTLES_MARK_READ, async (_, filename: string) => {
+  // Inbox: Mark read
+  ipcMain.handle(IPC_CHANNELS.INBOX_MARK_READ, async (_, filename: string) => {
     const abbey = getAbbeyManager()
     if (!abbey) {
       throw new Error('No abbey initialized')
     }
 
-    const filePath = path.join(abbey.abbeyPath, '_epistles', filename)
+    const filePath = path.join(abbey.abbeyPath, '_inbox', filename)
     let content = await fs.readFile(filePath, 'utf-8')
 
     // Replace status: unread with status: read
@@ -593,20 +596,20 @@ Your character:
     return { success: true }
   })
 
-  // Canonical hours: List
-  ipcMain.handle(IPC_CHANNELS.HOURS_LIST, async () => {
-    return dbManager.getCanonicalHours()
+  // Schedule: List
+  ipcMain.handle(IPC_CHANNELS.SCHEDULE_LIST, async () => {
+    return dbManager.getSchedules()
   })
 
-  // Canonical hours: Toggle active
-  ipcMain.handle(IPC_CHANNELS.HOURS_TOGGLE, async (_, id: number, isActive: boolean) => {
-    dbManager.toggleCanonicalHour(id, isActive)
+  // Schedule: Toggle active
+  ipcMain.handle(IPC_CHANNELS.SCHEDULE_TOGGLE, async (_, id: number, isActive: boolean) => {
+    dbManager.toggleSchedule(id, isActive)
     scheduler?.reloadHour(id)
     return { success: true }
   })
 
-  // Canonical hours: Trigger manually (Ring the Bell)
-  ipcMain.handle(IPC_CHANNELS.HOURS_TRIGGER, async (_, id: number) => {
+  // Schedule: Trigger manually
+  ipcMain.handle(IPC_CHANNELS.SCHEDULE_TRIGGER, async (_, id: number) => {
     const abbey = getAbbeyManager()
     if (!abbey) {
       return { success: false, error: 'No abbey initialized' }

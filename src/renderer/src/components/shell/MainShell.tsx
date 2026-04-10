@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../../store/appStore.js'
 import { Sidebar } from './Sidebar.js'
-import { CodexView } from '../views/CodexView.js'
-import { EpistlesView } from '../views/EpistlesView.js'
-import { FoliosView } from '../views/FoliosView.js'
-import { ChapterView } from '../views/ChapterView.js'
-import { HoursView } from '../views/HoursView.js'
-import { RuleView } from '../views/RuleView.js'
+import { NotesView } from '../views/NotesView.js'
+import { InboxView } from '../views/InboxView.js'
+import { DraftsView } from '../views/DraftsView.js'
+import { TasksView } from '../views/TasksView.js'
+import { ScheduleView } from '../views/ScheduleView.js'
+import { SettingsView } from '../views/SettingsView.js'
 import { WilfredFAB } from './WilfredFAB.js'
 
 export function MainShell() {
@@ -18,20 +18,20 @@ export function MainShell() {
 
   const renderView = () => {
     switch (currentView) {
-      case 'codex':
-        return <CodexView />
-      case 'epistles':
-        return <EpistlesView />
-      case 'folios':
-        return <FoliosView />
-      case 'chapter':
-        return <ChapterView />
-      case 'hours':
-        return <HoursView />
-      case 'rule':
-        return <RuleView />
+      case 'notes':
+        return <NotesView />
+      case 'inbox':
+        return <InboxView />
+      case 'drafts':
+        return <DraftsView />
+      case 'tasks':
+        return <TasksView />
+      case 'schedule':
+        return <ScheduleView />
+      case 'settings':
+        return <SettingsView />
       default:
-        return <CodexView />
+        return <NotesView />
     }
   }
 

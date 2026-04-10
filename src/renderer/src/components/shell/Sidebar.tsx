@@ -4,32 +4,32 @@ import { FileTree } from '../codex/FileTree.js'
 import { InkwellButton } from './InkwellButton.js'
 
 type NavItem = {
-  id: 'codex' | 'epistles' | 'folios' | 'chapter' | 'hours' | 'rule'
+  id: 'notes' | 'inbox' | 'drafts' | 'tasks' | 'schedule' | 'settings'
   label: string
   icon: React.ElementType
   badge?: number
 }
 
 const navItems: NavItem[] = [
-  { id: 'codex', label: 'Codex', icon: BookOpen },
-  { id: 'epistles', label: 'Epistles', icon: Mail, badge: 0 },
-  { id: 'folios', label: 'Folios', icon: Inbox },
-  { id: 'chapter', label: 'Chapter', icon: Clock },
-  { id: 'hours', label: 'Hours', icon: Calendar },
+  { id: 'notes', label: 'Notes', icon: BookOpen },
+  { id: 'inbox', label: 'Inbox', icon: Mail, badge: 0 },
+  { id: 'drafts', label: 'Drafts', icon: Inbox },
+  { id: 'tasks', label: 'Tasks', icon: Clock },
+  { id: 'schedule', label: 'Schedule', icon: Calendar },
 ]
 
 export function Sidebar() {
-  const { 
-    currentView, 
-    setCurrentView, 
-    isSidebarOpen, 
+  const {
+    currentView,
+    setCurrentView,
+    isSidebarOpen,
     toggleSidebar,
-    unreadEpistles,
-    abbey 
+    unreadInbox,
+    abbey
   } = useAppStore()
 
   return (
-    <aside 
+    <aside
       className={`h-full bg-parchment-sidebar border-r border-parchment-dark flex flex-col transition-all duration-300 ${
         isSidebarOpen ? 'w-64' : 'w-16'
       }`}
@@ -42,7 +42,7 @@ export function Sidebar() {
               <span className="text-xl">✦</span>
               <span className="font-serif font-medium text-ink-primary">Scriptorium</span>
             </div>
-            <button 
+            <button
               onClick={toggleSidebar}
               className="p-1.5 hover:bg-parchment-dark rounded-md transition-colors"
             >
@@ -50,7 +50,7 @@ export function Sidebar() {
             </button>
           </>
         ) : (
-          <button 
+          <button
             onClick={toggleSidebar}
             className="p-1.5 hover:bg-parchment-dark rounded-md transition-colors mx-auto"
           >
@@ -69,7 +69,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
-        {currentView === 'codex' && isSidebarOpen && (
+        {currentView === 'notes' && isSidebarOpen && (
           <div className="mb-4">
             <FileTree />
           </div>
@@ -79,7 +79,7 @@ export function Sidebar() {
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = currentView === item.id
-            const badge = item.id === 'epistles' ? unreadEpistles : item.badge
+            const badge = item.id === 'inbox' ? unreadInbox : item.badge
 
             return (
               <button
@@ -114,19 +114,19 @@ export function Sidebar() {
       {/* Footer - Settings */}
       <div className="p-3">
         <button
-          onClick={() => setCurrentView('rule')}
+          onClick={() => setCurrentView('settings')}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
-            currentView === 'rule'
+            currentView === 'settings'
               ? 'bg-accent/10 text-accent border-l-2 border-accent'
               : 'text-ink-muted hover:bg-parchment-dark hover:text-ink-primary'
           } ${isSidebarOpen ? '' : 'justify-center'}`}
         >
           <Settings className="w-5 h-5 flex-shrink-0" />
           {isSidebarOpen && (
-            <span className="flex-1 text-left text-sm font-medium">Rule</span>
+            <span className="flex-1 text-left text-sm font-medium">Settings</span>
           )}
         </button>
-        
+
         {isSidebarOpen && abbey && (
           <div className="mt-4 px-3 text-xs text-ink-muted truncate">
             {abbey.name}

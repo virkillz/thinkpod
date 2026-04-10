@@ -10,6 +10,7 @@ const isDev = process.env.NODE_ENV === 'development'
 let mainWindow: BrowserWindow | null = null
 let dbManager: DatabaseManager | null = null
 let abbeyManager: AbbeyManager | null = null
+let schedulerStarted = false
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow
@@ -17,6 +18,15 @@ export function getMainWindow(): BrowserWindow | null {
 
 export function getAbbeyManager(): AbbeyManager | null {
   return abbeyManager
+}
+
+export async function initAbbeyManager(abbeyPath: string): Promise<void> {
+  abbeyManager = new AbbeyManager(abbeyPath)
+  await abbeyManager.initialize()
+  if (dbManager && !schedulerStarted) {
+    schedulerStarted = true
+    setupScheduler(dbManager)
+  }
 }
 
 function createWindow(): void {
@@ -71,6 +81,7 @@ async function initializeApp(): Promise<void> {
 
   // Start scheduler if abbey is ready
   if (abbeyManager) {
+    schedulerStarted = true
     setupScheduler(dbManager)
   }
 }

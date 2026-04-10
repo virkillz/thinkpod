@@ -57,9 +57,9 @@ export function CaptureSheet({ isOpen, onClose, onOpenSettings }: CaptureSheetPr
     try {
       const date = new Date()
       const timestamp = date.toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      const slug = content.slice(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'folio'
+      const slug = content.slice(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'draft'
       const filename = `${timestamp}-${slug}.md`
-      await window.electronAPI.writeFile(`_folios/${filename}`, content)
+      await window.electronAPI.writeFile(`_drafts/${filename}`, content)
       await refreshFileTree()
       setContent('')
       transcriptBufRef.current = ''
@@ -218,7 +218,7 @@ export function CaptureSheet({ isOpen, onClose, onOpenSettings }: CaptureSheetPr
       <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl pointer-events-auto animate-in slide-in-from-bottom-4">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
-          <h3 className="font-serif font-medium text-lg text-ink-primary">New Folio</h3>
+          <h3 className="font-serif font-medium text-lg text-ink-primary">New Draft</h3>
           <button
             onClick={onClose}
             className="p-2 hover:bg-parchment-sidebar rounded-lg transition-colors"
@@ -285,7 +285,7 @@ export function CaptureSheet({ isOpen, onClose, onOpenSettings }: CaptureSheetPr
                   }}
                   className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-hover transition-colors"
                 >
-                  Go to Rule → Voice
+                  Go to Settings → Voice
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -309,7 +309,7 @@ export function CaptureSheet({ isOpen, onClose, onOpenSettings }: CaptureSheetPr
                 ? 'Stop recording'
                 : voiceConfigured
                 ? 'Start voice capture'
-                : 'Set up voice in Rule → Voice'
+                : 'Set up voice in Settings → Voice'
             }
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
               isListening
@@ -344,7 +344,7 @@ export function CaptureSheet({ isOpen, onClose, onOpenSettings }: CaptureSheetPr
               disabled={!content.trim() || isSaving || isListening}
               className="px-6 py-2 bg-accent hover:bg-accent-hover disabled:bg-ink-light disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
             >
-              {isSaving ? 'Saving…' : 'Save Folio'}
+              {isSaving ? 'Saving…' : 'Save Draft'}
             </button>
           </div>
         </div>

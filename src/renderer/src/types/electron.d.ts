@@ -70,8 +70,8 @@ export interface ElectronAPI {
   }>>
   agentChat: (message: string) => Promise<{ success: boolean; content?: string; error?: string }>
 
-  // Epistles
-  listEpistles: () => Promise<Array<{
+  // Inbox
+  listInbox: () => Promise<Array<{
     id: string
     path: string
     title: string
@@ -79,11 +79,11 @@ export interface ElectronAPI {
     created: string
     status: string
   }>>
-  readEpistle: (filename: string) => Promise<{ content: string; path: string }>
-  markEpistleRead: (filename: string) => Promise<{ success: boolean }>
+  readInboxItem: (filename: string) => Promise<{ content: string; path: string }>
+  markInboxRead: (filename: string) => Promise<{ success: boolean }>
 
-  // Canonical hours
-  listHours: () => Promise<Array<{
+  // Schedule
+  listSchedules: () => Promise<Array<{
     id: number
     name: string
     schedule: string
@@ -91,8 +91,8 @@ export interface ElectronAPI {
     tools: string
     is_active: number
   }>>
-  toggleHour: (id: number, isActive: boolean) => Promise<{ success: boolean }>
-  triggerHour: (id: number) => Promise<{ success: boolean; result?: unknown; error?: string }>
+  toggleSchedule: (id: number, isActive: boolean) => Promise<{ success: boolean }>
+  triggerSchedule: (id: number) => Promise<{ success: boolean; result?: unknown; error?: string }>
 
   // App
   getAppVersion: () => Promise<string>

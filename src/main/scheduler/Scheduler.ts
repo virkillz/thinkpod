@@ -1,6 +1,6 @@
 /**
- * Canonical Hours Scheduler
- * Schedules and fires Wilfred's tasks according to the abbey's Rule.
+ * Scheduler
+ * Schedules and fires Wilfred's automated tasks.
  */
 
 import { schedule, ScheduledTask } from 'node-cron'
@@ -32,7 +32,7 @@ export class Scheduler extends EventEmitter {
    * Load all active hours from DB and schedule them.
    */
   start(): void {
-    const hours = this.dbManager.getCanonicalHours()
+    const hours = this.dbManager.getSchedules()
     for (const hour of hours) {
       if (hour.is_active) {
         this.scheduleHour(hour.id, hour.name, hour.schedule, hour.prompt)
@@ -61,7 +61,7 @@ export class Scheduler extends EventEmitter {
       this.jobs.delete(id)
     }
 
-    const hours = this.dbManager.getCanonicalHours()
+    const hours = this.dbManager.getSchedules()
     const hour = hours.find(h => h.id === id)
     if (hour?.is_active) {
       this.scheduleHour(hour.id, hour.name, hour.schedule, hour.prompt)
@@ -72,10 +72,10 @@ export class Scheduler extends EventEmitter {
    * Trigger a task manually (Ring the Bell).
    */
   async triggerNow(id: number): Promise<TaskRun> {
-    const hours = this.dbManager.getCanonicalHours()
+    const hours = this.dbManager.getSchedules()
     const hour = hours.find(h => h.id === id)
     if (!hour) {
-      throw new Error(`No canonical hour with id ${id}`)
+      throw new Error(`No scheduled task with id ${id}`)
     }
     return this.runTask(hour.name, hour.prompt)
   }
@@ -113,7 +113,7 @@ export class Scheduler extends EventEmitter {
       throw new Error('LLM not configured')
     }
 
-    let persona = 'You are Wilfred, a diligent monk in the Scriptorium.'
+    let persona = 'You are Wilfred, a diligent assistant in the Scriptorium.'
     try {
       const personaPath = path.join(this.abbeyManager.abbeyPath, '.scriptorium', 'wilfred.md')
       persona = await fs.readFile(personaPath, 'utf-8')

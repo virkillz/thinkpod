@@ -10,7 +10,7 @@ interface TreeNode {
   isExpanded?: boolean
 }
 
-const SYSTEM_NAMES = new Set(['_epistles', '_folios', '.scriptorium'])
+const SYSTEM_NAMES = new Set(['_inbox', '_drafts', '.scriptorium'])
 
 export function FileTree() {
   const [tree, setTree] = useState<TreeNode[]>([])

@@ -20,13 +20,13 @@ export function InkwellButton({ compact }: InkwellButtonProps) {
         }`}
       >
         <PenLine className="w-5 h-5" />
-        {!compact && <span>New Folio</span>}
+        {!compact && <span>New Draft</span>}
       </button>
 
       <CaptureSheet
         isOpen={isCaptureOpen}
         onClose={() => setIsCaptureOpen(false)}
-        onOpenSettings={() => setCurrentView('rule')}
+        onOpenSettings={() => setCurrentView('settings')}
       />
     </>
   )

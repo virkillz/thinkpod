@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Calendar, Check, X, Loader2 } from 'lucide-react'
 
-interface CanonicalHour {
+interface Schedule {
   id: number
   name: string
   schedule: string
@@ -9,24 +9,24 @@ interface CanonicalHour {
   is_active: number
 }
 
-export function HoursView() {
-  const [hours, setHours] = useState<CanonicalHour[]>([])
+export function ScheduleView() {
+  const [schedules, setSchedules] = useState<Schedule[]>([])
   const [toggling, setToggling] = useState<number | null>(null)
 
   useEffect(() => {
-    loadHours()
+    loadSchedules()
   }, [])
 
-  const loadHours = async () => {
-    const result = await window.electronAPI.listHours()
-    setHours(result)
+  const loadSchedules = async () => {
+    const result = await window.electronAPI.listSchedules()
+    setSchedules(result)
   }
 
   const handleToggle = async (id: number, currentlyActive: boolean) => {
     setToggling(id)
     try {
-      await window.electronAPI.toggleHour(id, !currentlyActive)
-      await loadHours()
+      await window.electronAPI.toggleSchedule(id, !currentlyActive)
+      await loadSchedules()
     } finally {
       setToggling(null)
     }
@@ -45,50 +45,50 @@ export function HoursView() {
       <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
         <div className="flex items-center gap-3">
           <Calendar className="w-5 h-5 text-accent" />
-          <h2 className="font-serif font-medium text-lg text-ink-primary">Canonical Hours</h2>
+          <h2 className="font-serif font-medium text-lg text-ink-primary">Schedule</h2>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl mx-auto space-y-4">
-          {hours.length === 0 ? (
+          {schedules.length === 0 ? (
             <div className="text-center py-16 text-ink-muted">
-              No canonical hours defined.
+              No scheduled tasks defined.
             </div>
           ) : (
-            hours.map((hour) => (
+            schedules.map((s) => (
               <div
-                key={hour.id}
+                key={s.id}
                 className="bg-white rounded-xl p-6 border border-parchment-dark hover:border-accent transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
-                    <h3 className="font-medium text-ink-primary">{hour.name}</h3>
+                    <h3 className="font-medium text-ink-primary">{s.name}</h3>
                     <p className="text-sm text-ink-muted mt-1">
-                      {formatSchedule(hour.schedule)}
+                      {formatSchedule(s.schedule)}
                     </p>
                     <p className="text-xs text-ink-light mt-2 line-clamp-2">
-                      {hour.prompt}
+                      {s.prompt}
                     </p>
                   </div>
                   <button
-                    onClick={() => handleToggle(hour.id, hour.is_active === 1)}
-                    disabled={toggling === hour.id}
+                    onClick={() => handleToggle(s.id, s.is_active === 1)}
+                    disabled={toggling === s.id}
                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50"
                     style={
-                      hour.is_active
+                      s.is_active
                         ? { borderColor: 'var(--color-success)', color: 'var(--color-success)' }
                         : { borderColor: 'var(--color-ink-light)', color: 'var(--color-ink-light)' }
                     }
                   >
-                    {toggling === hour.id ? (
+                    {toggling === s.id ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : hour.is_active ? (
+                    ) : s.is_active ? (
                       <Check className="w-3.5 h-3.5" />
                     ) : (
                       <X className="w-3.5 h-3.5" />
                     )}
-                    {hour.is_active ? 'Active' : 'Paused'}
+                    {s.is_active ? 'Active' : 'Paused'}
                   </button>
                 </div>
               </div>

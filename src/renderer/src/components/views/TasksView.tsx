@@ -10,7 +10,7 @@ interface TaskRecord {
   summary: string
 }
 
-interface CanonicalHour {
+interface Schedule {
   id: number
   name: string
   schedule: string
@@ -24,9 +24,9 @@ interface LiveTask {
   toolCalls: number
 }
 
-export function ChapterView() {
+export function TasksView() {
   const [tasks, setTasks] = useState<TaskRecord[]>([])
-  const [hours, setHours] = useState<CanonicalHour[]>([])
+  const [schedules, setSchedules] = useState<Schedule[]>([])
   const [liveTask, setLiveTask] = useState<LiveTask | null>(null)
   const [triggering, setTriggering] = useState<number | null>(null)
 
@@ -55,18 +55,18 @@ export function ChapterView() {
   }, [])
 
   const loadData = async () => {
-    const [taskList, hourList] = await Promise.all([
+    const [taskList, scheduleList] = await Promise.all([
       window.electronAPI.getAgentTasks(),
-      window.electronAPI.listHours(),
+      window.electronAPI.listSchedules(),
     ])
     setTasks(taskList)
-    setHours(hourList)
+    setSchedules(scheduleList)
   }
 
   const handleTrigger = async (id: number) => {
     setTriggering(id)
     try {
-      await window.electronAPI.triggerHour(id)
+      await window.electronAPI.triggerSchedule(id)
     } finally {
       setTriggering(null)
       loadData()
@@ -91,7 +91,7 @@ export function ChapterView() {
     }
   }
 
-  const activeHours = hours.filter(h => h.is_active)
+  const activeSchedules = schedules.filter(s => s.is_active)
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -99,35 +99,35 @@ export function ChapterView() {
       <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
         <div className="flex items-center gap-3">
           <Clock className="w-5 h-5 text-accent" />
-          <h2 className="font-serif font-medium text-lg text-ink-primary">Chapter</h2>
+          <h2 className="font-serif font-medium text-lg text-ink-primary">Tasks</h2>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-8">
 
-          {/* Canonical Hours — manual triggers */}
-          {activeHours.length > 0 && (
+          {/* Scheduled tasks — manual triggers */}
+          {activeSchedules.length > 0 && (
             <section>
               <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">
-                Ring the Bell
+                Run Now
               </h3>
               <div className="space-y-3">
-                {activeHours.map(hour => (
+                {activeSchedules.map(s => (
                   <div
-                    key={hour.id}
+                    key={s.id}
                     className="bg-white rounded-xl p-5 border border-parchment-dark flex items-center justify-between"
                   >
                     <div>
-                      <h4 className="font-medium text-ink-primary">{hour.name}</h4>
-                      <p className="text-sm text-ink-muted mt-0.5">{hour.schedule}</p>
+                      <h4 className="font-medium text-ink-primary">{s.name}</h4>
+                      <p className="text-sm text-ink-muted mt-0.5">{s.schedule}</p>
                     </div>
                     <button
-                      onClick={() => handleTrigger(hour.id)}
+                      onClick={() => handleTrigger(s.id)}
                       disabled={!!liveTask || triggering !== null}
                       className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
                     >
-                      {triggering === hour.id ? (
+                      {triggering === s.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <Play className="w-4 h-4" />
@@ -176,7 +176,7 @@ export function ChapterView() {
                 <Archive className="w-8 h-8 text-ink-light mx-auto mb-2" />
                 <p className="text-ink-muted">No completed tasks yet</p>
                 <p className="text-sm text-ink-light mt-1">
-                  Task history will appear here once Wilfred has run his canonical hours.
+                  Task history will appear here once Wilfred has run his scheduled tasks.
                 </p>
               </div>
             ) : (

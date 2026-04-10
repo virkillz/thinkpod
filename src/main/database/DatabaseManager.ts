@@ -13,7 +13,7 @@ export class DatabaseManager {
   async initialize(): Promise<void> {
     // Enable WAL mode for better performance
     this.db.pragma('journal_mode = WAL')
-    
+
     // Create tables
     this.createTables()
   }
@@ -69,9 +69,9 @@ export class DatabaseManager {
       )
     `)
 
-    // Canonical hours (scheduled tasks)
+    // Schedules (automated tasks)
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS canonical_hours (
+      CREATE TABLE IF NOT EXISTS schedules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE NOT NULL,
         schedule TEXT NOT NULL,
@@ -83,35 +83,35 @@ export class DatabaseManager {
       )
     `)
 
-    // Create default canonical hours if none exist
-    const count = this.db.prepare('SELECT COUNT(*) as count FROM canonical_hours').get() as { count: number }
+    // Create default schedules if none exist
+    const count = this.db.prepare('SELECT COUNT(*) as count FROM schedules').get() as { count: number }
     if (count.count === 0) {
-      this.createDefaultCanonicalHours()
+      this.createDefaultSchedules()
     }
   }
 
-  private createDefaultCanonicalHours(): void {
+  private createDefaultSchedules(): void {
     const now = Date.now()
     const stmt = this.db.prepare(`
-      INSERT INTO canonical_hours (name, schedule, prompt, tools, created_at, updated_at)
+      INSERT INTO schedules (name, schedule, prompt, tools, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `)
 
-    // Terce — Triage Folios (every 5 minutes for testing, will be */5 * * * *)
+    // Triage Drafts (every 5 minutes)
     stmt.run(
-      'Terce — Triage Folios',
+      'Triage Drafts',
       '*/5 * * * *',
-      'Review `_folios/` for new files. For each: identify the project, person, or topic it belongs to. If context is missing, add a comment question. If context is clear, move it to the correct folder and write a brief epistle summarising what you did.',
+      'Review `_drafts/` for new files. For each: identify the project, person, or topic it belongs to. If context is missing, add a comment question. If context is clear, move it to the correct folder and write a brief message summarising what you did.',
       JSON.stringify(['read_file', 'write_file', 'move_file', 'list_files', 'add_comment', 'write_epistle']),
       now,
       now
     )
 
-    // Vespers — Weekly Reflection (Sundays at 20:00)
+    // Weekly Reflection (Sundays at 20:00)
     stmt.run(
-      'Vespers — Weekly Reflection',
+      'Weekly Reflection',
       '0 20 * * 0',
-      'Review all files modified this week. Identify patterns, stale content, orphaned notes, or connections worth surfacing. Write a weekly digest epistle.',
+      'Review all files modified this week. Identify patterns, stale content, orphaned notes, or connections worth surfacing. Write a weekly digest message.',
       JSON.stringify(['read_file', 'list_files', 'write_epistle']),
       now,
       now
@@ -152,7 +152,7 @@ export class DatabaseManager {
     created_at: number
   }> {
     return this.db.prepare(`
-      SELECT * FROM comments 
+      SELECT * FROM comments
       WHERE file_path = ? AND status = 'open'
       ORDER BY line, created_at
     `).all(filePath) as Array<{
@@ -168,7 +168,7 @@ export class DatabaseManager {
 
   dismissComment(id: number): void {
     this.db.prepare(`
-      UPDATE comments 
+      UPDATE comments
       SET status = 'dismissed', dismissed_at = ?
       WHERE id = ?
     `).run(Date.now(), id)
@@ -216,8 +216,8 @@ export class DatabaseManager {
     )
   }
 
-  // Canonical hours
-  getCanonicalHours(): Array<{
+  // Schedules
+  getSchedules(): Array<{
     id: number
     name: string
     schedule: string
@@ -227,7 +227,7 @@ export class DatabaseManager {
   }> {
     return this.db.prepare(`
       SELECT id, name, schedule, prompt, tools, is_active
-      FROM canonical_hours
+      FROM schedules
       ORDER BY id ASC
     `).all() as Array<{
       id: number
@@ -239,9 +239,9 @@ export class DatabaseManager {
     }>
   }
 
-  toggleCanonicalHour(id: number, isActive: boolean): void {
+  toggleSchedule(id: number, isActive: boolean): void {
     this.db.prepare(`
-      UPDATE canonical_hours SET is_active = ?, updated_at = ? WHERE id = ?
+      UPDATE schedules SET is_active = ?, updated_at = ? WHERE id = ?
     `).run(isActive ? 1 : 0, Date.now(), id)
   }
 

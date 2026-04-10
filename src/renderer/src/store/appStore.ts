@@ -22,36 +22,36 @@ interface AppState {
   // Setup
   isSetupComplete: boolean
   setSetupComplete: (complete: boolean) => void
-  
+
   // Abbey
   abbey: AbbeyInfo | null
   setAbbey: (abbey: AbbeyInfo | null) => void
-  
+
   // Navigation
-  currentView: 'codex' | 'epistles' | 'folios' | 'chapter' | 'hours' | 'rule'
+  currentView: 'notes' | 'inbox' | 'drafts' | 'tasks' | 'schedule' | 'settings'
   setCurrentView: (view: AppState['currentView']) => void
-  
+
   // Files
   selectedFile: string | null
   setSelectedFile: (path: string | null) => void
   fileTree: FileNode[]
   setFileTree: (tree: FileNode[]) => void
   refreshFileTree: () => Promise<void>
-  
+
   // LLM Config
   llmConfig: LLMConfig
   setLLMConfig: (config: Partial<LLMConfig>) => void
-  
+
   // UI State
   isSidebarOpen: boolean
   toggleSidebar: () => void
   showSystemFolders: boolean
   setShowSystemFolders: (show: boolean) => void
-  
-  // Epistles
-  unreadEpistles: number
-  setUnreadEpistles: (count: number) => void
-  
+
+  // Inbox
+  unreadInbox: number
+  setUnreadInbox: (count: number) => void
+
   // Agent
   isAgentRunning: boolean
   setAgentRunning: (running: boolean) => void
@@ -63,15 +63,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Setup
   isSetupComplete: false,
   setSetupComplete: (complete) => set({ isSetupComplete: complete }),
-  
+
   // Abbey
   abbey: null,
   setAbbey: (abbey) => set({ abbey }),
-  
+
   // Navigation
-  currentView: 'codex',
+  currentView: 'notes',
   setCurrentView: (view) => set({ currentView: view }),
-  
+
   // Files
   selectedFile: null,
   setSelectedFile: (path) => set({ selectedFile: path }),
@@ -80,7 +80,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   refreshFileTree: async () => {
     const { abbey } = get()
     if (!abbey) return
-    
+
     try {
       const files = await window.electronAPI.listFiles('.')
       set({ fileTree: files })
@@ -88,27 +88,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.error('Failed to refresh file tree:', error)
     }
   },
-  
+
   // LLM Config
   llmConfig: {
     baseUrl: 'http://localhost:8000/v1',
     model: 'gemma-4-e4b-it-4bit',
     apiKey: '',
   },
-  setLLMConfig: (config) => set((state) => ({ 
-    llmConfig: { ...state.llmConfig, ...config } 
+  setLLMConfig: (config) => set((state) => ({
+    llmConfig: { ...state.llmConfig, ...config }
   })),
-  
+
   // UI State
   isSidebarOpen: true,
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   showSystemFolders: false,
   setShowSystemFolders: (show) => set({ showSystemFolders: show }),
-  
-  // Epistles
-  unreadEpistles: 0,
-  setUnreadEpistles: (count) => set({ unreadEpistles: count }),
-  
+
+  // Inbox
+  unreadInbox: 0,
+  setUnreadInbox: (count) => set({ unreadInbox: count }),
+
   // Agent
   isAgentRunning: false,
   setAgentRunning: (running) => set({ isAgentRunning: running }),

@@ -4,7 +4,7 @@ import { MarkdownEditor } from '../codex/MarkdownEditor.js'
 import { CommentPanel } from '../codex/CommentPanel.js'
 import { FileText } from 'lucide-react'
 
-export function CodexView() {
+export function NotesView() {
   const { selectedFile, fileTree, abbey } = useAppStore()
   const [fileContent, setFileContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -47,7 +47,7 @@ export function CodexView() {
       <div className="flex-1 flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
-          <h2 className="font-serif font-medium text-lg text-ink-primary">Codex</h2>
+          <h2 className="font-serif font-medium text-lg text-ink-primary">Notes</h2>
         </div>
 
         {/* Empty state */}
@@ -56,11 +56,11 @@ export function CodexView() {
             <FileText className="w-12 h-12 text-parchment-dark mx-auto mb-4" />
             <p className="text-ink-muted mb-2">Select a file from the sidebar</p>
             <p className="text-sm text-ink-light">
-              {fileTree.length === 0 
-                ? abbey 
-                  ? 'Your abbey is empty. Create a folio to get started.'
-                  : 'Open an abbey to begin.'
-                : `${fileTree.length} items in your abbey`
+              {fileTree.length === 0
+                ? abbey
+                  ? 'Your workspace is empty. Create a draft to get started.'
+                  : 'Open a workspace to begin.'
+                : `${fileTree.length} items in your workspace`
               }
             </p>
           </div>
