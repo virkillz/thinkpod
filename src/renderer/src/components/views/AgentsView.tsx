@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../../store/appStore.js'
-import { Bot, User, Clock, Calendar, Save, Check, Loader2, Play, Archive, CheckCircle, XCircle, AlertCircle, X, ScrollText } from 'lucide-react'
+import { Bot, User, Clock, Calendar, Save, Check, Loader2, Play, Archive, CheckCircle, XCircle, AlertCircle, X, ScrollText, Plus, Pencil, Trash2, CalendarClock } from 'lucide-react'
 import avatar01 from '../../assets/avatar01.png'
 import avatar02 from '../../assets/avatar02.png'
 import avatar03 from '../../assets/avatar03.png'
@@ -49,6 +49,31 @@ interface LiveTask {
   iterations: number
   toolCalls: number
 }
+
+interface PendingTask {
+  id: number
+  name: string
+  prompt: string
+  run_at: number | null
+  status: string
+}
+
+interface TaskFormState {
+  name: string
+  prompt: string
+  timing: 'now' | 'later'
+  runAt: string
+}
+
+const EMPTY_TASK_FORM: TaskFormState = { name: '', prompt: '', timing: 'now', runAt: '' }
+
+interface ScheduleFormState {
+  name: string
+  prompt: string
+  schedule: string
+}
+
+const EMPTY_SCHEDULE_FORM: ScheduleFormState = { name: '', prompt: '', schedule: '0 9 * * *' }
 
 // ─── Avatar options ───────────────────────────────────────────────────────────
 
@@ -302,10 +327,19 @@ function PromptsTab() {
 // ─── Tasks Tab ────────────────────────────────────────────────────────────────
 
 function TasksTab() {
+  const { agentName } = useAppStore()
   const [tasks, setTasks] = useState<TaskRecord[]>([])
+  const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [liveTask, setLiveTask] = useState<LiveTask | null>(null)
   const [triggering, setTriggering] = useState<number | null>(null)
+
+  const [showForm, setShowForm] = useState(false)
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null)
+  const [form, setForm] = useState<TaskFormState>(EMPTY_TASK_FORM)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   useEffect(() => {
     loadData()
@@ -332,12 +366,14 @@ function TasksTab() {
   }, [])
 
   const loadData = async () => {
-    const [taskList, scheduleList] = await Promise.all([
+    const [taskList, scheduleList, pendingList] = await Promise.all([
       window.electronAPI.getAgentTasks(),
       window.electronAPI.listSchedules(),
+      window.electronAPI.listTasks(),
     ])
     setTasks(taskList)
     setSchedules(scheduleList)
+    setPendingTasks(pendingList)
   }
 
   const handleTrigger = async (id: number) => {
@@ -350,6 +386,61 @@ function TasksTab() {
     }
   }
 
+  const openNew = () => {
+    setForm(EMPTY_TASK_FORM)
+    setFormError(null)
+    setEditingTaskId(null)
+    setShowForm(true)
+  }
+
+  const openEdit = (t: PendingTask) => {
+    const hasTime = t.run_at !== null
+    const runAtStr = hasTime ? new Date(t.run_at!).toISOString().slice(0, 16) : ''
+    setForm({ name: t.name, prompt: t.prompt, timing: hasTime ? 'later' : 'now', runAt: runAtStr })
+    setFormError(null)
+    setEditingTaskId(t.id)
+    setShowForm(true)
+  }
+
+  const cancelForm = () => {
+    setShowForm(false)
+    setEditingTaskId(null)
+    setFormError(null)
+  }
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { setFormError('Name is required'); return }
+    if (!form.prompt.trim()) { setFormError('Prompt is required'); return }
+    if (form.timing === 'later' && !form.runAt) { setFormError('Please select a date and time'); return }
+
+    const runAt = form.timing === 'later' ? new Date(form.runAt).getTime() : null
+
+    setSaving(true)
+    setFormError(null)
+    try {
+      if (editingTaskId !== null) {
+        const res = await window.electronAPI.updateTask(editingTaskId, form.name.trim(), form.prompt.trim(), runAt)
+        if (!res.success) { setFormError(res.error ?? 'Failed to update'); return }
+      } else {
+        const res = await window.electronAPI.createTask(form.name.trim(), form.prompt.trim(), runAt)
+        if (!res.success) { setFormError(res.error ?? 'Failed to create'); return }
+      }
+      setShowForm(false)
+      setEditingTaskId(null)
+      await loadData()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeletePending = async (id: number) => {
+    const res = await window.electronAPI.deleteTask(id)
+    if (res.success) {
+      setDeletingId(null)
+      await loadData()
+    }
+  }
+
   const formatDuration = (start: number, end: number) => {
     const secs = Math.round((end - start) / 1000)
     if (secs < 60) return `${secs}s`
@@ -357,6 +448,11 @@ function TasksTab() {
   }
 
   const formatTime = (ts: number) => new Date(ts).toLocaleString()
+
+  const formatRunAt = (runAt: number | null) => {
+    if (runAt === null) return 'Immediately'
+    return new Date(runAt).toLocaleString()
+  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -372,6 +468,167 @@ function TasksTab() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
+      {/* New Task Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={openNew}
+          disabled={showForm}
+          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          New Task
+        </button>
+      </div>
+
+      {/* Create / Edit form */}
+      {showForm && (
+        <section>
+          <div className="bg-parchment-card border border-accent/30 rounded-xl p-6 space-y-4">
+            <h3 className="font-medium text-ink-primary text-sm">
+              {editingTaskId !== null ? 'Edit Task' : 'New Task'}
+            </h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-ink-muted mb-1">Name</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Summarise this week's notes"
+                  className="w-full bg-parchment-sidebar border border-parchment-dark rounded-lg px-3 py-2 text-sm text-ink-primary placeholder:text-ink-light focus:outline-none focus:border-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-ink-muted mb-1">Prompt</label>
+                <textarea
+                  value={form.prompt}
+                  onChange={e => setForm(f => ({ ...f, prompt: e.target.value }))}
+                  placeholder="Describe what the agent should do..."
+                  rows={4}
+                  className="w-full bg-parchment-sidebar border border-parchment-dark rounded-lg px-3 py-2 text-sm text-ink-primary placeholder:text-ink-light focus:outline-none focus:border-accent resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-ink-muted mb-2">When to run</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setForm(f => ({ ...f, timing: 'now' }))}
+                    className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${
+                      form.timing === 'now'
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-parchment-dark text-ink-muted hover:border-accent/50'
+                    }`}
+                  >
+                    Immediately
+                  </button>
+                  <button
+                    onClick={() => setForm(f => ({ ...f, timing: 'later' }))}
+                    className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${
+                      form.timing === 'later'
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-parchment-dark text-ink-muted hover:border-accent/50'
+                    }`}
+                  >
+                    At a specific time
+                  </button>
+                </div>
+                {form.timing === 'later' && (
+                  <input
+                    type="datetime-local"
+                    value={form.runAt}
+                    onChange={e => setForm(f => ({ ...f, runAt: e.target.value }))}
+                    min={new Date().toISOString().slice(0, 16)}
+                    className="mt-2 w-full bg-parchment-sidebar border border-parchment-dark rounded-lg px-3 py-2 text-sm text-ink-primary focus:outline-none focus:border-accent"
+                  />
+                )}
+              </div>
+            </div>
+
+            {formError && <p className="text-sm text-red-500">{formError}</p>}
+
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={cancelForm}
+                className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {form.timing === 'now' && editingTaskId === null ? 'Run now' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Pending / Scheduled tasks */}
+      {pendingTasks.length > 0 && (
+        <section>
+          <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Pending</h3>
+          <div className="space-y-3">
+            {pendingTasks.map(t => (
+              <div key={t.id} className="bg-parchment-card rounded-xl border border-parchment-dark">
+                {deletingId === t.id ? (
+                  <div className="p-5 flex items-center justify-between gap-4">
+                    <p className="text-sm text-ink-primary">Delete <span className="font-medium">{t.name}</span>?</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setDeletingId(null)}
+                        className="px-3 py-1.5 text-xs text-ink-muted hover:text-ink-primary transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleDeletePending(t.id)}
+                        className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-5 flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <CalendarClock className="w-4 h-4 text-accent shrink-0" />
+                        <p className="font-medium text-ink-primary">{t.name}</p>
+                      </div>
+                      <p className="text-xs text-ink-light mt-1 line-clamp-2">{t.prompt}</p>
+                      <p className="text-xs text-ink-muted mt-1">{formatRunAt(t.run_at)}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => openEdit(t)}
+                        disabled={showForm}
+                        className="p-1.5 text-ink-muted hover:text-ink-primary disabled:opacity-40 transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(t.id)}
+                        disabled={showForm}
+                        className="p-1.5 text-ink-muted hover:text-red-500 disabled:opacity-40 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Scheduled tasks - manual triggers */}
       {activeSchedules.length > 0 && (
         <section>
           <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Run Now</h3>
@@ -396,6 +653,7 @@ function TasksTab() {
         </section>
       )}
 
+      {/* Active task */}
       <section>
         <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Active</h3>
         {liveTask ? (
@@ -412,16 +670,23 @@ function TasksTab() {
         ) : (
           <div className="bg-parchment-sidebar rounded-xl p-6 text-center">
             <p className="text-ink-muted">No tasks running</p>
+            <p className="text-sm text-ink-light mt-1">
+              {agentName} rests when his work is done.
+            </p>
           </div>
         )}
       </section>
 
+      {/* Archive */}
       <section>
         <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Archive</h3>
         {tasks.length === 0 ? (
           <div className="bg-parchment-sidebar rounded-xl p-6 text-center">
             <Archive className="w-8 h-8 text-ink-light mx-auto mb-2" />
             <p className="text-ink-muted">No completed tasks yet</p>
+            <p className="text-sm text-ink-light mt-1">
+              Task history will appear here once {agentName} has run his scheduled tasks.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -451,9 +716,23 @@ function TasksTab() {
 
 // ─── Schedules Tab ────────────────────────────────────────────────────────────
 
+const SCHEDULE_OPTIONS = [
+  { value: '0 9 * * *', label: 'Daily at 9:00 AM' },
+  { value: '0 20 * * 0', label: 'Sundays at 8:00 PM' },
+  { value: '0 * * * *', label: 'Every hour' },
+  { value: '*/5 * * * *', label: 'Every 5 minutes' },
+  { value: 'custom', label: 'Custom (cron)' },
+]
+
 function SchedulesTab() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [toggling, setToggling] = useState<number | null>(null)
+
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState<ScheduleFormState>(EMPTY_SCHEDULE_FORM)
+  const [customCron, setCustomCron] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   useEffect(() => {
     loadSchedules()
@@ -474,6 +753,39 @@ function SchedulesTab() {
     }
   }
 
+  const openNew = () => {
+    setForm(EMPTY_SCHEDULE_FORM)
+    setCustomCron('')
+    setFormError(null)
+    setShowForm(true)
+  }
+
+  const cancelForm = () => {
+    setShowForm(false)
+    setFormError(null)
+  }
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { setFormError('Name is required'); return }
+    if (!form.prompt.trim()) { setFormError('Prompt is required'); return }
+
+    const scheduleValue = form.schedule === 'custom' ? customCron.trim() : form.schedule
+    if (form.schedule === 'custom' && !customCron.trim()) { setFormError('Custom cron expression is required'); return }
+
+    setSaving(true)
+    setFormError(null)
+    try {
+      const res = await window.electronAPI.createSchedule(form.name.trim(), scheduleValue, form.prompt.trim())
+      if (!res.success) { setFormError(res.error ?? 'Failed to create schedule'); return }
+      setShowForm(false)
+      setForm(EMPTY_SCHEDULE_FORM)
+      setCustomCron('')
+      await loadSchedules()
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const formatSchedule = (cron: string) => {
     if (cron === '*/5 * * * *') return 'Every 5 minutes'
     if (cron === '0 20 * * 0') return 'Sundays at 8:00 PM'
@@ -483,40 +795,135 @@ function SchedulesTab() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      {schedules.length === 0 ? (
-        <div className="text-center py-16 text-ink-muted">No scheduled tasks defined.</div>
-      ) : (
-        schedules.map((s) => (
-          <div key={s.id} className="bg-parchment-card rounded-xl p-6 border border-parchment-dark hover:border-accent transition-colors">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <h3 className="font-medium text-ink-primary">{s.name}</h3>
-                <p className="text-sm text-ink-muted mt-1">{formatSchedule(s.schedule)}</p>
-                <p className="text-xs text-ink-light mt-2 line-clamp-2">{s.prompt}</p>
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* New Schedule Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={openNew}
+          disabled={showForm}
+          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          New Schedule
+        </button>
+      </div>
+
+      {/* Create Schedule Form */}
+      {showForm && (
+        <section>
+          <div className="bg-parchment-card border border-accent/30 rounded-xl p-6 space-y-4">
+            <h3 className="font-medium text-ink-primary text-sm">New Schedule</h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-ink-muted mb-1">Name</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Daily Summary"
+                  className="w-full bg-parchment-sidebar border border-parchment-dark rounded-lg px-3 py-2 text-sm text-ink-primary placeholder:text-ink-light focus:outline-none focus:border-accent"
+                />
               </div>
-              <button
-                onClick={() => handleToggle(s.id, s.is_active === 1)}
-                disabled={toggling === s.id}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50"
-                style={
-                  s.is_active
-                    ? { borderColor: 'var(--color-success)', color: 'var(--color-success)' }
-                    : { borderColor: 'var(--color-ink-light)', color: 'var(--color-ink-light)' }
-                }
-              >
-                {toggling === s.id ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : s.is_active ? (
-                  <Check className="w-3.5 h-3.5" />
-                ) : (
-                  <X className="w-3.5 h-3.5" />
+
+              <div>
+                <label className="block text-xs text-ink-muted mb-1">Prompt</label>
+                <textarea
+                  value={form.prompt}
+                  onChange={e => setForm(f => ({ ...f, prompt: e.target.value }))}
+                  placeholder="What should the agent do on this schedule?"
+                  rows={4}
+                  className="w-full bg-parchment-sidebar border border-parchment-dark rounded-lg px-3 py-2 text-sm text-ink-primary placeholder:text-ink-light focus:outline-none focus:border-accent resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-ink-muted mb-2">Schedule</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {SCHEDULE_OPTIONS.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => setForm(f => ({ ...f, schedule: value }))}
+                      className={`py-2 px-3 text-sm rounded-lg border transition-colors text-left ${
+                        form.schedule === value
+                          ? 'border-accent bg-accent/10 text-accent'
+                          : 'border-parchment-dark text-ink-muted hover:border-accent/50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {form.schedule === 'custom' && (
+                  <input
+                    type="text"
+                    value={customCron}
+                    onChange={e => setCustomCron(e.target.value)}
+                    placeholder="e.g. 0 9 * * 1-5 (cron expression)"
+                    className="mt-2 w-full bg-parchment-sidebar border border-parchment-dark rounded-lg px-3 py-2 text-sm text-ink-primary placeholder:text-ink-light focus:outline-none focus:border-accent"
+                  />
                 )}
-                {s.is_active ? 'Active' : 'Paused'}
+              </div>
+            </div>
+
+            {formError && <p className="text-sm text-red-500">{formError}</p>}
+
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={cancelForm}
+                className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Save
               </button>
             </div>
           </div>
-        ))
+        </section>
+      )}
+
+      {/* Schedules List */}
+      {schedules.length === 0 ? (
+        <div className="text-center py-16 text-ink-muted">No scheduled tasks defined.</div>
+      ) : (
+        <div className="space-y-4">
+          {schedules.map((s) => (
+            <div key={s.id} className="bg-parchment-card rounded-xl p-6 border border-parchment-dark hover:border-accent transition-colors">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <h3 className="font-medium text-ink-primary">{s.name}</h3>
+                  <p className="text-sm text-ink-muted mt-1">{formatSchedule(s.schedule)}</p>
+                  <p className="text-xs text-ink-light mt-2 line-clamp-2">{s.prompt}</p>
+                </div>
+                <button
+                  onClick={() => handleToggle(s.id, s.is_active === 1)}
+                  disabled={toggling === s.id}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50"
+                  style={
+                    s.is_active
+                      ? { borderColor: 'var(--color-success)', color: 'var(--color-success)' }
+                      : { borderColor: 'var(--color-ink-light)', color: 'var(--color-ink-light)' }
+                  }
+                >
+                  {toggling === s.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : s.is_active ? (
+                    <Check className="w-3.5 h-3.5" />
+                  ) : (
+                    <X className="w-3.5 h-3.5" />
+                  )}
+                  {s.is_active ? 'Active' : 'Paused'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

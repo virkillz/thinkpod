@@ -102,6 +102,21 @@ export interface ElectronAPI {
   }>>
   toggleSchedule: (id: number, isActive: boolean) => Promise<{ success: boolean }>
   triggerSchedule: (id: number) => Promise<{ success: boolean; result?: unknown; error?: string }>
+  createSchedule: (name: string, schedule: string, prompt: string) => Promise<{ success: boolean; id?: number; error?: string }>
+  updateSchedule: (id: number, name: string, schedule: string, prompt: string) => Promise<{ success: boolean; error?: string }>
+  deleteSchedule: (id: number) => Promise<{ success: boolean; error?: string }>
+
+  // Tasks (one-time)
+  listTasks: () => Promise<Array<{
+    id: number
+    name: string
+    prompt: string
+    run_at: number | null
+    status: string
+  }>>
+  createTask: (name: string, prompt: string, runAt: number | null) => Promise<{ success: boolean; id?: number; error?: string }>
+  updateTask: (id: number, name: string, prompt: string, runAt: number | null) => Promise<{ success: boolean; error?: string }>
+  deleteTask: (id: number) => Promise<{ success: boolean; error?: string }>
 
   // App
   getAppVersion: () => Promise<string>

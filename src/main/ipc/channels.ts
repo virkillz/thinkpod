@@ -47,6 +47,15 @@ export const IPC_CHANNELS = {
   SCHEDULE_LIST: 'schedule:list',
   SCHEDULE_TOGGLE: 'schedule:toggle',
   SCHEDULE_TRIGGER: 'schedule:trigger',
+  SCHEDULE_CREATE: 'schedule:create',
+  SCHEDULE_UPDATE: 'schedule:update',
+  SCHEDULE_DELETE: 'schedule:delete',
+
+  // Tasks (one-time)
+  TASK_CREATE: 'task:create',
+  TASK_UPDATE: 'task:update',
+  TASK_DELETE: 'task:delete',
+  TASK_LIST: 'task:list',
 
   // Abbey reset
   ABBEY_RESET: 'abbey:reset',

@@ -36,6 +36,13 @@ const IPC_CHANNELS = {
   SCHEDULE_LIST: 'schedule:list',
   SCHEDULE_TOGGLE: 'schedule:toggle',
   SCHEDULE_TRIGGER: 'schedule:trigger',
+  SCHEDULE_CREATE: 'schedule:create',
+  SCHEDULE_UPDATE: 'schedule:update',
+  SCHEDULE_DELETE: 'schedule:delete',
+  TASK_CREATE: 'task:create',
+  TASK_UPDATE: 'task:update',
+  TASK_DELETE: 'task:delete',
+  TASK_LIST: 'task:list',
   APP_GET_VERSION: 'app:get-version',
   USER_SELECT_IMAGE: 'user:select-image',
   PUSH_TASK_UPDATE: 'push:task-update',
@@ -111,6 +118,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listSchedules: () => ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_LIST),
   toggleSchedule: (id: number, isActive: boolean) => ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_TOGGLE, id, isActive),
   triggerSchedule: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_TRIGGER, id),
+  createSchedule: (name: string, schedule: string, prompt: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_CREATE, name, schedule, prompt),
+  updateSchedule: (id: number, name: string, schedule: string, prompt: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_UPDATE, id, name, schedule, prompt),
+  deleteSchedule: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_DELETE, id),
+
+  // Tasks (one-time)
+  listTasks: () => ipcRenderer.invoke(IPC_CHANNELS.TASK_LIST),
+  createTask: (name: string, prompt: string, runAt: number | null) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_CREATE, name, prompt, runAt),
+  updateTask: (id: number, name: string, prompt: string, runAt: number | null) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_UPDATE, id, name, prompt, runAt),
+  deleteTask: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
 
   // App
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),

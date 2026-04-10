@@ -20,6 +20,7 @@ export interface SchedulerEvents {
 export class Scheduler extends EventEmitter {
   private jobs = new Map<number, ScheduledTask>()
   private runningTask: AgentLoop | null = null
+  private pollInterval: NodeJS.Timeout | null = null
 
   constructor(
     private dbManager: DatabaseManager,
@@ -38,6 +39,14 @@ export class Scheduler extends EventEmitter {
         this.scheduleHour(hour.id, hour.name, hour.schedule, hour.prompt)
       }
     }
+    // Run any tasks that were queued while the app was closed
+    this.checkPendingTasks()
+    const immediate = this.dbManager.getImmediateTasks()
+    for (const task of immediate) {
+      this.runOneOffTask(task.id, task.name, task.prompt)
+    }
+    // Poll for deferred tasks every minute
+    this.pollInterval = setInterval(() => this.checkPendingTasks(), 60_000)
   }
 
   /**
@@ -48,6 +57,10 @@ export class Scheduler extends EventEmitter {
       job.stop()
     }
     this.jobs.clear()
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval)
+      this.pollInterval = null
+    }
     this.runningTask?.abort()
   }
 
@@ -85,6 +98,53 @@ export class Scheduler extends EventEmitter {
    */
   abortRunning(): void {
     this.runningTask?.abort()
+  }
+
+  /**
+   * Reload all active schedules (used after create/delete).
+   */
+  reloadAll(): void {
+    for (const job of this.jobs.values()) {
+      job.stop()
+    }
+    this.jobs.clear()
+    this.start()
+  }
+
+  /**
+   * Stop and remove a single job (used on delete).
+   */
+  stopJob(id: number): void {
+    const job = this.jobs.get(id)
+    if (job) {
+      job.stop()
+      this.jobs.delete(id)
+    }
+  }
+
+  /**
+   * Run a one-off task immediately (used for tasks with runAt = null).
+   */
+  runOneOffTask(taskId: number, name: string, prompt: string): void {
+    this.runTask(name, prompt)
+      .then((result) => {
+        this.dbManager.markTaskDone(taskId, result.status, result.summary ?? '')
+      })
+      .catch((err) => {
+        console.error(`[Scheduler] One-off task "${name}" failed:`, err)
+        this.dbManager.markTaskDone(taskId, 'error', String(err))
+      })
+    this.dbManager.markTaskRunning(taskId)
+  }
+
+  /**
+   * Check for deferred tasks whose run_at has passed and execute them.
+   */
+  checkPendingTasks(): void {
+    const pending = this.dbManager.getPendingTasks()
+    for (const task of pending) {
+      this.runOneOffTask(task.id, task.name, task.prompt)
+    }
   }
 
   private scheduleHour(id: number, name: string, cronExpr: string, prompt: string): void {

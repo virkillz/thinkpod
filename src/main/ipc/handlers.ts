@@ -789,6 +789,78 @@ export function setupIpcHandlers(
       return { success: false, error: (error as Error).message }
     }
   })
+
+  // Schedule: Create
+  ipcMain.handle(IPC_CHANNELS.SCHEDULE_CREATE, async (_, name: string, schedule: string, prompt: string) => {
+    try {
+      const id = dbManager.createSchedule(name, schedule, prompt)
+      scheduler?.reloadAll()
+      return { success: true, id }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Schedule: Update
+  ipcMain.handle(IPC_CHANNELS.SCHEDULE_UPDATE, async (_, id: number, name: string, schedule: string, prompt: string) => {
+    try {
+      dbManager.updateSchedule(id, name, schedule, prompt)
+      scheduler?.reloadHour(id)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Schedule: Delete
+  ipcMain.handle(IPC_CHANNELS.SCHEDULE_DELETE, async (_, id: number) => {
+    try {
+      scheduler?.stopJob(id)
+      dbManager.deleteSchedule(id)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Task: List pending/future
+  ipcMain.handle(IPC_CHANNELS.TASK_LIST, async () => {
+    return dbManager.listPendingAndFutureTasks()
+  })
+
+  // Task: Create
+  ipcMain.handle(IPC_CHANNELS.TASK_CREATE, async (_, name: string, prompt: string, runAt: number | null) => {
+    try {
+      const id = dbManager.createTask(name, prompt, runAt)
+      if (runAt === null) {
+        // Fire immediately via scheduler (or inline if scheduler not ready)
+        scheduler?.runOneOffTask(id, name, prompt)
+      }
+      return { success: true, id }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Task: Update
+  ipcMain.handle(IPC_CHANNELS.TASK_UPDATE, async (_, id: number, name: string, prompt: string, runAt: number | null) => {
+    try {
+      dbManager.updateTask(id, name, prompt, runAt)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Task: Delete
+  ipcMain.handle(IPC_CHANNELS.TASK_DELETE, async (_, id: number) => {
+    try {
+      dbManager.deleteTask(id)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
 }
 
 export function setupScheduler(dbManager: DatabaseManager): void {
