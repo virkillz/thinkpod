@@ -181,6 +181,48 @@ export function FileTree() {
     setDragOverPath(null)
   }
 
+  // Flatten visible file nodes (non-directories) in display order
+  const flattenFiles = useCallback((nodes: TreeNode[]): TreeNode[] => {
+    const result: TreeNode[] = []
+    for (const node of nodes) {
+      if (!node.isDirectory) result.push(node)
+      if (node.isDirectory && expandedPaths.has(node.path) && node.children) {
+        result.push(...flattenFiles(node.children))
+      }
+    }
+    return result
+  }, [expandedPaths])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      if (!selectedFile) return
+      const allNodes = flattenFiles(tree)
+      const node = allNodes.find(n => n.path === selectedFile)
+      if (!node || SYSTEM_NAMES.has(node.name)) return
+      e.preventDefault()
+      handleDelete(node)
+      return
+    }
+
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const files = flattenFiles(tree)
+    if (files.length === 0) return
+    const currentIndex = files.findIndex(n => n.path === selectedFile)
+    let nextIndex: number
+    if (currentIndex === -1) {
+      nextIndex = e.key === 'ArrowDown' ? 0 : files.length - 1
+    } else {
+      nextIndex = e.key === 'ArrowDown'
+        ? Math.min(currentIndex + 1, files.length - 1)
+        : Math.max(currentIndex - 1, 0)
+    }
+    if (nextIndex !== currentIndex) {
+      e.preventDefault()
+      setSelectedFile(files[nextIndex].path)
+      setCurrentView('notes')
+    }
+  }, [flattenFiles, tree, selectedFile, setSelectedFile, setCurrentView, handleDelete])
+
   const renderNode = (node: TreeNode, depth: number = 0) => {
     const isExpanded = expandedPaths.has(node.path)
     const isSelected = selectedFile === node.path
@@ -251,7 +293,7 @@ export function FileTree() {
   }
 
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-0.5 outline-none" tabIndex={-1} onKeyDown={handleKeyDown}>
       {tree.map(node => renderNode(node))}
 
       {contextMenu && (

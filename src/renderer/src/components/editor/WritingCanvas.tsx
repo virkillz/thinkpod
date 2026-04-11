@@ -2,11 +2,40 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { EditorView, keymap, placeholder, lineNumbers, highlightActiveLine, highlightSpecialChars, drawSelection, rectangularSelection, crosshairCursor } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { bracketMatching } from '@codemirror/language'
+import { defaultKeymap, history, historyKeymap, indentWithTab, undo, redo } from '@codemirror/commands'
+import { bracketMatching, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { tags } from '@lezer/highlight'
 import { closeBrackets } from '@codemirror/autocomplete'
 import { highlightSelectionMatches } from '@codemirror/search'
 import { EditorSettings, FONT_FAMILIES } from '../../types/editorSettings.js'
+
+// ─── Markdown syntax highlight style ─────────────────────────────────────────
+
+const writingHighlight = HighlightStyle.define([
+  // Headings — progressively sized
+  { tag: tags.heading1, fontSize: '1.65em', fontWeight: '700', color: 'var(--color-ink-primary)' },
+  { tag: tags.heading2, fontSize: '1.35em', fontWeight: '650', color: 'var(--color-ink-primary)' },
+  { tag: tags.heading3, fontSize: '1.15em', fontWeight: '600', color: 'var(--color-ink-primary)' },
+  { tag: tags.heading4, fontSize: '1.05em', fontWeight: '600', color: 'var(--color-ink-secondary)' },
+  // Syntax markers (##, **, *, `, ---) — dimmed so they recede
+  { tag: tags.processingInstruction, color: 'var(--color-ink-light)', opacity: '0.55' },
+  { tag: tags.contentSeparator, color: 'var(--color-ink-light)' },
+  // Inline formatting
+  { tag: tags.strong, fontWeight: '700' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through', color: 'var(--color-ink-muted)' },
+  // Code
+  { tag: tags.monospace, fontFamily: 'var(--font-mono, monospace)', fontSize: '0.82em', color: 'var(--color-ink-secondary)' },
+  // Links
+  { tag: tags.link,  color: 'rgb(var(--color-accent-rgb))' },
+  { tag: tags.url,   color: 'rgb(var(--color-accent-rgb))', textDecoration: 'underline' },
+  // Blockquote marker `>`
+  { tag: tags.quote, color: 'rgb(var(--color-accent-rgb) / 0.6)', fontStyle: 'italic' },
+  // List markers
+  { tag: tags.list, color: 'rgb(var(--color-accent-rgb))' },
+  // Meta / YAML-like delimiters
+  { tag: tags.meta, color: 'var(--color-ink-light)', fontFamily: 'var(--font-mono, monospace)', fontSize: '0.85em' },
+])
 
 export interface WritingCanvasHandle {
   appendText(text: string): void
@@ -14,6 +43,8 @@ export interface WritingCanvasHandle {
   /** Replaces content and clears undo history (use when switching files) */
   reinitialize(content: string): void
   focus(): void
+  undo(): void
+  redo(): void
 }
 
 interface WritingCanvasProps {
@@ -103,6 +134,7 @@ export const WritingCanvas = forwardRef<WritingCanvasHandle, WritingCanvasProps>
             backgroundColor: settings?.highlightActiveLine ? 'rgb(var(--color-accent-rgb) / 0.05)' : 'transparent',
           },
         }),
+        syntaxHighlighting(writingHighlight),
         ...(placeholderText ? [placeholder(placeholderText)] : []),
         ...(settings?.lineNumbers ? [lineNumbers()] : []),
         ...(settings?.highlightActiveLine ? [highlightActiveLine()] : []),
@@ -199,6 +231,7 @@ export const WritingCanvas = forwardRef<WritingCanvasHandle, WritingCanvasProps>
               backgroundColor: settings?.highlightActiveLine ? 'rgb(var(--color-accent-rgb) / 0.05)' : 'transparent',
             },
           }),
+          syntaxHighlighting(writingHighlight),
           ...(placeholderText ? [placeholder(placeholderText)] : []),
           ...(settings?.lineNumbers ? [lineNumbers()] : []),
           ...(settings?.highlightActiveLine ? [highlightActiveLine()] : []),
@@ -240,6 +273,8 @@ export const WritingCanvas = forwardRef<WritingCanvasHandle, WritingCanvasProps>
         view.setState(EditorState.create({ doc: content, extensions: buildCoreExtensions() }))
       },
       focus() { viewRef.current?.focus() },
+      undo() { const v = viewRef.current; if (v) undo(v) },
+      redo() { const v = viewRef.current; if (v) redo(v) },
     }))
 
     return <div ref={containerRef} />

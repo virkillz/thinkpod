@@ -73,7 +73,7 @@ export function ProfileTab() {
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark flex items-center gap-5">
-        <img src={profile.avatar} alt="Avatar" className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
+        <img src={profile.avatar || avatar01} alt="Avatar" className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
         <div>
           <p className="font-serif font-medium text-lg text-ink-primary">{profile.name || 'Unnamed Agent'}</p>
           <p className="text-sm text-ink-muted mt-0.5">Agent</p>

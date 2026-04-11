@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import {
   Mic, MicOff, Square, Settings, ArrowRight,
   Sparkles, BookOpen, Pencil, X, Loader2, AlertTriangle, Check, SlidersHorizontal,
@@ -25,6 +25,13 @@ const PRESET_ACTIONS = [
   { label: 'Make it formal', instruction: 'Rewrite in a formal, professional tone.' },
   { label: 'Make it casual', instruction: 'Rewrite in a friendly, casual tone.' },
 ]
+
+// ─── Handle ───────────────────────────────────────────────────────────────────
+
+export interface UniversalEditorHandle {
+  undo(): void
+  redo(): void
+}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -53,7 +60,7 @@ export interface UniversalEditorProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function UniversalEditor({
+export const UniversalEditor = forwardRef<UniversalEditorHandle, UniversalEditorProps>(function UniversalEditor({
   mode,
   filePath,
   reloadTrigger = 0,
@@ -66,10 +73,15 @@ export function UniversalEditor({
   onContentChange,
   placeholder: placeholderProp,
   initialContent = '',
-}: UniversalEditorProps) {
+}: UniversalEditorProps, ref) {
   // ── Content ───────────────────────────────────────────────────────────────
   const [content, setContent] = useState(initialContent)
   const canvasRef = useRef<WritingCanvasHandle>(null)
+
+  useImperativeHandle(ref, () => ({
+    undo() { canvasRef.current?.undo() },
+    redo() { canvasRef.current?.redo() },
+  }))
   const lastSavedRef = useRef('')   // tracks what's on disk — skip redundant saves
 
   // ── View ──────────────────────────────────────────────────────────────────
@@ -353,7 +365,7 @@ export function UniversalEditor({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 flex flex-col h-full bg-parchment-base relative group/page">
+    <div className="flex-1 flex flex-col h-full relative group/page">
 
       {/* Voice setup notification */}
       {showVoiceInfo && (
@@ -387,7 +399,7 @@ export function UniversalEditor({
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-10 pt-20 pb-32">
+        <div className="max-w-4xl mx-auto px-16 pt-20 pb-32">
 
           {/* Date label — new mode only */}
           {mode === 'new' && (
@@ -415,7 +427,7 @@ export function UniversalEditor({
       </div>
 
       {/* Floating micro-toolbar */}
-      <div className="sticky bottom-0 left-0 right-0 flex justify-center pb-7 pointer-events-none z-10 bg-gradient-to-t from-parchment-base via-parchment-base/80 to-transparent pt-8">
+      <div className="sticky bottom-0 left-0 right-0 flex justify-center pb-7 pointer-events-none z-10 bg-gradient-to-t from-parchment-card via-parchment-card/80 to-transparent pt-8">
         <div
           className={`
             pointer-events-auto flex items-center gap-3 px-5 py-2.5
@@ -746,4 +758,4 @@ export function UniversalEditor({
       />
     </div>
   )
-}
+})

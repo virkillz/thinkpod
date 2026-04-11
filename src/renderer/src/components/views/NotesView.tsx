@@ -1,15 +1,16 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useAppStore } from '../../store/appStore.js'
-import { UniversalEditor } from '../editor/UniversalEditor.js'
+import { UniversalEditor, UniversalEditorHandle } from '../editor/UniversalEditor.js'
 import { CommentPanel } from '../codex/CommentPanel.js'
 import { TriageWizard } from '../triage/TriageWizard.js'
-import { FileText, RefreshCw, Sparkles } from 'lucide-react'
+import { FileText, RefreshCw, Sparkles, Undo2, Redo2 } from 'lucide-react'
 
 export function NotesView() {
   const { selectedFile, fileTree, vault, refreshFileTree, setSelectedFile } = useAppStore()
   const [reloadTrigger, setReloadTrigger] = useState(0)
   const [liveContent, setLiveContent] = useState('')
   const [triageOpen, setTriageOpen] = useState(false)
+  const editorRef = useRef<UniversalEditorHandle>(null)
 
   // Empty state
   if (!selectedFile) {
@@ -51,6 +52,21 @@ export function NotesView() {
             </div>
             <div className="flex items-center gap-2">
               <button
+                onClick={() => editorRef.current?.undo()}
+                className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-parchment-dark transition-colors"
+                title="Undo (⌘Z)"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => editorRef.current?.redo()}
+                className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-parchment-dark transition-colors"
+                title="Redo (⌘⇧Z)"
+              >
+                <Redo2 className="w-4 h-4" />
+              </button>
+              <div className="w-px h-5 bg-parchment-dark" />
+              <button
                 onClick={() => setTriageOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-accent hover:bg-accent-hover text-white transition-all shadow-sm hover:shadow-md"
                 title="Triage this note"
@@ -71,6 +87,7 @@ export function NotesView() {
 
           {/* Editor */}
           <UniversalEditor
+            ref={editorRef}
             key={selectedFile}
             mode="edit"
             filePath={selectedFile}

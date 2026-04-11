@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { X, Send, Trash2, ScrollText, Wrench, AlertTriangle } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
+import avatar01 from '../../assets/avatar01.png'
 
 const TOOL_LABELS: Record<string, string> = {
   read_file: 'Reading file',
@@ -93,7 +94,7 @@ export function AgentChatPanel({
   contextFilePath,
   onStatusChange,
 }: AgentChatPanelProps) {
-  const { agentName, agentAvatar } = useAppStore()
+  const { agentName, userProfile } = useAppStore()
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -254,7 +255,7 @@ export function AgentChatPanel({
         <div className="flex items-center justify-between px-4 py-3 bg-accent text-white">
           <div className="flex items-center gap-2">
             <img
-              src={agentAvatar}
+              src={userProfile.avatarDataUrl || avatar01}
               alt={agentName}
               className="w-7 h-7 rounded-full object-cover border border-white/30"
             />
