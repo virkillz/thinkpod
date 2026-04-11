@@ -840,7 +840,7 @@ export function setupIpcHandlers(
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
       try {
-        const client = new LLMClient({ ...llmConfig, maxTokens: 2000 })
+        const client = new LLMClient({ ...llmConfig, maxTokens: 32768 })
         const answersText =
           userAnswers.length > 0
             ? '\n\nAdditional answers from the user:\n' + userAnswers.map((a) => `- ${a.field}: ${a.answer}`).join('\n')
@@ -852,7 +852,7 @@ export function setupIpcHandlers(
           },
           {
             role: 'user',
-            content: `Template:\n${templateFormat}\n\nOriginal note:\n${content.slice(0, 2000)}${answersText}`,
+            content: `Template:\n${templateFormat}\n\nOriginal note:\n${content}${answersText}`,
           },
         ])
         return { success: true, reformattedContent: response.content?.trim() ?? '' }

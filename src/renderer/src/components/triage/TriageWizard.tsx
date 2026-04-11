@@ -1,10 +1,8 @@
-import { useEffect, useState, useMemo } from 'react'
-import {
-  Sparkles, X, Loader2, AlertTriangle, Check, ChevronRight,
-  Tag, FolderOpen, FileText, Pencil,
-} from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { X, Loader2, Check, ChevronRight, Tag, FolderOpen, FileText } from 'lucide-react'
 import { MarkdownPreview } from '../codex/MarkdownPreview.js'
 import type { NoteTemplate } from '@main/vault/noteTemplates.js'
+import wilfredAvatar from '../../assets/avatar01.png'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,24 +21,21 @@ interface Assessment {
   suggestedTags: string[]
 }
 
-interface Checklist {
-  reformat: boolean
-  fillMissing: boolean
-  addTags: boolean
-  moveTo: boolean
-}
-
-type TriageStep = 'assessing' | 'checklist' | 'filling' | 'applying' | 'preview'
+type TriageStep = 'analyzing' | 'classify' | 'plan' | 'questioning' | 'reformatting' | 'preview'
 
 interface TriageState {
   step: TriageStep
   assessment: Assessment | null
   selectedTemplateId: string | null
-  checklist: Checklist
+  doReformat: boolean
+  doTags: boolean
+  doMove: boolean
   editableTags: string[]
   newTagInput: string
   editableFolder: string
+  questionIndex: number
   userAnswers: { field: string; answer: string }[]
+  currentAnswer: string
   finalContent: string | null
   error: string | null
 }
@@ -55,6 +50,23 @@ export interface TriageWizardProps {
   onClose: () => void
   onDone: (newFilePath?: string) => void
 }
+
+// ─── Wilfred lines ────────────────────────────────────────────────────────────
+
+const ANALYZING_LINES = [
+  "Let me see what we've got here…",
+  "Hmm, give me a moment…",
+  "Taking a look at this…",
+  "One sec, reading through…",
+  "Interesting. Let me think about this…",
+]
+
+const REFORMATTING_LINES = [
+  "On it, just a moment…",
+  "Reformatting now…",
+  "Tidying this up…",
+  "Putting it all together…",
+]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,7 +91,6 @@ function parseFrontmatter(content: string): { fm: Record<string, unknown>; body:
       const key = line.slice(0, colonIdx).trim()
       const val = line.slice(colonIdx + 1).trim()
       if (!val) {
-        // Block-style array: collect "  - item" lines that follow
         const items: string[] = []
         while (i + 1 < lines.length && /^\s+-\s/.test(lines[i + 1])) {
           i++
@@ -87,7 +98,6 @@ function parseFrontmatter(content: string): { fm: Record<string, unknown>; body:
         }
         fm[key] = items.length > 0 ? items : null
       } else if (val.startsWith('[') && val.endsWith(']')) {
-        // Inline array: tags: [a, b, c]
         fm[key] = val
           .slice(1, -1)
           .split(',')
@@ -140,11 +150,6 @@ function buildFrontmatter(fields: {
   return lines.join('\n')
 }
 
-/**
- * Replace (or create) the YAML frontmatter with an app-generated one.
- * Core fields (title, tags, created, type) are always app-controlled.
- * Extra fields found in the existing frontmatter (attendees, author, etc.) are preserved.
- */
 function applyFrontmatter(
   content: string,
   tags: string[],
@@ -154,7 +159,6 @@ function applyFrontmatter(
   const today = new Date().toISOString().split('T')[0]
   const { fm: existing, body } = parseFrontmatter(content)
 
-  // Title: existing frontmatter → first H1 heading → filename without extension
   let title = (existing.title as string | undefined) ?? ''
   if (!title) {
     const h1 = body.match(/^#\s+(.+)$/m)
@@ -172,71 +176,40 @@ function applyFrontmatter(
   return `${frontmatter}\n\n${body}`
 }
 
-// ─── ChecklistRow ─────────────────────────────────────────────────────────────
-
-function ChecklistRow({
-  checked,
-  onChange,
-  icon,
-  label,
-  detail,
-  dimmed,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  icon: React.ReactNode
-  label: string
-  detail?: string
-  dimmed?: boolean
-}) {
-  return (
-    <div className="flex gap-3">
-      <button
-        onClick={() => onChange(!checked)}
-        className={`mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-          checked ? 'border-accent bg-accent' : 'border-ink-muted bg-transparent'
-        }`}
-      >
-        {checked && <Check className="w-3 h-3 text-white" />}
-      </button>
-      <div>
-        <div className="flex items-center gap-2">
-          <span className={dimmed ? 'text-ink-light' : 'text-ink-muted'}>{icon}</span>
-          <span className={`text-sm font-medium ${checked ? 'text-ink-primary' : 'text-ink-muted'}`}>
-            {label}
-          </span>
-        </div>
-        {detail && <p className="text-xs text-ink-muted mt-0.5 ml-0">{detail}</p>}
-      </div>
-    </div>
-  )
-}
-
 // ─── TriageWizard ─────────────────────────────────────────────────────────────
 
 export function TriageWizard({ fileName, filePath, content: initialContent, onClose, onDone }: TriageWizardProps) {
   const [templates, setTemplates] = useState<NoteTemplate[]>([])
+  const [analyzingLine] = useState(() => ANALYZING_LINES[Math.floor(Math.random() * ANALYZING_LINES.length)])
+  const [reformattingLine] = useState(() => REFORMATTING_LINES[Math.floor(Math.random() * REFORMATTING_LINES.length)])
   const [state, setState] = useState<TriageState>({
-    step: 'assessing',
+    step: 'analyzing',
     assessment: null,
     selectedTemplateId: null,
-    checklist: { reformat: true, fillMissing: true, addTags: true, moveTo: true },
+    doReformat: true,
+    doTags: false,
+    doMove: false,
     editableTags: [],
     newTagInput: '',
     editableFolder: '',
+    questionIndex: 0,
     userAnswers: [],
+    currentAnswer: '',
     finalContent: null,
     error: null,
   })
 
+  const enabledTemplates = templates.filter((t) => t.isEnabled)
   const selectedTemplate = useMemo(
     () => templates.find((t) => t.id === state.selectedTemplateId) ?? null,
     [templates, state.selectedTemplateId]
   )
 
-  const enabledTemplates = templates.filter((t) => t.isEnabled)
+  const totalQuestions = state.assessment?.missingFields.length ?? 0
+  const currentQuestion = state.assessment?.missingFields[state.questionIndex] ?? null
+  const currentFolder = filePath.split('/').slice(0, -1).join('/')
 
-  // ── Bootstrap: load templates then run assessment ───────────────────────────
+  // ── Bootstrap ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const run = async () => {
       const saved = (await window.electronAPI.getSetting('noteTemplates')) as NoteTemplate[] | null
@@ -245,7 +218,7 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
 
       const enabled = tmplList.filter((t) => t.isEnabled)
       if (enabled.length === 0) {
-        setState((s) => ({ ...s, step: 'checklist', error: 'No enabled templates — assessment skipped.' }))
+        setState((s) => ({ ...s, step: 'classify', error: 'No enabled templates — please pick one to continue.' }))
         return
       }
 
@@ -260,7 +233,6 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
       }
 
       try {
-        const currentFolder = filePath.split('/').slice(0, -1).join('/')
         const result = await window.electronAPI.assessThought(
           content,
           enabled.map((t) => ({ id: t.id, title: t.title, description: t.description, defaultFolder: t.defaultFolder })),
@@ -270,8 +242,7 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
         console.log('[TriageWizard] assessThought raw result:', result)
 
         if (!result.success) {
-          console.error('[TriageWizard] assessment failed:', result.error)
-          setState((s) => ({ ...s, step: 'checklist', error: result.error ?? 'Assessment failed' }))
+          setState((s) => ({ ...s, step: 'classify', error: result.error ?? 'Assessment failed' }))
           return
         }
 
@@ -286,60 +257,82 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
 
         const resolvedTemplateId = assessment.templateId ?? enabled[0]?.id ?? null
         const matchedTemplate = tmplList.find((t) => t.id === resolvedTemplateId)
-        const hasMissing = assessment.missingFields.length > 0
-        const requiresTags = matchedTemplate?.requireTags ?? false
+        const suggestedFolder = assessment.folder || matchedTemplate?.defaultFolder || ''
 
         setState((s) => ({
           ...s,
-          step: 'checklist',
+          step: 'classify',
           assessment: { ...assessment, templateId: resolvedTemplateId },
           selectedTemplateId: resolvedTemplateId,
           editableTags: assessment.suggestedTags,
-          editableFolder: assessment.folder || matchedTemplate?.defaultFolder || '',
-          checklist: {
-            reformat: !assessment.alreadyFormatted,
-            fillMissing: hasMissing,
-            addTags: requiresTags,
-            moveTo: true,
-          },
+          editableFolder: suggestedFolder,
+          doReformat: !assessment.alreadyFormatted,
+          doTags: matchedTemplate?.requireTags ?? false,
+          doMove: suggestedFolder !== '' && suggestedFolder !== currentFolder,
           userAnswers: assessment.missingFields.map((q) => ({ field: q.field, answer: '' })),
           error: null,
         }))
       } catch (e) {
-        setState((s) => ({ ...s, step: 'checklist', error: (e as Error).message }))
+        setState((s) => ({ ...s, step: 'classify', error: (e as Error).message }))
       }
     }
     run()
   }, [])
 
-  // Sync checklist when user picks a different template
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+
   const handleSelectTemplate = (id: string) => {
     const tmpl = templates.find((t) => t.id === id)
+    const suggestedFolder =
+      state.assessment?.templateId === id
+        ? state.assessment.folder || tmpl?.defaultFolder || ''
+        : tmpl?.defaultFolder || ''
     setState((s) => ({
       ...s,
       selectedTemplateId: id,
-      editableFolder:
-        s.assessment?.templateId === id
-          ? s.assessment.folder || tmpl?.defaultFolder || ''
-          : tmpl?.defaultFolder || '',
-      checklist: {
-        ...s.checklist,
-        addTags: tmpl?.requireTags ?? false,
-      },
+      editableFolder: suggestedFolder,
+      doReformat: !(s.assessment?.alreadyFormatted ?? false),
+      doTags: tmpl?.requireTags ?? false,
+      doMove: suggestedFolder !== '' && suggestedFolder !== currentFolder,
     }))
   }
 
-  // ── Apply flow ──────────────────────────────────────────────────────────────
-  const handleApplyFromChecklist = () => {
-    if (state.checklist.fillMissing && (state.assessment?.missingFields ?? []).length > 0) {
-      setState((s) => ({ ...s, step: 'filling' }))
+  const handleConfirmClassify = () => {
+    setState((s) => ({ ...s, step: 'plan' }))
+  }
+
+  const handleConfirmPlan = () => {
+    if (totalQuestions > 0) {
+      setState((s) => ({ ...s, step: 'questioning', questionIndex: 0, currentAnswer: '' }))
     } else {
       doApply(state.userAnswers)
     }
   }
 
+  const handleQuestionAnswer = (answer: string, skip = false) => {
+    const answers = [...state.userAnswers]
+    const idx = state.questionIndex
+    answers[idx] = { field: state.assessment!.missingFields[idx].field, answer: skip ? '' : answer }
+
+    if (idx + 1 < totalQuestions) {
+      setState((s) => ({ ...s, userAnswers: answers, questionIndex: idx + 1, currentAnswer: '' }))
+    } else {
+      setState((s) => ({ ...s, userAnswers: answers }))
+      doApply(answers)
+    }
+  }
+
+  const handleQuestionBack = () => {
+    if (state.questionIndex > 0) {
+      setState((s) => ({ ...s, questionIndex: s.questionIndex - 1, currentAnswer: s.userAnswers[s.questionIndex - 1]?.answer ?? '' }))
+    } else {
+      setState((s) => ({ ...s, step: 'plan' }))
+    }
+  }
+
   const doApply = async (answers: { field: string; answer: string }[]) => {
-    setState((s) => ({ ...s, step: 'applying', error: null }))
+    const { doReformat, doTags, editableTags, selectedTemplateId } = state
+    setState((s) => ({ ...s, step: 'reformatting', error: null }))
 
     let content = initialContent ?? ''
     if (!content) {
@@ -353,7 +346,7 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
 
     let finalContent = content
 
-    if (state.checklist.reformat && selectedTemplate) {
+    if (doReformat && selectedTemplate) {
       try {
         const filledAnswers = answers.filter((a) => a.answer.trim() !== '')
         const result = await window.electronAPI.reformatThought(content, selectedTemplate.format, filledAnswers)
@@ -365,9 +358,8 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
       }
     }
 
-    // Always apply app-generated frontmatter; tags included when the checkbox is on
-    const tags = state.checklist.addTags ? state.editableTags : []
-    finalContent = applyFrontmatter(finalContent, tags, state.selectedTemplateId, fileName)
+    const tags = doTags ? editableTags : []
+    finalContent = applyFrontmatter(finalContent, tags, selectedTemplateId, fileName)
 
     setState((s) => ({ ...s, step: 'preview', finalContent, error: null }))
   }
@@ -378,7 +370,7 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
     try {
       await window.electronAPI.writeFile(filePath, state.finalContent)
       let newFilePath: string | undefined
-      if (state.checklist.moveTo && state.editableFolder) {
+      if (state.doMove && state.editableFolder) {
         const destPath = state.editableFolder.replace(/\/$/, '') + '/' + fileName
         if (destPath !== filePath) {
           await window.electronAPI.moveFile(filePath, destPath)
@@ -393,341 +385,380 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-parchment-card w-full max-w-2xl mx-4 rounded-2xl shadow-2xl border border-parchment-dark flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-8">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-accent" />
-            <span className="font-serif font-medium text-ink-primary">Triage: {fileName}</span>
+      <div className="relative flex items-end gap-5 w-full max-w-3xl">
+
+        {/* Wilfred avatar */}
+        <div className="relative flex-shrink-0 flex flex-col items-center gap-2 mb-2 z-10">
+          <div className="w-20 h-20 rounded-full overflow-hidden shadow-lg ring-4 ring-accent/20 animate-breathe">
+            <img src={wilfredAvatar} alt="Wilfred" className="w-full h-full object-cover" />
           </div>
-          <button onClick={onClose} className="text-ink-muted hover:text-ink-primary transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+          <span className="text-xs text-ink-muted font-medium tracking-wide">Wilfred</span>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Speech bubble */}
+        <div className="relative flex-1 z-10">
+          {/* Tail */}
+          <div
+            className="absolute left-0 bottom-10 -translate-x-[11px]"
+            style={{
+              width: 0,
+              height: 0,
+              borderTop: '10px solid transparent',
+              borderBottom: '10px solid transparent',
+              borderRight: '12px solid var(--color-parchment-card)',
+            }}
+          />
 
-          {/* Assessing */}
-          {state.step === 'assessing' && (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-              <Loader2 className="w-8 h-8 text-accent animate-spin" />
-              <p className="text-ink-muted">Analyzing your note…</p>
-            </div>
-          )}
+          {/* Card */}
+          <div className="bg-parchment-card rounded-2xl shadow-2xl flex flex-col min-h-[420px]">
 
-          {/* Checklist */}
-          {state.step === 'checklist' && (
-            <div className="space-y-6">
-              {state.error && (
-                <p className="text-sm text-amber-600 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> {state.error}
-                </p>
+            {/* Close */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 text-ink-muted hover:text-ink-primary transition-colors z-20"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Body */}
+            <div className="flex-1 p-10">
+
+              {/* Analyzing */}
+              {state.step === 'analyzing' && (
+                <div className="flex flex-col justify-center h-full gap-5 py-8">
+                  <Loader2 className="w-6 h-6 text-accent animate-spin" />
+                  <p className="font-serif text-xl text-ink-primary">{analyzingLine}</p>
+                </div>
               )}
 
-              {/* Template selection */}
-              <div>
-                <p className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-2">Classify as</p>
-                <div className="space-y-2">
-                  {enabledTemplates.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => handleSelectTemplate(t.id)}
-                      className={`w-full text-left px-4 py-3 rounded-xl border transition-colors flex items-center gap-3 ${
-                        state.selectedTemplateId === t.id
-                          ? 'border-accent bg-accent/5'
-                          : 'border-parchment-dark hover:border-accent/40'
-                      }`}
-                    >
-                      <span
-                        className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                          state.selectedTemplateId === t.id ? 'border-accent bg-accent' : 'border-ink-muted'
+              {/* Classify */}
+              {state.step === 'classify' && (
+                <div className="space-y-6">
+                  <p className="font-serif text-xl text-ink-primary">
+                    {state.assessment
+                      ? `I think this is a ${selectedTemplate?.title ?? '…'} — ${Math.round(state.assessment.confidence * 100)}% sure. Sound right?`
+                      : 'What type of note is this?'}
+                  </p>
+                  {state.error && (
+                    <p className="text-sm text-amber-600">{state.error}</p>
+                  )}
+                  <div className="space-y-2">
+                    {enabledTemplates.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => handleSelectTemplate(t.id)}
+                        className={`w-full text-left px-4 py-3 rounded-xl border transition-colors flex items-center gap-3 ${
+                          state.selectedTemplateId === t.id
+                            ? 'border-accent bg-accent/5'
+                            : 'border-parchment-dark hover:border-accent/40'
                         }`}
                       >
-                        {state.selectedTemplateId === t.id && <Check className="w-2.5 h-2.5 text-white" />}
-                      </span>
-                      <span className="flex-1 min-w-0">
-                        <span className="font-medium block text-ink-primary">{t.title}</span>
-                        {t.description && (
-                          <span className="text-xs text-ink-muted truncate block">{t.description}</span>
-                        )}
-                      </span>
-                      {state.assessment?.templateId === t.id && (
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                            state.assessment.confidence >= 0.7
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-amber-100 text-amber-700'
+                          className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                            state.selectedTemplateId === t.id ? 'border-accent bg-accent' : 'border-ink-muted'
                           }`}
                         >
-                          {Math.round(state.assessment.confidence * 100)}%
+                          {state.selectedTemplateId === t.id && <Check className="w-2.5 h-2.5 text-white" />}
                         </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Action checklist — only shown once a template is selected */}
-              {state.selectedTemplateId && (
-                <div>
-                  <p className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-3">Actions</p>
-                  <div className="space-y-4">
-
-                    {/* Reformat */}
-                    <ChecklistRow
-                      checked={state.checklist.reformat}
-                      onChange={(v) => setState((s) => ({ ...s, checklist: { ...s.checklist, reformat: v } }))}
-                      icon={<FileText className="w-4 h-4" />}
-                      label="Reformat to template"
-                      detail={
-                        state.assessment?.alreadyFormatted
-                          ? 'Note looks well-structured already'
-                          : 'Note will be restructured to match the template'
-                      }
-                    />
-
-                    {/* Fill missing */}
-                    {(state.assessment?.missingFields ?? []).length > 0 && (
-                      <ChecklistRow
-                        checked={state.checklist.fillMissing}
-                        onChange={(v) => setState((s) => ({ ...s, checklist: { ...s.checklist, fillMissing: v } }))}
-                        icon={<Pencil className="w-4 h-4" />}
-                        label={`Fill ${state.assessment!.missingFields.length} missing field${state.assessment!.missingFields.length > 1 ? 's' : ''}`}
-                        detail={state.assessment!.missingFields.map((f) => f.field).join(', ')}
-                      />
-                    )}
-
-                    {/* Tags */}
-                    {selectedTemplate?.requireTags && (
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() =>
-                            setState((s) => ({ ...s, checklist: { ...s.checklist, addTags: !s.checklist.addTags } }))
-                          }
-                          className={`mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                            state.checklist.addTags ? 'border-accent bg-accent' : 'border-ink-muted bg-transparent'
-                          }`}
-                        >
-                          {state.checklist.addTags && <Check className="w-3 h-3 text-white" />}
-                        </button>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Tag className="w-4 h-4 text-ink-muted" />
-                            <span className={`text-sm font-medium ${state.checklist.addTags ? 'text-ink-primary' : 'text-ink-muted'}`}>
-                              Add tags
-                            </span>
-                          </div>
-                          {state.checklist.addTags && (
-                            <div className="flex flex-wrap gap-1.5">
-                              {state.editableTags.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent rounded-full text-xs font-medium"
-                                >
-                                  #{tag}
-                                  <button
-                                    onClick={() =>
-                                      setState((s) => ({
-                                        ...s,
-                                        editableTags: s.editableTags.filter((t) => t !== tag),
-                                      }))
-                                    }
-                                    className="hover:text-accent/60 transition-colors"
-                                  >
-                                    <X className="w-2.5 h-2.5" />
-                                  </button>
-                                </span>
-                              ))}
-                              <input
-                                type="text"
-                                value={state.newTagInput}
-                                onChange={(e) => setState((s) => ({ ...s, newTagInput: e.target.value }))}
-                                onKeyDown={(e) => {
-                                  if ((e.key === 'Enter' || e.key === ' ') && state.newTagInput.trim()) {
-                                    e.preventDefault()
-                                    const tag = state.newTagInput
-                                      .trim()
-                                      .toLowerCase()
-                                      .replace(/^#/, '')
-                                      .replace(/\s+/g, '-')
-                                    if (tag && !state.editableTags.includes(tag)) {
-                                      setState((s) => ({
-                                        ...s,
-                                        editableTags: [...s.editableTags, tag],
-                                        newTagInput: '',
-                                      }))
-                                    } else {
-                                      setState((s) => ({ ...s, newTagInput: '' }))
-                                    }
-                                  }
-                                }}
-                                placeholder="+ add tag"
-                                className="text-xs px-2 py-0.5 bg-transparent border border-dashed border-ink-muted rounded-full text-ink-muted placeholder:text-ink-light focus:outline-none focus:border-accent w-20"
-                              />
-                            </div>
+                        <span className="flex-1 min-w-0">
+                          <span className="font-medium block text-ink-primary">{t.title}</span>
+                          {t.description && (
+                            <span className="text-xs text-ink-muted truncate block">{t.description}</span>
                           )}
+                        </span>
+                        {state.assessment?.templateId === t.id && (
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                              state.assessment.confidence >= 0.7
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}
+                          >
+                            {Math.round(state.assessment.confidence * 100)}%
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Plan */}
+              {state.step === 'plan' && (
+                <div className="space-y-6">
+                  <p className="font-serif text-xl text-ink-primary">
+                    {state.doReformat || state.doTags || state.doMove
+                      ? "Here's what I'm thinking:"
+                      : 'Looks like this note is already well-structured. I\'ll just add the classification and we\'re done.'}
+                  </p>
+
+                  <div className="space-y-5">
+                    {state.doReformat && (
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 w-5 h-5 rounded border-2 border-accent bg-accent flex items-center justify-center flex-shrink-0">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-ink-muted" />
+                            <span className="text-sm font-medium text-ink-primary">Reformat to template</span>
+                            <button
+                              onClick={() => setState((s) => ({ ...s, doReformat: false }))}
+                              className="ml-auto text-xs text-ink-muted hover:text-ink-primary transition-colors"
+                            >
+                              skip
+                            </button>
+                          </div>
+                          <p className="text-xs text-ink-muted mt-0.5 ml-6">
+                            Restructure content to match the {selectedTemplate?.title} template
+                          </p>
                         </div>
                       </div>
                     )}
 
-                    {/* Move to */}
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() =>
-                          setState((s) => ({ ...s, checklist: { ...s.checklist, moveTo: !s.checklist.moveTo } }))
-                        }
-                        className={`mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                          state.checklist.moveTo ? 'border-accent bg-accent' : 'border-ink-muted bg-transparent'
-                        }`}
-                      >
-                        {state.checklist.moveTo && <Check className="w-3 h-3 text-white" />}
-                      </button>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FolderOpen className="w-4 h-4 text-ink-muted" />
-                          <span className={`text-sm font-medium ${state.checklist.moveTo ? 'text-ink-primary' : 'text-ink-muted'}`}>
-                            Move to folder
-                          </span>
+                    {state.doTags && (
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 w-5 h-5 rounded border-2 border-accent bg-accent flex items-center justify-center flex-shrink-0">
+                          <Check className="w-3 h-3 text-white" />
                         </div>
-                        {state.checklist.moveTo && (
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-ink-muted" />
+                            <span className="text-sm font-medium text-ink-primary">Add tags</span>
+                            <button
+                              onClick={() => setState((s) => ({ ...s, doTags: false }))}
+                              className="ml-auto text-xs text-ink-muted hover:text-ink-primary transition-colors"
+                            >
+                              skip
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 ml-6">
+                            {state.editableTags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent rounded-full text-xs font-medium"
+                              >
+                                #{tag}
+                                <button
+                                  onClick={() =>
+                                    setState((s) => ({ ...s, editableTags: s.editableTags.filter((t) => t !== tag) }))
+                                  }
+                                  className="hover:text-accent/60 transition-colors"
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              </span>
+                            ))}
+                            <input
+                              type="text"
+                              value={state.newTagInput}
+                              onChange={(e) => setState((s) => ({ ...s, newTagInput: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if ((e.key === 'Enter' || e.key === ' ') && state.newTagInput.trim()) {
+                                  e.preventDefault()
+                                  const tag = state.newTagInput
+                                    .trim()
+                                    .toLowerCase()
+                                    .replace(/^#/, '')
+                                    .replace(/\s+/g, '-')
+                                  if (tag && !state.editableTags.includes(tag)) {
+                                    setState((s) => ({ ...s, editableTags: [...s.editableTags, tag], newTagInput: '' }))
+                                  } else {
+                                    setState((s) => ({ ...s, newTagInput: '' }))
+                                  }
+                                }
+                              }}
+                              placeholder="+ add tag"
+                              className="text-xs px-2 py-0.5 bg-transparent border border-dashed border-ink-muted rounded-full text-ink-muted placeholder:text-ink-light focus:outline-none focus:border-accent w-20"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {state.doMove && (
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 w-5 h-5 rounded border-2 border-accent bg-accent flex items-center justify-center flex-shrink-0">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                        <div className="flex-1 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <FolderOpen className="w-4 h-4 text-ink-muted" />
+                            <span className="text-sm font-medium text-ink-primary">Move to folder</span>
+                            <button
+                              onClick={() => setState((s) => ({ ...s, doMove: false }))}
+                              className="ml-auto text-xs text-ink-muted hover:text-ink-primary transition-colors"
+                            >
+                              skip
+                            </button>
+                          </div>
                           <input
                             type="text"
                             value={state.editableFolder}
                             onChange={(e) => setState((s) => ({ ...s, editableFolder: e.target.value }))}
-                            className="w-full px-3 py-1.5 text-sm bg-parchment-card border border-parchment-dark rounded-lg font-mono text-ink-primary focus:outline-none focus:border-accent"
+                            className="w-full px-3 py-1.5 text-sm bg-parchment-base border border-parchment-dark rounded-lg font-mono text-ink-primary focus:outline-none focus:border-accent ml-6"
                           />
-                        )}
+                        </div>
                       </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Questioning */}
+              {state.step === 'questioning' && currentQuestion && (
+                <div className="space-y-5">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <p className="font-serif text-xl text-ink-primary">{currentQuestion.question}</p>
+                    {totalQuestions > 1 && (
+                      <span className="text-xs text-ink-muted flex-shrink-0">
+                        {state.questionIndex + 1} of {totalQuestions}
+                      </span>
+                    )}
+                  </div>
+                  {currentQuestion.hint && (
+                    <p className="text-sm text-ink-muted -mt-2">{currentQuestion.hint}</p>
+                  )}
+                  <input
+                    key={state.questionIndex}
+                    type="text"
+                    autoFocus
+                    value={state.currentAnswer}
+                    onChange={(e) => setState((s) => ({ ...s, currentAnswer: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleQuestionAnswer(state.currentAnswer)
+                    }}
+                    placeholder="Your answer…"
+                    className="w-full px-3 py-2.5 text-sm bg-parchment-base border border-parchment-dark rounded-xl text-ink-primary focus:outline-none focus:border-accent"
+                  />
+                </div>
+              )}
+
+              {/* Reformatting */}
+              {state.step === 'reformatting' && (
+                <div className="flex flex-col justify-center h-full gap-5 py-8">
+                  <Loader2 className="w-6 h-6 text-accent animate-spin" />
+                  <p className="font-serif text-xl text-ink-primary">{reformattingLine}</p>
+                </div>
+              )}
+
+              {/* Preview */}
+              {state.step === 'preview' && (
+                <div className="space-y-4">
+                  <p className="font-serif text-xl text-ink-primary">Here's the result — happy with this?</p>
+                  {state.error && (
+                    <p className="text-sm text-amber-600">{state.error}</p>
+                  )}
+                  {state.doMove && state.editableFolder && (
+                    <div className="text-xs text-ink-muted flex items-center gap-1.5">
+                      <FolderOpen className="w-3.5 h-3.5" />
+                      Will move to:{' '}
+                      <span className="font-mono text-ink-primary">{state.editableFolder}</span>
                     </div>
-
+                  )}
+                  <div className="bg-parchment-base border border-parchment-dark rounded-xl p-5 max-h-64 overflow-y-auto">
+                    <MarkdownPreview content={state.finalContent ?? ''} />
                   </div>
                 </div>
               )}
+
             </div>
-          )}
 
-          {/* Filling missing fields */}
-          {state.step === 'filling' && (
-            <div className="space-y-5">
-              <p className="text-sm text-ink-muted">
-                Fill in what you can — all fields are optional.
-              </p>
-              <div className="space-y-4">
-                {(state.assessment?.missingFields ?? []).map((q, i) => (
-                  <div key={q.field}>
-                    <label className="block text-sm font-medium text-ink-primary mb-1">{q.question}</label>
-                    {q.hint && <p className="text-xs text-ink-muted mb-1">{q.hint}</p>}
-                    <input
-                      type="text"
-                      value={state.userAnswers[i]?.answer ?? ''}
-                      onChange={(e) => {
-                        const answers = [...state.userAnswers]
-                        answers[i] = { field: q.field, answer: e.target.value }
-                        setState((s) => ({ ...s, userAnswers: answers }))
-                      }}
-                      className="w-full px-3 py-2 text-sm bg-parchment-card border border-parchment-dark rounded-lg text-ink-primary focus:outline-none focus:border-accent"
-                      placeholder="Leave blank to skip"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Applying */}
-          {state.step === 'applying' && (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-              <Loader2 className="w-8 h-8 text-accent animate-spin" />
-              <p className="text-ink-muted">Applying changes…</p>
-            </div>
-          )}
-
-          {/* Preview */}
-          {state.step === 'preview' && (
-            <div className="space-y-4">
-              {state.error && (
-                <p className="text-sm text-amber-600 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> {state.error}
-                </p>
-              )}
-              {state.checklist.moveTo && state.editableFolder && (
-                <div className="text-xs text-ink-muted flex items-center gap-1.5">
-                  <FolderOpen className="w-3.5 h-3.5" />
-                  Will move to:{' '}
-                  <span className="font-mono text-ink-primary">{state.editableFolder}</span>
-                </div>
-              )}
-              <div className="bg-parchment-card border border-parchment-dark rounded-xl p-5 max-h-96 overflow-y-auto">
-                <MarkdownPreview content={state.finalContent ?? ''} />
-              </div>
-            </div>
-          )}
-
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-parchment-dark flex-shrink-0">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors"
-          >
-            Discard
-          </button>
-
-          <div className="flex items-center gap-2">
-            {(state.step === 'filling' || state.step === 'preview') && (
+            {/* Footer */}
+            <div className="flex items-center justify-between px-10 py-5 border-t border-parchment-dark flex-shrink-0">
               <button
-                onClick={() =>
-                  setState((s) => ({
-                    ...s,
-                    step: state.step === 'preview' ? 'checklist' : 'checklist',
-                  }))
-                }
+                onClick={onClose}
                 className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors"
               >
-                ← Back
+                Discard
               </button>
-            )}
 
-            {state.step === 'checklist' && (
-              <button
-                onClick={handleApplyFromChecklist}
-                disabled={!state.selectedTemplateId}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all disabled:opacity-40"
-              >
-                Apply <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
+              <div className="flex items-center gap-2">
+                {/* Back buttons */}
+                {state.step === 'plan' && (
+                  <button
+                    onClick={() => setState((s) => ({ ...s, step: 'classify' }))}
+                    className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors"
+                  >
+                    ← Back
+                  </button>
+                )}
+                {state.step === 'questioning' && (
+                  <button
+                    onClick={handleQuestionBack}
+                    className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors"
+                  >
+                    ← Back
+                  </button>
+                )}
+                {state.step === 'preview' && (
+                  <button
+                    onClick={() =>
+                      setState((s) => ({
+                        ...s,
+                        step: totalQuestions > 0 ? 'questioning' : 'plan',
+                        questionIndex: Math.max(0, totalQuestions - 1),
+                        currentAnswer: s.userAnswers[Math.max(0, totalQuestions - 1)]?.answer ?? '',
+                      }))
+                    }
+                    className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors"
+                  >
+                    ← Back
+                  </button>
+                )}
 
-            {state.step === 'filling' && (
-              <>
-                <button
-                  onClick={() => doApply([])}
-                  className="text-sm text-ink-muted hover:text-ink-primary transition-colors px-3 py-2"
-                >
-                  Skip All
-                </button>
-                <button
-                  onClick={() => doApply(state.userAnswers)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all"
-                >
-                  Continue <ChevronRight className="w-4 h-4" />
-                </button>
-              </>
-            )}
+                {/* Primary actions */}
+                {state.step === 'classify' && (
+                  <button
+                    onClick={handleConfirmClassify}
+                    disabled={!state.selectedTemplateId}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all disabled:opacity-40"
+                  >
+                    That's right <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
 
-            {state.step === 'preview' && (
-              <button
-                onClick={handleSaveAndApply}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all"
-              >
-                <Check className="w-4 h-4" /> Save & Apply
-              </button>
-            )}
+                {state.step === 'plan' && (
+                  <button
+                    onClick={handleConfirmPlan}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all"
+                  >
+                    Sounds good <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
+
+                {state.step === 'questioning' && (
+                  <>
+                    <button
+                      onClick={() => handleQuestionAnswer('', true)}
+                      className="text-sm text-ink-muted hover:text-ink-primary transition-colors px-3 py-2"
+                    >
+                      Skip
+                    </button>
+                    <button
+                      onClick={() => handleQuestionAnswer(state.currentAnswer)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all"
+                    >
+                      {state.questionIndex + 1 === totalQuestions ? 'Done' : 'Next'}{' '}
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+
+                {state.step === 'preview' && (
+                  <button
+                    onClick={handleSaveAndApply}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all"
+                  >
+                    <Check className="w-4 h-4" /> Keep it
+                  </button>
+                )}
+              </div>
+            </div>
+
           </div>
         </div>
 
