@@ -185,6 +185,10 @@ export interface ElectronAPI {
   getToolsConfig: () => Promise<{ config: Record<string, { enabled: boolean; config?: Record<string, string> }>; metas: unknown[] }>
   setToolsConfig: (config: Record<string, { enabled: boolean; config?: Record<string, string> }>) => Promise<{ success: boolean }>
 
+  // Skills
+  listSkills: () => Promise<{ skills: Array<{ name: string; description: string; dirPath: string }> }>
+  openSkillsFolder: () => Promise<{ success: boolean }>
+
   // Push events (main → renderer)
   onTaskUpdate: (callback: (run: TaskRun) => void) => () => void
   onTaskEnd: (callback: (run: TaskRun) => void) => () => void

@@ -42,7 +42,7 @@
   --color-accent-light:      #312E81;
   --font-ui:                 'Inter', system-ui, sans-serif;
   --font-editor:             'Inter', system-ui, sans-serif;
-  --cm-bg:                   #1E2038;
+  --cm-bg:                   #1A1B2E;
   --cm-gutter-border:        #2D2E4A;
   --cm-activeline-gutter:    #22243A;
   --cm-activeline:           rgba(45, 46, 74, 0.5);
@@ -196,4 +196,101 @@ body {
 ::selection {
   background-color: rgb(var(--color-accent-rgb) / 0.3);
   color: var(--color-ink-primary);
+}
+
+/* ─── Search Panel ────────────────────────────────────────────────────────── */
+.cm-panels {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+.cm-panels-top {
+  border-bottom: 1px solid var(--color-parchment-dark) !important;
+}
+
+.cm-panel.cm-search {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px;
+  background-color: var(--color-parchment-card);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+}
+
+.cm-search input[type="text"] {
+  background-color: var(--color-parchment-base);
+  border: 1px solid var(--color-parchment-dark);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-family: var(--font-ui);
+  color: var(--color-ink-primary);
+  outline: none;
+  min-width: 160px;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.cm-search input[type="text"]:focus {
+  border-color: rgb(var(--color-accent-rgb) / 0.5);
+  background-color: var(--color-parchment-card);
+}
+
+.cm-search input[type="text"]::placeholder {
+  color: var(--color-ink-light);
+}
+
+.cm-search button {
+  background-color: transparent;
+  border: 1px solid var(--color-parchment-dark);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-family: var(--font-ui);
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.cm-search button:hover {
+  color: rgb(var(--color-accent-rgb));
+  border-color: rgb(var(--color-accent-rgb) / 0.4);
+}
+
+.cm-search button[name="close"] {
+  border: none;
+  padding: 4px 6px;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--color-ink-light);
+  margin-left: auto;
+}
+
+.cm-search button[name="close"]:hover {
+  color: var(--color-ink-primary);
+  border-color: transparent;
+}
+
+.cm-search label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.cm-search input[type="checkbox"] {
+  accent-color: rgb(var(--color-accent-rgb));
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+}
+
+/* hide <br> separators CodeMirror injects between rows */
+.cm-search br {
+  display: none;
 }

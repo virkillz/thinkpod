@@ -6,7 +6,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab, undo, redo } from
 import { bracketMatching, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { closeBrackets } from '@codemirror/autocomplete'
-import { highlightSelectionMatches } from '@codemirror/search'
+import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search'
 import { EditorSettings, FONT_FAMILIES } from '../../types/editorSettings.js'
 
 // ─── Markdown syntax highlight style ─────────────────────────────────────────
@@ -153,10 +153,11 @@ export const WritingCanvas = forwardRef<WritingCanvasHandle, WritingCanvasProps>
     }
 
     function buildCoreExtensions() {
-      const extensions = [
-        buildExtensions()
+      return [
+        search({ top: true }),
+        keymap.of(searchKeymap),
+        buildExtensions(),
       ]
-      return extensions
     }
 
     // Mount once — file switching uses reinitialize() instead of remounting

@@ -1,8 +1,9 @@
-import { ipcMain, dialog, app, BrowserWindow } from 'electron'
+import { ipcMain, dialog, app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 import fs from 'fs/promises'
 import { IPC_CHANNELS } from './channels.js'
 import { DatabaseManager } from '../database/DatabaseManager.js'
+import { SkillRegistry } from '../agent/SkillRegistry.js'
 import type { VaultManager } from '../vault/VaultManager.js'
 import { getMainWindow, getVaultManager, initVaultManager } from '../index.js'
 import { LLMProcessManager } from '../agent/LLMProcessManager.js'
@@ -29,6 +30,7 @@ import {
   buildReformatThoughtPrompt,
   ASSESS_THOUGHT,
   THREAD_CONTINUATION_SUFFIX,
+  SYSTEM_PROMPT,
 } from '../agent/prompts.js'
 
 // ── JSON extraction helper ────────────────────────────────────────────────────
@@ -317,6 +319,25 @@ export function setupIpcHandlers(
   // Tools: Save config
   ipcMain.handle(IPC_CHANNELS.TOOLS_SET_CONFIG, (_, config: unknown) => {
     dbManager.setSetting('toolsConfig', config)
+    return { success: true }
+  })
+
+  // Skills: List installed skills
+  ipcMain.handle(IPC_CHANNELS.SKILLS_LIST, async () => {
+    const vaultPath = dbManager.getSetting('vaultPath') as string | null
+    if (!vaultPath) return { skills: [] }
+    const registry = new SkillRegistry(vaultPath)
+    const skills = await registry.discover()
+    return { skills }
+  })
+
+  // Skills: Open .skills folder in Finder/Explorer
+  ipcMain.handle(IPC_CHANNELS.SKILLS_OPEN_FOLDER, async () => {
+    const vaultPath = dbManager.getSetting('vaultPath') as string | null
+    if (!vaultPath) return { success: false }
+    const registry = new SkillRegistry(vaultPath)
+    await registry.ensureDir()
+    shell.openPath(registry.skillsDir)
     return { success: true }
   })
 
@@ -661,7 +682,7 @@ export function setupIpcHandlers(
     try {
       const client = new LLMClient(llmConfig)
       const response = await client.chat([
-        { role: 'system', content: persona },
+        { role: 'system', content: `${SYSTEM_PROMPT}\n\n${persona}` },
         { role: 'user', content: message },
       ])
       return { success: true, content: response.content }
@@ -682,7 +703,7 @@ export function setupIpcHandlers(
       const response = await client.chat([
         {
           role: 'system',
-          content: EDIT_TEXT,
+          content: `${SYSTEM_PROMPT}\n\n${EDIT_TEXT}`,
         },
         {
           role: 'user',
@@ -730,7 +751,7 @@ export function setupIpcHandlers(
       const response = await client.chat([
         {
           role: 'system',
-          content: SUGGEST_FOLDER,
+          content: `${SYSTEM_PROMPT}\n\n${SUGGEST_FOLDER}`,
         },
         {
           role: 'user',
@@ -762,7 +783,7 @@ export function setupIpcHandlers(
         const response = await client.chat([
           {
             role: 'system',
-            content: CLASSIFY_THOUGHT,
+            content: `${SYSTEM_PROMPT}\n\n${CLASSIFY_THOUGHT}`,
           },
           {
             role: 'user',
@@ -792,7 +813,7 @@ export function setupIpcHandlers(
       const response = await client.chat([
         {
           role: 'system',
-          content: GET_MISSING_FIELDS,
+          content: `${SYSTEM_PROMPT}\n\n${GET_MISSING_FIELDS}`,
         },
         {
           role: 'user',
@@ -827,7 +848,7 @@ export function setupIpcHandlers(
         const response = await client.chat([
           {
             role: 'system',
-            content: buildReformatThoughtPrompt(),
+            content: `${SYSTEM_PROMPT}\n\n${buildReformatThoughtPrompt()}`,
           },
           {
             role: 'user',
@@ -861,7 +882,7 @@ export function setupIpcHandlers(
         const response = await client.chat([
           {
             role: 'system',
-            content: ASSESS_THOUGHT,
+            content: `${SYSTEM_PROMPT}\n\n${ASSESS_THOUGHT}`,
           },
           {
             role: 'user',
@@ -1128,7 +1149,7 @@ export function setupIpcHandlers(
     try {
       const client = new LLMClient(llmConfig)
       const response = await client.chat([
-        { role: 'system', content: `${persona}\n\n${THREAD_CONTINUATION_SUFFIX}` },
+        { role: 'system', content: `${SYSTEM_PROMPT}\n\n${persona}\n\n${THREAD_CONTINUATION_SUFFIX}` },
         { role: 'user', content: `Conversation so far:\n${conversation}\n\nPlease respond to the user's last message.` },
       ])
 

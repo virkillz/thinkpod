@@ -6,7 +6,8 @@ import { getEnabledToolDefinitions, DEFAULT_TOOLS_CONFIG } from './ToolDefinitio
 import { ToolExecutor } from './ToolExecutor.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
 import type { ToolsConfig } from './tools/types.js'
-import { INVOCATION_DOCS_REVIEW, INVOCATION_GENERAL_CHAT } from './prompts.js'
+import { INVOCATION_DOCS_REVIEW, INVOCATION_GENERAL_CHAT, SYSTEM_PROMPT } from './prompts.js'
+import { SkillRegistry } from './SkillRegistry.js'
 
 export type InvocationType = 'docs_review' | 'general_chat'
 
@@ -220,7 +221,13 @@ export class ChatAgent {
         .replace('{file_content}', fileContent)
     }
 
-    return `${config.persona}\n\n${invocationPrompt}`
+    const registry = new SkillRegistry(config.vaultPath)
+    const skills = await registry.discover()
+    const skillsBlock = SkillRegistry.buildMetadataBlock(skills)
+
+    const parts = [SYSTEM_PROMPT, '', `${config.persona}\n\n${invocationPrompt}`]
+    if (skillsBlock) parts.push('', skillsBlock)
+    return parts.join('\n')
   }
 
   private static async loadInvocationPrompts(

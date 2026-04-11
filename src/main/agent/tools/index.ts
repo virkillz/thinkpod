@@ -19,6 +19,7 @@ import { listFilesTool }  from './core/list_files.js'
 import { addCommentTool } from './core/add_comment.js'
 import { writeInboxTool } from './core/write_inbox.js'
 import { finishTaskTool } from './core/finish_task.js'
+import { readSkillTool } from './core/read_skill.js'
 
 // ─── Extended tools ───────────────────────────────────────────────────────────
 import { fetchUrlTool }    from './extended/fetch_url.js'
@@ -35,6 +36,7 @@ export const TOOL_REGISTRY: ToolEntry[] = [
   addCommentTool,
   writeInboxTool,
   finishTaskTool,
+  readSkillTool,
   fetchUrlTool,
   runBashTool,
   braveSearchTool,

@@ -9,6 +9,8 @@ const IPC_CHANNELS = {
   VAULT_GET_INFO: 'vault:get-info',
   TOOLS_GET_CONFIG: 'tools:get-config',
   TOOLS_SET_CONFIG: 'tools:set-config',
+  SKILLS_LIST: 'skills:list',
+  SKILLS_OPEN_FOLDER: 'skills:open-folder',
   VAULT_RESET: 'vault:reset',
   FILES_LIST: 'files:list',
   FILES_READ: 'files:read',
@@ -170,6 +172,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Tools
   getToolsConfig: () => ipcRenderer.invoke(IPC_CHANNELS.TOOLS_GET_CONFIG),
   setToolsConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.TOOLS_SET_CONFIG, config),
+
+  // Skills
+  listSkills: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),
+  openSkillsFolder: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_OPEN_FOLDER),
 
   // Whisper / Voice
   getWhisperConfig: () => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_GET_CONFIG),

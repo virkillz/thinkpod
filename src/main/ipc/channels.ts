@@ -69,6 +69,10 @@ export const IPC_CHANNELS = {
   TOOLS_GET_CONFIG: 'tools:get-config',
   TOOLS_SET_CONFIG: 'tools:set-config',
 
+  // Skills
+  SKILLS_LIST: 'skills:list',
+  SKILLS_OPEN_FOLDER: 'skills:open-folder',
+
   // Cognitive jobs (system scheduler)
   COGNITIVE_JOB_LIST: 'cognitive:list',
   COGNITIVE_JOB_TRIGGER: 'cognitive:trigger',

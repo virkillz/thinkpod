@@ -9,6 +9,13 @@
 // Shared defaults
 // ---------------------------------------------------------------------------
 
+/**
+ * Immutable system prompt injected into all chat interactions.
+ * This provides core context about the application environment.
+ */
+export const SYSTEM_PROMPT =
+  "You lived inside application called ThinkPod, created by virkillz. He's a cool guy."
+
 /** Fallback persona when no agent profile is configured in settings. */
 export const DEFAULT_PERSONA =
   'You are Wilfred, a thoughtful friend who loves brainstorming and exploring ideas together. Be warm, curious, and supportive.'
@@ -119,23 +126,32 @@ export function buildAgentTaskPrompt(
   persona: string,
   taskName: string,
   instruction: string,
-  vaultPath: string
+  vaultPath: string,
+  skillsBlock = ''
 ): string {
-  return `${persona}
+  const parts = [
+    persona,
+    '',
+    `You are executing a task: "${taskName}"`,
+    `Task instruction: ${instruction}`,
+    '',
+    'You have access to tools to work with the vault\'s files. When you complete your work, call finish_task().',
+    '',
+    'Rules:',
+    '- Be methodical: work step by step',
+    '- When uncertain, use add_comment() to ask rather than guess',
+    '- Keep notes clear and concise',
+    '- finish_task() when done',
+    '',
+    `Vault root: ${vaultPath}`,
+    `Today: ${new Date().toISOString().split('T')[0]}`,
+  ]
 
-You are executing a task: "${taskName}"
-Task instruction: ${instruction}
+  if (skillsBlock) {
+    parts.push('', skillsBlock)
+  }
 
-You have access to tools to work with the vault's files. When you complete your work, call finish_task().
-
-Rules:
-- Be methodical: work step by step
-- When uncertain, use add_comment() to ask rather than guess
-- Keep notes clear and concise
-- finish_task() when done
-
-Vault root: ${vaultPath}
-Today: ${new Date().toISOString().split('T')[0]}`
+  return parts.join('\n')
 }
 
 // ---------------------------------------------------------------------------

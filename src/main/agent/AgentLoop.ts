@@ -11,7 +11,8 @@ import { getEnabledToolDefinitions, DEFAULT_TOOLS_CONFIG } from './ToolDefinitio
 import { ToolExecutor, ToolContext } from './ToolExecutor.js'
 import type { ToolsConfig } from './tools/types.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
-import { buildAgentTaskPrompt } from './prompts.js'
+import { buildAgentTaskPrompt, SYSTEM_PROMPT } from './prompts.js'
+import { SkillRegistry } from './SkillRegistry.js'
 
 export class TaskAbortedError extends Error {
   constructor() {
@@ -91,7 +92,7 @@ export class AgentLoop {
 
     try {
       // Build initial system prompt
-      const systemPrompt = this.buildSystemPrompt(taskName, instruction)
+      const systemPrompt = await this.buildSystemPrompt(taskName, instruction)
       
       // Get vault index for context
       const vaultIndex = await this.buildVaultIndex()
@@ -194,8 +195,12 @@ export class AgentLoop {
     }
   }
 
-  private buildSystemPrompt(taskName: string, instruction: string): string {
-    return buildAgentTaskPrompt(this.config.persona, taskName, instruction, this.config.vaultPath)
+  private async buildSystemPrompt(taskName: string, instruction: string): Promise<string> {
+    const registry = new SkillRegistry(this.config.vaultPath)
+    const skills = await registry.discover()
+    const skillsBlock = SkillRegistry.buildMetadataBlock(skills)
+    const agentPrompt = buildAgentTaskPrompt(this.config.persona, taskName, instruction, this.config.vaultPath, skillsBlock)
+    return `${SYSTEM_PROMPT}\n\n${agentPrompt}`
   }
 
   private async buildVaultIndex(): Promise<string> {

@@ -4,6 +4,7 @@ import { DatabaseManager } from './database/DatabaseManager.js'
 import { VaultManager } from './vault/VaultManager.js'
 import { IPC_CHANNELS } from './ipc/channels.js'
 import { setupIpcHandlers, setupScheduler } from './ipc/handlers.js'
+import { SkillRegistry } from './agent/SkillRegistry.js'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -60,6 +61,11 @@ function createWindow(): void {
 }
 
 async function initializeApp(): Promise<void> {
+  // Set built-in skills path so all SkillRegistry instances can find them
+  SkillRegistry.builtinSkillsPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'skills')
+    : path.join(app.getAppPath(), 'resources', 'skills')
+
   // Initialize database (in app data directory)
   const appDataPath = app.getPath('userData')
   dbManager = new DatabaseManager(appDataPath)

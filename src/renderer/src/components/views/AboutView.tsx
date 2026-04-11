@@ -108,11 +108,11 @@ function AboutTab() {
 
 function FAQTab() {
   const faqs = [
-    { q: 'Is ThinkPod really 100% local?', a: 'Yes! All your notes are stored locally in SQLite. The AI runs through a local model server like Ollama or LM Studio. Your data never leaves your machine unless you explicitly configure a cloud provider.' },
+    { q: 'Is ThinkPod really 100% local?', a: 'Yes! All your notes are stored locally as markdown files, all settings stored in SQLite. The AI runs through a local model server like Ollama or LM Studio. Your data never leaves your machine unless you explicitly configure a cloud provider.' },
     { q: 'What hardware do I need?', a: 'ThinkPod works with any OpenAI-compatible API, including cloud providers. For local models, we recommend at least 8GB RAM for smaller models (3B-4B parameters).' },
     { q: 'Can I use my own AI models?', a: 'Absolutely! ThinkPod uses the OpenAI API format, so any compatible provider works — local (Ollama, LM Studio) or cloud (OpenRouter, Together AI, Groq, etc.).' },
     { q: 'Where are my notes stored?', a: 'Your notes are stored in a local folder you choose during setup (your Vault). Everything is plain Markdown files you own, plus metadata in a local SQLite database.' },
-    { q: 'Is there a mobile app?', a: 'Not yet. ThinkPod is currently desktop-only (macOS, Windows, Linux). Mobile support is on the roadmap.' },
+    { q: 'Is there a mobile app?', a: 'Not yet. ThinkPod is currently desktop-only (macOS, Windows, Linux).' },
     { q: 'How does Wilfred differ from ChatGPT?', a: 'Wilfred is proactive, not just reactive. He runs continuously, reads your notes, and surfaces insights without you asking. He has memory across sessions and understands your entire vault context.' },
     { q: 'Is there a subscription fee?', a: 'No. ThinkPod is free and open source. You only pay if you choose to use a cloud AI provider.' },
     { q: 'Can I export my notes?', a: 'Yes! Your notes are plain Markdown files in your Vault folder. You can access, move, or back them up anytime. No lock-in.' },
