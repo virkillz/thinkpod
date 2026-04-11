@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Inbox, FileText, Trash2, Sparkles, PenLine, Loader2, AlertTriangle, ChevronRight, Check, X } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 import { MarkdownPreview } from '../codex/MarkdownPreview.js'
+import { UniversalEditor } from '../editor/UniversalEditor.js'
 import type { NoteTemplate } from '../views/SettingsView.js'
 
 const INSPIRATIONAL_MESSAGES = [
@@ -68,7 +69,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
     error: null,
   })
 
-  // Load templates and immediately kick off classification
   useEffect(() => {
     const init = async () => {
       const saved = (await window.electronAPI.getSetting('noteTemplates')) as NoteTemplate[] | null
@@ -113,11 +113,9 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
   const handleConfirmTemplate = async () => {
     if (!selectedTemplate) return
     setTriage((s) => ({ ...s, step: 'missing-fields', error: null }))
-
     try {
       const result = await window.electronAPI.getMissingFields(content, selectedTemplate.format)
       if (!result.success) {
-        // Skip to reformatting if the call fails
         setTriage((s) => ({ ...s, step: 'reformatting', missingQuestions: [] }))
         doReformat([], selectedTemplate)
         return
@@ -163,14 +161,10 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
   const handleSaveAndMove = async () => {
     if (!triage.reformattedContent || !selectedTemplate) return
     setTriage((s) => ({ ...s, step: 'moving', error: null }))
-
     try {
       const folder = triage.suggestedFolder || selectedTemplate.defaultFolder
       const destPath = folder.replace(/\/$/, '') + '/' + thought.name
-
-      // Write reformatted content back to the original thought path first
       await window.electronAPI.writeFile(thought.path, triage.reformattedContent)
-      // Move to destination
       await window.electronAPI.moveFile(thought.path, destPath)
       onDone()
     } catch (e) {
@@ -184,7 +178,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" />
       <div className="relative bg-parchment-card w-full max-w-2xl mx-4 rounded-2xl shadow-2xl border border-parchment-dark flex flex-col max-h-[90vh]">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-accent" />
@@ -195,10 +188,7 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto p-6">
-
-          {/* Classifying */}
           {triage.step === 'classifying' && (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <Loader2 className="w-8 h-8 text-accent animate-spin" />
@@ -206,7 +196,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
             </div>
           )}
 
-          {/* Picking */}
           {triage.step === 'picking' && (
             <div className="space-y-5">
               {triage.detectedTemplateId && (
@@ -215,13 +204,9 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
                   <span className="font-medium text-ink-primary">
                     {templates.find((t) => t.id === triage.detectedTemplateId)?.title ?? triage.detectedTemplateId}
                   </span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      triage.confidence >= 0.6
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-amber-100 text-amber-700'
-                    }`}
-                  >
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    triage.confidence >= 0.6 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
                     {Math.round(triage.confidence * 100)}% confidence
                   </span>
                   {triage.confidence < 0.6 && (
@@ -241,24 +226,20 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
                 {enabledTemplates.map((t) => (
                   <button
                     key={t.id}
-                    onClick={() =>
-                      setTriage((s) => ({
-                        ...s,
-                        selectedTemplateId: t.id,
-                        suggestedFolder: s.detectedTemplateId === t.id ? s.suggestedFolder : t.defaultFolder,
-                      }))
-                    }
+                    onClick={() => setTriage((s) => ({
+                      ...s,
+                      selectedTemplateId: t.id,
+                      suggestedFolder: s.detectedTemplateId === t.id ? s.suggestedFolder : t.defaultFolder,
+                    }))}
                     className={`w-full text-left px-4 py-3 rounded-xl border transition-colors flex items-center gap-3 ${
                       triage.selectedTemplateId === t.id
                         ? 'border-accent bg-accent/5 text-ink-primary'
                         : 'border-parchment-dark hover:border-accent/50 text-ink-muted'
                     }`}
                   >
-                    <span
-                      className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                        triage.selectedTemplateId === t.id ? 'border-accent bg-accent' : 'border-ink-muted'
-                      }`}
-                    >
+                    <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                      triage.selectedTemplateId === t.id ? 'border-accent bg-accent' : 'border-ink-muted'
+                    }`}>
                       {triage.selectedTemplateId === t.id && <Check className="w-2.5 h-2.5 text-white" />}
                     </span>
                     <span>
@@ -283,7 +264,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
             </div>
           )}
 
-          {/* Missing fields (loading) */}
           {triage.step === 'missing-fields' && (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <Loader2 className="w-8 h-8 text-accent animate-spin" />
@@ -291,7 +271,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
             </div>
           )}
 
-          {/* Filling */}
           {triage.step === 'filling' && (
             <div className="space-y-5">
               <p className="text-sm text-ink-muted">
@@ -319,7 +298,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
             </div>
           )}
 
-          {/* Reformatting */}
           {triage.step === 'reformatting' && (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <Loader2 className="w-8 h-8 text-accent animate-spin" />
@@ -327,7 +305,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
             </div>
           )}
 
-          {/* Preview */}
           {triage.step === 'preview' && (
             <div className="space-y-4">
               {triage.error && (
@@ -347,7 +324,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
             </div>
           )}
 
-          {/* Moving */}
           {triage.step === 'moving' && (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <Loader2 className="w-8 h-8 text-accent animate-spin" />
@@ -356,7 +332,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
           )}
         </div>
 
-        {/* Footer actions */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-parchment-dark">
           <button
             onClick={onClose}
@@ -365,7 +340,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
           >
             Discard
           </button>
-
           <div className="flex items-center gap-2">
             {triage.step === 'preview' && (
               <button
@@ -375,7 +349,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
                 ← Back
               </button>
             )}
-
             {triage.step === 'picking' && (
               <button
                 onClick={handleConfirmTemplate}
@@ -385,13 +358,9 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
                 Confirm <ChevronRight className="w-4 h-4" />
               </button>
             )}
-
             {triage.step === 'filling' && (
               <>
-                <button
-                  onClick={() => handleSubmitAnswers()}
-                  className="text-sm text-ink-muted hover:text-ink-primary transition-colors px-3 py-2"
-                >
+                <button onClick={handleSubmitAnswers} className="text-sm text-ink-muted hover:text-ink-primary transition-colors px-3 py-2">
                   Skip All
                 </button>
                 <button
@@ -402,7 +371,6 @@ function TriageWizard({ thought, content, onClose, onDone }: TriageWizardProps) 
                 </button>
               </>
             )}
-
             {triage.step === 'preview' && (
               <button
                 onClick={handleSaveAndMove}
@@ -428,9 +396,13 @@ export function ThoughtsView() {
     const index = Math.floor(Math.random() * INSPIRATIONAL_MESSAGES.length)
     return INSPIRATIONAL_MESSAGES[index]
   }, [])
+
   const [selectedThought, setSelectedThought] = useState<Thought | null>(null)
-  const [content, setContent] = useState('')
+  const [liveContent, setLiveContent] = useState('')   // kept in sync for TriageWizard
   const [triageOpen, setTriageOpen] = useState(false)
+
+  // suppress unused variable warning — agentName used in sidebar elsewhere
+  void agentName
 
   useEffect(() => {
     loadThoughts()
@@ -445,24 +417,18 @@ export function ThoughtsView() {
     }
   }
 
-  const handleSelectThought = async (thought: Thought) => {
+  const handleSelectThought = (thought: Thought) => {
     setSelectedThought(thought)
-    try {
-      const result = await window.electronAPI.readFile(thought.path)
-      setContent(result.content)
-    } catch {
-      setContent('(Could not read file)')
-    }
+    setLiveContent('')
   }
 
   const handleDelete = async () => {
     if (!selectedThought) return
     if (!confirm(`Delete "${selectedThought.name}"?`)) return
-
     try {
       await window.electronAPI.deleteFile(selectedThought.path)
       setSelectedThought(null)
-      setContent('')
+      setLiveContent('')
       loadThoughts()
     } catch {
       alert('Failed to delete file')
@@ -472,21 +438,20 @@ export function ThoughtsView() {
   const handleTriageDone = () => {
     setTriageOpen(false)
     setSelectedThought(null)
-    setContent('')
+    setLiveContent('')
     loadThoughts()
   }
 
+  // ── Detail view ────────────────────────────────────────────────────────────
   if (selectedThought) {
     return (
       <>
         <div className="flex-1 flex flex-col h-full">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark flex-shrink-0">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => {
-                  setSelectedThought(null)
-                  setContent('')
-                }}
+                onClick={() => { setSelectedThought(null); setLiveContent('') }}
                 className="text-ink-muted hover:text-ink-primary"
               >
                 ← Back
@@ -508,7 +473,6 @@ export function ThoughtsView() {
               <button
                 onClick={handleDelete}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                title="Delete thought"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
@@ -516,19 +480,19 @@ export function ThoughtsView() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-8">
-            <div className="max-w-3xl mx-auto">
-              <div className="prose prose-lg max-w-none font-serif text-ink-primary whitespace-pre-wrap">
-                {content}
-              </div>
-            </div>
-          </div>
+          {/* Universal editor fills remaining space */}
+          <UniversalEditor
+            mode="edit"
+            filePath={selectedThought.path}
+            showViewToggle={true}
+            onContentChange={setLiveContent}
+          />
         </div>
 
         {triageOpen && (
           <TriageWizard
             thought={selectedThought}
-            content={content}
+            content={liveContent}
             onClose={() => setTriageOpen(false)}
             onDone={handleTriageDone}
           />
@@ -537,6 +501,7 @@ export function ThoughtsView() {
     )
   }
 
+  // ── List view ──────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col h-full">
       <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark">
@@ -544,9 +509,7 @@ export function ThoughtsView() {
           <Inbox className="w-5 h-5 text-accent" />
           <h2 className="font-serif font-medium text-lg text-ink-primary">Thoughts</h2>
         </div>
-        <span className="text-sm text-ink-muted">
-          Files awaiting triage
-        </span>
+        <span className="text-sm text-ink-muted">Files awaiting triage</span>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
@@ -555,12 +518,8 @@ export function ThoughtsView() {
             <div className="w-16 h-16 bg-gradient-to-br from-accent/20 to-accent/5 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
               <Sparkles className="w-8 h-8 text-accent" />
             </div>
-            <h3 className="font-serif text-xl text-ink-primary mb-2">
-              {randomMessage.title}
-            </h3>
-            <p className="text-ink-muted max-w-md mx-auto mb-6">
-              {randomMessage.subtitle}
-            </p>
+            <h3 className="font-serif text-xl text-ink-primary mb-2">{randomMessage.title}</h3>
+            <p className="text-ink-muted max-w-md mx-auto mb-6">{randomMessage.subtitle}</p>
             <button
               onClick={() => setCurrentView('newthought')}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
