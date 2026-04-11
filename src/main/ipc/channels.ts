@@ -32,6 +32,7 @@ export const IPC_CHANNELS = {
   LLM_CLASSIFY_THOUGHT: 'llm:classify-thought',
   LLM_GET_MISSING_FIELDS: 'llm:get-missing-fields',
   LLM_REFORMAT_THOUGHT: 'llm:reformat-thought',
+  LLM_ASSESS_THOUGHT: 'llm:assess-thought',
 
   // Agent
   AGENT_RUN_TASK: 'agent:run-task',

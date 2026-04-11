@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { useAppStore } from '../../store/appStore.js'
 import { UniversalEditor } from '../editor/UniversalEditor.js'
 import { CommentPanel } from '../codex/CommentPanel.js'
-import { FileText, RefreshCw } from 'lucide-react'
+import { TriageWizard } from '../triage/TriageWizard.js'
+import { FileText, RefreshCw, Sparkles } from 'lucide-react'
 
 export function NotesView() {
-  const { selectedFile, fileTree, vault } = useAppStore()
+  const { selectedFile, fileTree, vault, refreshFileTree } = useAppStore()
   const [reloadTrigger, setReloadTrigger] = useState(0)
+  const [liveContent, setLiveContent] = useState('')
+  const [triageOpen, setTriageOpen] = useState(false)
 
   // Empty state
   if (!selectedFile) {
@@ -33,40 +36,67 @@ export function NotesView() {
     )
   }
 
+  const fileName = selectedFile.split('/').pop() ?? selectedFile
+
   return (
-    <div className="flex-1 flex h-full overflow-hidden">
-      {/* Editor column */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header: filename + reload */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark flex-shrink-0">
-          <div>
-            <h2 className="font-serif font-medium text-lg text-ink-primary">
-              {selectedFile.split('/').pop()}
-            </h2>
-            <p className="text-sm text-ink-muted">{selectedFile}</p>
+    <>
+      <div className="flex-1 flex h-full overflow-hidden">
+        {/* Editor column */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-parchment-dark flex-shrink-0">
+            <div>
+              <h2 className="font-serif font-medium text-lg text-ink-primary">{fileName}</h2>
+              <p className="text-sm text-ink-muted">{selectedFile}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTriageOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-accent hover:bg-accent-hover text-white transition-all shadow-sm hover:shadow-md"
+                title="Triage this note"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Triage
+              </button>
+              <button
+                onClick={() => setReloadTrigger((n) => n + 1)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-parchment-card border border-parchment-dark text-ink-secondary hover:text-ink-primary hover:border-accent/50 transition-colors"
+                title="Reload file from disk"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => setReloadTrigger((n) => n + 1)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-parchment-card border border-parchment-dark text-ink-secondary hover:text-ink-primary hover:border-accent/50 transition-colors"
-            title="Reload file from disk"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Refresh
-          </button>
+
+          {/* Editor */}
+          <UniversalEditor
+            key={selectedFile}
+            mode="edit"
+            filePath={selectedFile}
+            reloadTrigger={reloadTrigger}
+            showViewToggle={true}
+            onContentChange={setLiveContent}
+          />
         </div>
 
-        {/* Universal editor (fills remaining height) */}
-        <UniversalEditor
-          key={selectedFile}
-          mode="edit"
-          filePath={selectedFile}
-          reloadTrigger={reloadTrigger}
-          showViewToggle={true}
-        />
+        {/* Comment panel */}
+        <CommentPanel filePath={selectedFile} />
       </div>
 
-      {/* Comment panel */}
-      <CommentPanel filePath={selectedFile} />
-    </div>
+      {triageOpen && (
+        <TriageWizard
+          fileName={fileName}
+          filePath={selectedFile}
+          content={liveContent}
+          onClose={() => setTriageOpen(false)}
+          onDone={() => {
+            setTriageOpen(false)
+            setReloadTrigger((n) => n + 1)
+            refreshFileTree()
+          }}
+        />
+      )}
+    </>
   )
 }

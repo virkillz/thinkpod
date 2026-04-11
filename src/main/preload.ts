@@ -29,6 +29,7 @@ const IPC_CHANNELS = {
   LLM_CLASSIFY_THOUGHT: 'llm:classify-thought',
   LLM_GET_MISSING_FIELDS: 'llm:get-missing-fields',
   LLM_REFORMAT_THOUGHT: 'llm:reformat-thought',
+  LLM_ASSESS_THOUGHT: 'llm:assess-thought',
   AGENT_RUN_TASK: 'agent:run-task',
   AGENT_ABORT_TASK: 'agent:abort-task',
   AGENT_GET_TASKS: 'agent:get-tasks',
@@ -117,6 +118,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.LLM_GET_MISSING_FIELDS, content, templateFormat),
   reformatThought: (content: string, templateFormat: string, userAnswers: { field: string; answer: string }[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.LLM_REFORMAT_THOUGHT, content, templateFormat, userAnswers),
+  assessThought: (
+    content: string,
+    templates: { id: string; title: string; description: string; defaultFolder: string }[],
+    currentFolder: string
+  ) => ipcRenderer.invoke(IPC_CHANNELS.LLM_ASSESS_THOUGHT, content, templates, currentFolder),
 
   // Agent
   runAgentTask: (taskName: string, instruction: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_RUN_TASK, taskName, instruction),

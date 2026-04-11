@@ -607,7 +607,14 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     isEnabled: true,
     defaultFolder: 'Journal/',
     requireTags: true,
-    format: `# Journal — [date]
+    format: `---
+title: Journal — [date]
+tags: []
+created: [date]
+type: journal
+---
+
+# Journal — [date]
 
 ## How am I feeling?
 
@@ -616,8 +623,6 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
 ## What's the plan for today?
 
 [Write freely or bullet points]
-
-# Journal — [date]
 
 ## What is actually happening?
 
@@ -634,10 +639,15 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     isEnabled: true,
     defaultFolder: 'Meetings/',
     requireTags: false,
-    format: `# Meeting: [Subject]
+    format: `---
+title: Meeting — [Subject]
+tags: []
+created: [date]
+type: meeting
+attendees: [Name 1, Name 2]
+---
 
-**Attendees:** [Name 1, Name 2]
-**Date:** [Date]
+# Meeting: [Subject]
 
 ## Agenda
 
@@ -659,9 +669,15 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     isEnabled: true,
     defaultFolder: 'Projects/',
     requireTags: true,
-    format: `# Project: [Name]
+    format: `---
+title: Project — [Name]
+tags: []
+created: [date]
+type: project
+status: active
+---
 
-**Status:** [Active / On Hold / Done]
+# Project: [Name]
 
 ## Goal
 
@@ -686,7 +702,15 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     isEnabled: true,
     defaultFolder: 'Todos/',
     requireTags: false,
-    format: `# Todo: [Subject]
+    format: `---
+title: Todo — [Subject]
+tags: []
+created: [date]
+type: todo
+status: open
+---
+
+# Todo: [Subject]
 
 ## Tasks
 
@@ -705,11 +729,15 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     isEnabled: true,
     defaultFolder: 'Bookmarks/',
     requireTags: true,
-    format: `# [Page Title]
+    format: `---
+title: [Page Title]
+tags: []
+created: [date]
+type: bookmark
+url: [URL]
+---
 
-**URL:** [URL]
-**Saved:** [Date]
-**Tags:** [tag1, tag2]
+# [Page Title]
 
 ## Why I saved this
 
@@ -727,7 +755,14 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     isEnabled: true,
     defaultFolder: 'Ideas/',
     requireTags: true,
-    format: `# Idea: [Title]
+    format: `---
+title: Idea — [Title]
+tags: []
+created: [date]
+type: idea
+---
+
+# Idea: [Title]
 
 ## What is it?
 
@@ -748,7 +783,14 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     isEnabled: true,
     defaultFolder: 'Others/',
     requireTags: false,
-    format: `# Braindump — [date]
+    format: `---
+title: Braindump — [date]
+tags: []
+created: [date]
+type: braindump
+---
+
+# Braindump — [date]
 
 [Write anything here, no structure needed]`,
   },
@@ -759,12 +801,62 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     isEnabled: true,
     defaultFolder: 'Credentials/',
     requireTags: false,
-    format: `# Sensitive Credentials
+    format: `---
+title: Credentials — [Platform Name]
+tags: [credentials]
+created: [date]
+type: credentials
+---
 
-Platform Name: 
-Type: 
-Value: 
+# Sensitive Credentials
+
+Platform Name:
+Type:
+Value:
 Note: `,
+  },
+  {
+    id: 'article',
+    title: 'Article',
+    description: 'Long-form content for blogs, articles, stories, and narration',
+    isEnabled: true,
+    defaultFolder: 'Articles/',
+    requireTags: true,
+    format: `---
+title: [Article Title]
+tags: []
+created: [date]
+type: article
+author: [Your Name]
+status: draft
+---
+
+# [Article Title]
+
+## Introduction
+
+[Hook or opening paragraph that draws the reader in]
+
+## Main Content
+
+[Your main content here. Use headings to organize sections.]
+
+### Section 1
+
+[Content for this section]
+
+### Section 2
+
+[Content for this section]
+
+## Conclusion
+
+[Wrap up your thoughts and key takeaways]
+
+---
+
+**Notes:**
+- [Any additional notes or references]`,
   },
 ]
 

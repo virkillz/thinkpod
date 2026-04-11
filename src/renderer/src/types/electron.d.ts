@@ -57,6 +57,20 @@ export interface ElectronAPI {
     templateFormat: string,
     userAnswers: { field: string; answer: string }[]
   ) => Promise<{ success: boolean; reformattedContent?: string; error?: string }>
+  assessThought: (
+    content: string,
+    templates: { id: string; title: string; description: string; defaultFolder: string }[],
+    currentFolder: string
+  ) => Promise<{
+    success: boolean
+    templateId?: string | null
+    confidence?: number
+    folder?: string
+    alreadyFormatted?: boolean
+    missingFields?: { field: string; question: string; hint?: string }[]
+    suggestedTags?: string[]
+    error?: string
+  }>
 
   // Agent
   runAgentTask: (taskName: string, instruction: string) => Promise<{

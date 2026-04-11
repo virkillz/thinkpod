@@ -19,6 +19,30 @@ import { run as runProcessNewFiles, type CognitiveJobContext, type JobResult } f
 import { run as runNoteReview } from '../cognitive_jobs/NoteReviewJob.js'
 import { InboxThreadManager } from '../agent_vault/InboxThreadManager.js'
 
+// ── JSON extraction helper ────────────────────────────────────────────────────
+
+/**
+ * Extract JSON from LLM response that may include markdown fences or extra text
+ */
+function extractJSON(raw: string): unknown {
+  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+  
+  try {
+    return JSON.parse(stripped)
+  } catch {
+    const start = stripped.indexOf('{')
+    const end = stripped.lastIndexOf('}')
+    if (start !== -1 && end > start) {
+      try {
+        return JSON.parse(stripped.slice(start, end + 1))
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+}
+
 // ── Cognitive job helpers ─────────────────────────────────────────────────────
 
 async function buildCognitiveContext(dbManager: DatabaseManager): Promise<{ runner: CognitiveRunner; manager: AgentVaultManager }> {
@@ -735,7 +759,7 @@ export function setupIpcHandlers(
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
       try {
-        const client = new LLMClient({ ...llmConfig, maxTokens: 200 })
+        const client = new LLMClient({ ...llmConfig, maxTokens: 200, responseFormat: 'json_object' })
         const templateList = templates.map((t) => `- id: ${t.id} | title: ${t.title} | description: ${t.description}`).join('\n')
         const response = await client.chat([
           {
@@ -749,8 +773,12 @@ export function setupIpcHandlers(
           },
         ])
         const raw = response.content?.trim() ?? '{}'
-        const parsed = JSON.parse(raw)
-        return { success: true, templateId: parsed.templateId ?? null, confidence: parsed.confidence ?? 0, folder: parsed.folder ?? '' }
+        const parsed = extractJSON(raw)
+        if (!parsed || typeof parsed !== 'object') {
+          return { success: false, error: 'Invalid JSON response from LLM' }
+        }
+        const data = parsed as Record<string, unknown>
+        return { success: true, templateId: data.templateId ?? null, confidence: data.confidence ?? 0, folder: data.folder ?? '' }
       } catch (error) {
         return { success: false, error: (error as Error).message }
       }
@@ -763,7 +791,7 @@ export function setupIpcHandlers(
     if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
     try {
-      const client = new LLMClient({ ...llmConfig, maxTokens: 400 })
+      const client = new LLMClient({ ...llmConfig, maxTokens: 400, responseFormat: 'json_object' })
       const response = await client.chat([
         {
           role: 'system',
@@ -776,8 +804,12 @@ export function setupIpcHandlers(
         },
       ])
       const raw = response.content?.trim() ?? '{}'
-      const parsed = JSON.parse(raw)
-      return { success: true, questions: parsed.questions ?? [] }
+      const parsed = extractJSON(raw)
+      if (!parsed || typeof parsed !== 'object') {
+        return { success: false, error: 'Invalid JSON response from LLM' }
+      }
+      const data = parsed as Record<string, unknown>
+      return { success: true, questions: data.questions ?? [] }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }
@@ -800,7 +832,7 @@ export function setupIpcHandlers(
           {
             role: 'system',
             content:
-              "You are a note formatter. Reformat the provided note into the given template structure. Use the original ideas and wording — don't invent new content. Fill template sections using the original note and any additional answers. Return ONLY the reformatted note as markdown.",
+              "You are a note formatter. Reformat the provided note into the given template structure. Use the original ideas and wording — don't invent new content. Fill template sections using the original note and any additional answers.\n\nObsidian compatibility rules:\n- Preserve the YAML frontmatter block (between --- delimiters) at the top of the note. If the template includes frontmatter, fill in the title, tags, created, and type fields from the note's content.\n- Use [[Note Name]] wiki-link syntax when referencing other notes or people.\n- Format dates as YYYY-MM-DD (e.g. 2026-04-11).\n- Use standard markdown headings, checkboxes (- [ ]), and callouts (> [!NOTE]) where appropriate.\n\nReturn ONLY the reformatted note as markdown.",
           },
           {
             role: 'user',
@@ -808,6 +840,66 @@ export function setupIpcHandlers(
           },
         ])
         return { success: true, reformattedContent: response.content?.trim() ?? '' }
+      } catch (error) {
+        return { success: false, error: (error as Error).message }
+      }
+    }
+  )
+
+  // LLM: Single-call assessment — classify, detect missing fields, and suggest tags
+  ipcMain.handle(
+    IPC_CHANNELS.LLM_ASSESS_THOUGHT,
+    async (
+      _,
+      content: string,
+      templates: { id: string; title: string; description: string; defaultFolder: string }[],
+      currentFolder: string
+    ) => {
+      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      if (!llmConfig) return { success: false, error: 'LLM not configured' }
+
+      try {
+        const client = new LLMClient({ ...llmConfig, maxTokens: 700, responseFormat: 'json_object' })
+        const templateList = templates
+          .map((t) => `- id: ${t.id} | title: ${t.title} | folder: ${t.defaultFolder} | description: ${t.description}`)
+          .join('\n')
+        const response = await client.chat([
+          {
+            role: 'system',
+            content: `You are a note analyzer. Given a note and a list of templates, provide a comprehensive assessment.
+Respond with ONLY valid JSON in this exact shape:
+{
+  "templateId": "<best matching template id — always pick the closest one, never return null>",
+  "confidence": <0.0-1.0>,
+  "folder": "<suggested destination folder path, e.g. Projects/>",
+  "alreadyFormatted": <true if the note already follows the template structure well, false otherwise>,
+  "missingFields": [{"field": "<name>", "question": "<short question to ask user>", "hint": "<optional example>"}],
+  "suggestedTags": ["<tag1>", "<tag2>", "<tag3>"]
+}
+Always pick the closest matching templateId — use your best judgement even for low confidence. Keep suggestedTags to 3-5 relevant lowercase single-word or hyphenated tags. Return empty array for missingFields if nothing important is missing. No extra text.`,
+          },
+          {
+            role: 'user',
+            content: `Current folder: ${currentFolder}\n\nTemplates:\n${templateList}\n\nNote:\n${content.slice(0, 2000)}`,
+          },
+        ])
+        const raw = response.content?.trim() ?? '{}'
+        console.log('[assessThought] raw LLM response:', raw)
+        const parsed = extractJSON(raw)
+        console.log('[assessThought] parsed result:', parsed)
+        if (!parsed || typeof parsed !== 'object') {
+          return { success: false, error: 'Invalid JSON response from LLM' }
+        }
+        const data = parsed as Record<string, unknown>
+        return {
+          success: true,
+          templateId: data.templateId ?? null,
+          confidence: data.confidence ?? 0,
+          folder: data.folder ?? '',
+          alreadyFormatted: data.alreadyFormatted ?? false,
+          missingFields: data.missingFields ?? [],
+          suggestedTags: data.suggestedTags ?? [],
+        }
       } catch (error) {
         return { success: false, error: (error as Error).message }
       }

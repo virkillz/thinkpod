@@ -35,6 +35,7 @@ export interface LLMConfig {
   model: string
   apiKey?: string
   maxTokens?: number
+  responseFormat?: 'json_object' | 'text'
 }
 
 export class LLMClient {
@@ -50,11 +51,15 @@ export class LLMClient {
   async chat(messages: LLMMessage[]): Promise<LLMResponse> {
     const url = `${this.config.baseUrl}/chat/completions`
     
-    const body = {
+    const body: Record<string, unknown> = {
       model: this.config.model,
       messages,
       max_tokens: this.config.maxTokens,
       temperature: 0.7,
+    }
+
+    if (this.config.responseFormat === 'json_object') {
+      body.response_format = { type: 'json_object' }
     }
 
     const headers: Record<string, string> = {
