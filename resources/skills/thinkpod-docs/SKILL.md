@@ -80,8 +80,26 @@ Your Vault is a folder of plain markdown files organized into:
 
 ---
 
-For more detail, ask me to load a specific reference:
+## Available Documentation
+
+For comprehensive information, refer to these detailed guides:
+
+### Getting Started
+- `OVERVIEW.md` — what ThinkPod is, core features, and differentiators
+- `INSTALLATION.md` — setup, prerequisites, building from source, troubleshooting
+- `QUICK-START.md` — get productive in 5 minutes, essential workflows
+- `PHILOSOPHY.md` — local-first, agent-native, and fast capture principles
+
+### Core Features
 - `WILFRED.md` — full Wilfred capabilities, tips, and troubleshooting
+- `VAULT.md` — vault structure, file management, backup/sync
+- `VOICE-CAPTURE.md` — voice dictation setup, tips, and troubleshooting
 - `SHORTCUTS.md` — complete keyboard shortcut reference
-- `FAQ.md` — comprehensive FAQ
+
+### Configuration & Privacy
 - `AI-PROVIDERS.md` — all supported AI providers with setup instructions
+- `PRIVACY.md` — comprehensive privacy & security information
+- `FAQ.md` — common questions and answers
+
+### Technical
+- `TECH-STACK.md` — technical architecture, dependencies, development info

@@ -28,7 +28,7 @@ interface Thought {
 // ─── ThoughtsView ─────────────────────────────────────────────────────────────
 
 export function ThoughtsView() {
-  const { agentName, setCurrentView } = useAppStore()
+  const { agentName, setCurrentView, refreshThoughtCount } = useAppStore()
   const [thoughts, setThoughts] = useState<Thought[]>([])
 
   const randomMessage = useMemo(() => {
@@ -68,6 +68,7 @@ export function ThoughtsView() {
       setSelectedThought(null)
       setLiveContent('')
       loadThoughts()
+      refreshThoughtCount()
     } catch {
       alert('Failed to delete file')
     }
@@ -78,6 +79,7 @@ export function ThoughtsView() {
     setSelectedThought(null)
     setLiveContent('')
     loadThoughts()
+    refreshThoughtCount()
   }
 
   // ── Detail view ────────────────────────────────────────────────────────────

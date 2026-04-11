@@ -2,11 +2,12 @@ import { useAppStore } from '../../store/appStore.js'
 import { UniversalEditor } from '../editor/UniversalEditor.js'
 
 export function NewThoughtView() {
-  const { refreshFileTree, setCurrentView, newThoughtDraft, setNewThoughtDraft } = useAppStore()
+  const { refreshFileTree, refreshThoughtCount, setCurrentView, newThoughtDraft, setNewThoughtDraft } = useAppStore()
 
   const handleSaved = async () => {
     setNewThoughtDraft('')
     await refreshFileTree()
+    await refreshThoughtCount()
     setCurrentView('thoughts')
   }
 
