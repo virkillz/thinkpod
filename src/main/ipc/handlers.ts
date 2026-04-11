@@ -82,6 +82,14 @@ export function setupIpcHandlers(
   // Whisper: Download model (streams progress via push event)
   ipcMain.handle(IPC_CHANNELS.WHISPER_DOWNLOAD_MODEL, async (_, modelName: string) => {
     try {
+      // Check if model already exists to avoid re-downloading
+      const alreadyDownloaded = await whisperManager!.isModelDownloaded(modelName)
+      if (alreadyDownloaded) {
+        // Simulate instant completion for UI feedback
+        pushToRenderer(IPC_CHANNELS.PUSH_VOICE_DOWNLOAD_PROGRESS, { modelName, progress: 100 })
+        return { success: true, alreadyExists: true }
+      }
+
       await whisperManager!.downloadModel(modelName, (progress) => {
         pushToRenderer(IPC_CHANNELS.PUSH_VOICE_DOWNLOAD_PROGRESS, { modelName, progress })
       })
@@ -300,7 +308,7 @@ export function setupIpcHandlers(
     return { success: true }
   })
 
-  // Abbey: Reset — delete _inbox, _thoughts, .thinkpod and clear saved path
+  // Abbey: Reset — delete _inbox, _thoughts, .thinkpod, _agent_vault and clear saved path
   ipcMain.handle(IPC_CHANNELS.VAULT_RESET, async () => {
     try {
       const abbeyPath = dbManager.getSetting('vaultPath') as string | null
@@ -308,8 +316,8 @@ export function setupIpcHandlers(
         return { success: false, error: 'No vault configured' }
       }
 
-      // Delete the three system folders
-      for (const folder of ['_inbox', '_thoughts', '.thinkpod']) {
+      // Delete the system folders
+      for (const folder of ['_inbox', '_thoughts', '.thinkpod', '_agent_vault']) {
         const folderPath = path.join(abbeyPath, folder)
         await fs.rm(folderPath, { recursive: true, force: true })
       }

@@ -37,7 +37,7 @@ interface AppState {
   setVault: (vault: VaultInfo | null) => void
 
   // Navigation
-  currentView: 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought' | 'about'
+  currentView: 'dashboard' | 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought' | 'about'
   setCurrentView: (view: AppState['currentView']) => void
 
   // Files
@@ -96,7 +96,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setVault: (vault) => set({ vault }),
 
   // Navigation
-  currentView: 'notes',
+  currentView: 'dashboard',
   setCurrentView: (view) => set({ currentView: view }),
 
   // Files

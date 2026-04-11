@@ -84,7 +84,7 @@ export function StepVoice({ onContinue, onBack, onSkip }: StepVoiceProps) {
       </div>
 
       <p className="text-ink-muted mb-8">
-        Dictate folios with your voice. Transcription runs entirely offline on your Mac
+        Dictate notes with your voice. Transcription runs entirely offline on your device
         — nothing leaves your machine.
       </p>
 

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useAppStore } from '../../store/appStore.js'
 import type { ThemeId } from '../../store/appStore.js'
 import { Sidebar } from './Sidebar.js'
+import { DashboardView } from '../views/DashboardView.js'
 import { NotesView } from '../views/NotesView.js'
 import { InboxView } from '../views/InboxView.js'
 import { ThoughtsView } from '../views/ThoughtsView.js'
@@ -10,6 +11,7 @@ import { AgentsView } from '../views/AgentsView.js'
 import { SettingsView } from '../views/SettingsView.js'
 import { AboutView } from '../views/AboutView.js'
 import { AgentFAB } from './AgentFAB.js'
+import { ThoughtFAB } from './ThoughtFAB.js'
 
 export function MainShell() {
   const { currentView, refreshFileTree, refreshThoughtCount, setTheme, setCurrentView, setAgentProfile, toggleSidebar, toggleAgentChat } = useAppStore()
@@ -64,6 +66,8 @@ export function MainShell() {
 
   const renderView = () => {
     switch (currentView) {
+      case 'dashboard':
+        return <DashboardView />
       case 'notes':
         return <NotesView />
       case 'inbox':
@@ -79,7 +83,7 @@ export function MainShell() {
       case 'about':
         return <AboutView />
       default:
-        return <NotesView />
+        return <DashboardView />
     }
   }
 
@@ -88,6 +92,7 @@ export function MainShell() {
       <Sidebar />
       <main className="flex-1 relative overflow-hidden">
         {renderView()}
+        <ThoughtFAB />
         <AgentFAB />
       </main>
     </div>

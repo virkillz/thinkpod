@@ -15,7 +15,7 @@ interface ContextMenu {
   y: number
 }
 
-const SYSTEM_NAMES = new Set(['_inbox', '_thoughts', '.thinkpod'])
+const SYSTEM_NAMES = new Set(['_inbox', '_thoughts', '.thinkpod', '_agent_vault'])
 
 export function FileTree() {
   const [tree, setTree] = useState<TreeNode[]>([])

@@ -46,41 +46,53 @@ export function AgentFAB() {
           </div>
         )}
 
-        <button
-          onClick={handleToggleChat}
-          className={`
-            relative w-14 h-14 bg-accent rounded-full flex items-center justify-center
-            shadow-lg hover:shadow-xl transition-all duration-300 ease-out
-            hover:scale-105 animate-breathe overflow-hidden
-            ${isAnimating ? 'scale-90' : 'scale-100'}
-            ${isAgentChatOpen ? 'ring-4 ring-accent/30' : 'ring-0'}
-            transition-[box-shadow,transform]
-          `}
-        >
-          <span
+        <div className="relative w-14 h-14">
+          {/* Animated pulsing rings - behind the button */}
+          <span className="absolute inset-0 w-14 h-14 rounded-full bg-accent/20 animate-ping-slow -z-10" />
+          <span className="absolute inset-0 w-14 h-14 rounded-full bg-accent/10 animate-pulse-slower -z-10" />
+          
+          <button
+            onClick={handleToggleChat}
             className={`
-              absolute inset-0 rounded-full bg-accent/20
-              transition-all duration-500 ease-out
-              ${isAgentChatOpen && isAnimating ? 'scale-[2.5] opacity-0' : 'scale-100 opacity-0'}
+              relative w-14 h-14 bg-accent rounded-full flex items-center justify-center
+              shadow-lg hover:shadow-xl transition-all duration-300 ease-out
+              hover:scale-105 animate-breathe
+              ${isAnimating ? 'scale-90' : 'scale-100'}
+              ${isAgentChatOpen ? 'ring-4 ring-accent/30' : 'ring-0'}
+              transition-[box-shadow,transform]
             `}
-          />
-          <img
-            src={agentAvatar}
-            alt="Agent"
-            className={`
-              w-full h-full object-cover transition-transform duration-300 ease-out
-              ${isAgentChatOpen ? 'scale-90 rotate-6' : 'scale-100 rotate-0'}
-            `}
-          />
-          <span
-            className={`
-              absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-accent
-              ${getStatusColor()}
-              transition-transform duration-300 ease-out
-              ${isAnimating ? 'scale-125' : 'scale-100'}
-            `}
-          />
-        </button>
+          >
+            <span
+              className={`
+                absolute inset-0 rounded-full bg-accent/20
+                transition-all duration-500 ease-out
+                ${isAgentChatOpen && isAnimating ? 'scale-[2.5] opacity-0' : 'scale-100 opacity-0'}
+              `}
+            />
+            <img
+              src={agentAvatar}
+              alt="Agent"
+              className={`
+                w-full h-full object-cover rounded-full transition-transform duration-300 ease-out
+                ${isAgentChatOpen ? 'scale-90 rotate-6' : 'scale-100 rotate-0'}
+              `}
+            />
+          </button>
+          
+          {/* Enhanced online indicator with pulse - positioned outside button */}
+          <span className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center z-10">
+            <span className={`absolute w-5 h-5 rounded-full ${status === 'idle' ? 'bg-success/40 animate-ping-slow' : ''}`} />
+            <span
+              className={`
+                relative w-5 h-5 rounded-full border-2 border-white
+                ${getStatusColor()}
+                transition-transform duration-300 ease-out
+                ${isAnimating ? 'scale-125' : 'scale-100'}
+                shadow-lg
+              `}
+            />
+          </span>
+        </div>
       </div>
 
       <div

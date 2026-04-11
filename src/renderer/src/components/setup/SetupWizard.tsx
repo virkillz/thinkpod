@@ -19,11 +19,17 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [selectedAbbeyPath, setSelectedAbbeyPath] = useState<string | null>(null)
   const [vaultError, setVaultError] = useState<string | null>(null)
   const [vaultNeedsInit, setVaultNeedsInit] = useState(false)
-  const { setVault, setLLMConfig } = useAppStore()
+  const { setVault, setLLMConfig, setUserProfile } = useAppStore()
+
+  const handleWelcomeComplete = async (name: string) => {
+    const profile = { name, bio: '', avatarDataUrl: null }
+    setUserProfile(profile)
+    await window.electronAPI.setSetting('userProfile', profile)
+    setCurrentStep('vault')
+  }
 
   const handleStepComplete = () => {
     switch (currentStep) {
-      case 'welcome': setCurrentStep('vault'); break
       case 'vault':   setCurrentStep('llm');   break
       case 'llm':     setCurrentStep('voice'); break
       case 'voice':   onComplete();            break
@@ -143,7 +149,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             {/* Step content */}
             <div className="flex-1">
               {currentStep === 'welcome' && (
-                <StepWelcome onContinue={handleStepComplete} />
+                <StepWelcome onContinue={handleWelcomeComplete} />
               )}
               {currentStep === 'vault' && (
                 <StepVault

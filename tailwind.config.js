@@ -37,6 +37,8 @@ export default {
       animation: {
         'breathe':    'breathe 4s ease-in-out infinite',
         'pulse-slow': 'pulse 3s ease-in-out infinite',
+        'ping-slow':  'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite',
+        'pulse-slower': 'pulse 4s ease-in-out infinite',
       },
       keyframes: {
         breathe: {
