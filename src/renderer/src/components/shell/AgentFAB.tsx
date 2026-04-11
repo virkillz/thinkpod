@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../../store/appStore.js'
 import { AgentChatPanel } from './AgentChatPanel.js'
+import avatar01 from '../../assets/avatar01.png'
 
 export function AgentFAB() {
-  const { agentAvatar, selectedFile, currentView, isAgentChatOpen, toggleAgentChat, setAgentChatOpen } = useAppStore()
+  const { userProfile, selectedFile, currentView, isAgentChatOpen, toggleAgentChat, setAgentChatOpen } = useAppStore()
   const [isAnimating, setIsAnimating] = useState(false)
   const [showGreeting, setShowGreeting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle')
@@ -70,7 +71,7 @@ export function AgentFAB() {
               `}
             />
             <img
-              src={agentAvatar}
+              src={userProfile.avatarDataUrl || avatar01}
               alt="Agent"
               className={`
                 w-full h-full object-cover rounded-full transition-transform duration-300 ease-out

@@ -16,15 +16,7 @@ export const DEFAULT_TEMPLATES: NoteTemplate[] = [
     isEnabled: true,
     defaultFolder: 'Journal/',
     requireTags: true,
-    format: `---
-title: Journal — {insert_date_here}
-tags:
- - tag1
- - tag2
- - tag3
-created: {insert_date_here}
-type: journal
----
+    format: `
 
 # Journal — {insert_date_here}
 
@@ -51,16 +43,7 @@ type: journal
     isEnabled: true,
     defaultFolder: 'Meetings/',
     requireTags: false,
-    format: `---
-title: Meeting — [Subject]
-tags:
- - tag1
- - tag2
- - tag3
-created: [date]
-type: meeting
-attendees: [Name 1, Name 2]
----
+    format: `
 
 # Meeting: [Subject]
 
@@ -84,16 +67,7 @@ attendees: [Name 1, Name 2]
     isEnabled: true,
     defaultFolder: 'Projects/',
     requireTags: true,
-    format: `---
-title: Project — [Name]
-tags:
- - tag1
- - tag2
- - tag3
-created: [date]
-type: project
-status: active
----
+    format: `
 
 # Project: [Name]
 
@@ -120,16 +94,7 @@ status: active
     isEnabled: true,
     defaultFolder: 'Todos/',
     requireTags: false,
-    format: `---
-title: Todo — [Subject]
-tags:
- - tag1
- - tag2
- - tag3
-created: [date]
-type: todo
-status: open
----
+    format: `
 
 # Todo: [Subject]
 
@@ -150,16 +115,7 @@ status: open
     isEnabled: true,
     defaultFolder: 'Bookmarks/',
     requireTags: true,
-    format: `---
-title: [Page Title]
-tags:
- - tag1
- - tag2
- - tag3
-created: [date]
-type: bookmark
-url: [URL]
----
+    format: `
 
 # [Page Title]
 
@@ -179,15 +135,7 @@ url: [URL]
     isEnabled: true,
     defaultFolder: 'Ideas/',
     requireTags: true,
-    format: `---
-title: Idea — [Title]
-tags:
- - tag1
- - tag2
- - tag3
-created: [date]
-type: idea
----
+    format: `
 
 # Idea: [Title]
 
@@ -210,15 +158,7 @@ type: idea
     isEnabled: true,
     defaultFolder: 'Others/',
     requireTags: false,
-    format: `---
-title: Braindump — [date]
-tags:
- - tag1
- - tag2
- - tag3
-created: [date]
-type: braindump
----
+    format: `
 
 # Braindump — [date]
 
@@ -231,13 +171,7 @@ type: braindump
     isEnabled: true,
     defaultFolder: 'Credentials/',
     requireTags: false,
-    format: `---
-title: Credentials — [Platform Name]
-tags: [credentials]
-created: [date]
-type: credentials
----
-
+    format: `
 # Sensitive Credentials
 
 Platform Name:
@@ -252,18 +186,7 @@ Note: `,
     isEnabled: true,
     defaultFolder: 'Articles/',
     requireTags: true,
-    format: `---
-title: [Article Title]
-tags:
- - tag1
- - tag2
- - tag3
-created: [date]
-type: article
-author: [Your Name]
-status: draft
----
-
+    format: `
 # [Article Title]
 
 ## Introduction

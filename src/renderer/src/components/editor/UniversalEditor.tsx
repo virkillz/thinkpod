@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Mic, MicOff, Square, Settings, ArrowRight,
-  Sparkles, Eye, Pencil, X, Loader2, AlertTriangle, Check, SlidersHorizontal,
+  Sparkles, BookOpen, Pencil, X, Loader2, AlertTriangle, Check, SlidersHorizontal,
 } from 'lucide-react'
 import { WritingCanvas, WritingCanvasHandle } from './WritingCanvas.js'
 import { MarkdownPreview } from '../codex/MarkdownPreview.js'
@@ -484,26 +484,13 @@ export function UniversalEditor({
           {canToggleView && (
             <>
               <div className="w-px h-3.5 bg-parchment-dark" />
-              <div className="flex rounded-md overflow-hidden border border-parchment-dark">
-                <button
-                  onClick={() => setViewMode('edit')}
-                  title="Edit"
-                  className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors ${
-                    viewMode === 'edit' ? 'bg-accent text-white' : 'text-ink-muted hover:text-ink-primary'
-                  }`}
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={() => setViewMode('view')}
-                  title="Preview"
-                  className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors ${
-                    viewMode === 'view' ? 'bg-accent text-white' : 'text-ink-muted hover:text-ink-primary'
-                  }`}
-                >
-                  <Eye className="w-3 h-3" />
-                </button>
-              </div>
+              <button
+                onClick={() => setViewMode(viewMode === 'edit' ? 'view' : 'edit')}
+                title={viewMode === 'edit' ? 'Switch to reading view' : 'Switch to editing view'}
+                className="text-ink-muted hover:text-accent transition-colors duration-150"
+              >
+                {viewMode === 'edit' ? <BookOpen className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+              </button>
             </>
           )}
 

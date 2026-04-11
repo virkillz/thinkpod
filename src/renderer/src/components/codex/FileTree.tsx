@@ -218,8 +218,6 @@ export function FileTree() {
             </span>
           )}
 
-          {!node.isDirectory && <span className="w-4" />}
-
           {node.isDirectory
             ? <Folder className={`w-4 h-4 flex-shrink-0 ${isExpanded ? 'text-accent' : ''}`} />
             : <FileText className="w-4 h-4 flex-shrink-0" />}

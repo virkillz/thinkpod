@@ -53,27 +53,123 @@ export interface TriageWizardProps {
   /** Live content from editor — if omitted the wizard reads from disk */
   content?: string
   onClose: () => void
-  onDone: () => void
+  onDone: (newFilePath?: string) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function injectTags(content: string, tags: string[]): string {
-  if (tags.length === 0) return content
-  const tagLine = `tags: [${tags.join(', ')}]`
+/** Extract existing YAML frontmatter and body from content. */
+function parseFrontmatter(content: string): { fm: Record<string, unknown>; body: string } {
+  const hasFm = content.startsWith('---\n') || content.startsWith('---\r\n')
+  if (!hasFm) return { fm: {}, body: content }
 
-  if (content.startsWith('---\n') || content.startsWith('---\r\n')) {
-    const fmEnd = content.indexOf('\n---', 4)
-    if (fmEnd !== -1) {
-      const fmBody = content.slice(4, fmEnd)
-      if (/^tags:/m.test(fmBody)) {
-        const newFm = fmBody.replace(/^tags:.*$/m, tagLine)
-        return `---\n${newFm}\n---${content.slice(fmEnd + 4)}`
+  const fmEnd = content.indexOf('\n---', 4)
+  if (fmEnd === -1) return { fm: {}, body: content }
+
+  const fmText = content.slice(4, fmEnd)
+  const body = content.slice(fmEnd + 4).replace(/^\r?\n/, '')
+
+  const fm: Record<string, unknown> = {}
+  const lines = fmText.split('\n')
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    const colonIdx = line.indexOf(':')
+    if (colonIdx > 0) {
+      const key = line.slice(0, colonIdx).trim()
+      const val = line.slice(colonIdx + 1).trim()
+      if (!val) {
+        // Block-style array: collect "  - item" lines that follow
+        const items: string[] = []
+        while (i + 1 < lines.length && /^\s+-\s/.test(lines[i + 1])) {
+          i++
+          items.push(lines[i].replace(/^\s+-\s*/, '').trim())
+        }
+        fm[key] = items.length > 0 ? items : null
+      } else if (val.startsWith('[') && val.endsWith(']')) {
+        // Inline array: tags: [a, b, c]
+        fm[key] = val
+          .slice(1, -1)
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      } else {
+        fm[key] = val
       }
-      return `---\n${fmBody}\n${tagLine}\n---${content.slice(fmEnd + 4)}`
+    }
+    i++
+  }
+
+  return { fm, body }
+}
+
+/** Build Obsidian-compatible YAML frontmatter block. */
+function buildFrontmatter(fields: {
+  title?: string
+  tags?: string[]
+  created?: string
+  type?: string
+  extra?: Record<string, unknown>
+}): string {
+  const lines: string[] = ['---']
+
+  if (fields.title) lines.push(`title: ${fields.title}`)
+
+  if (fields.tags && fields.tags.length > 0) {
+    lines.push('tags:')
+    for (const tag of fields.tags) lines.push(` - ${tag}`)
+  }
+
+  if (fields.created) lines.push(`created: ${fields.created}`)
+  if (fields.type) lines.push(`type: ${fields.type}`)
+
+  if (fields.extra) {
+    const CORE = new Set(['title', 'tags', 'created', 'type'])
+    for (const [k, v] of Object.entries(fields.extra)) {
+      if (CORE.has(k) || v === null || v === undefined) continue
+      if (Array.isArray(v)) {
+        lines.push(`${k}:`)
+        for (const item of v) lines.push(` - ${item}`)
+      } else {
+        lines.push(`${k}: ${v}`)
+      }
     }
   }
-  return `---\n${tagLine}\n---\n\n${content}`
+
+  lines.push('---')
+  return lines.join('\n')
+}
+
+/**
+ * Replace (or create) the YAML frontmatter with an app-generated one.
+ * Core fields (title, tags, created, type) are always app-controlled.
+ * Extra fields found in the existing frontmatter (attendees, author, etc.) are preserved.
+ */
+function applyFrontmatter(
+  content: string,
+  tags: string[],
+  templateId: string | null,
+  fileName: string,
+): string {
+  const today = new Date().toISOString().split('T')[0]
+  const { fm: existing, body } = parseFrontmatter(content)
+
+  // Title: existing frontmatter → first H1 heading → filename without extension
+  let title = (existing.title as string | undefined) ?? ''
+  if (!title) {
+    const h1 = body.match(/^#\s+(.+)$/m)
+    title = h1 ? h1[1].trim() : fileName.replace(/\.md$/i, '')
+  }
+
+  const frontmatter = buildFrontmatter({
+    title: title || undefined,
+    tags: tags.length > 0 ? tags : undefined,
+    created: today,
+    type: templateId ?? undefined,
+    extra: existing,
+  })
+
+  return `${frontmatter}\n\n${body}`
 }
 
 // ─── ChecklistRow ─────────────────────────────────────────────────────────────
@@ -269,9 +365,9 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
       }
     }
 
-    if (state.checklist.addTags && state.editableTags.length > 0) {
-      finalContent = injectTags(finalContent, state.editableTags)
-    }
+    // Always apply app-generated frontmatter; tags included when the checkbox is on
+    const tags = state.checklist.addTags ? state.editableTags : []
+    finalContent = applyFrontmatter(finalContent, tags, state.selectedTemplateId, fileName)
 
     setState((s) => ({ ...s, step: 'preview', finalContent, error: null }))
   }
@@ -281,13 +377,15 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
     setState((s) => ({ ...s, error: null }))
     try {
       await window.electronAPI.writeFile(filePath, state.finalContent)
+      let newFilePath: string | undefined
       if (state.checklist.moveTo && state.editableFolder) {
         const destPath = state.editableFolder.replace(/\/$/, '') + '/' + fileName
         if (destPath !== filePath) {
           await window.electronAPI.moveFile(filePath, destPath)
+          newFilePath = destPath
         }
       }
-      onDone()
+      onDone(newFilePath)
     } catch (e) {
       setState((s) => ({ ...s, error: (e as Error).message }))
     }

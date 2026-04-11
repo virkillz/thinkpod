@@ -6,7 +6,7 @@ import { TriageWizard } from '../triage/TriageWizard.js'
 import { FileText, RefreshCw, Sparkles } from 'lucide-react'
 
 export function NotesView() {
-  const { selectedFile, fileTree, vault, refreshFileTree } = useAppStore()
+  const { selectedFile, fileTree, vault, refreshFileTree, setSelectedFile } = useAppStore()
   const [reloadTrigger, setReloadTrigger] = useState(0)
   const [liveContent, setLiveContent] = useState('')
   const [triageOpen, setTriageOpen] = useState(false)
@@ -90,9 +90,13 @@ export function NotesView() {
           filePath={selectedFile}
           content={liveContent}
           onClose={() => setTriageOpen(false)}
-          onDone={() => {
+          onDone={(newFilePath) => {
             setTriageOpen(false)
-            setReloadTrigger((n) => n + 1)
+            if (newFilePath) {
+              setSelectedFile(newFilePath)
+            } else {
+              setReloadTrigger((n) => n + 1)
+            }
             refreshFileTree()
           }}
         />
