@@ -529,6 +529,14 @@ export class DatabaseManager {
     `).run(schedule, name)
   }
 
+  clearAllSettings(): void {
+    this.db.prepare('DELETE FROM settings').run()
+  }
+
+  getDbPath(): string {
+    return this.dbPath
+  }
+
   close(): void {
     this.db.close()
   }

@@ -2,7 +2,7 @@ import { ipcMain, dialog, app, BrowserWindow } from 'electron'
 import path from 'path'
 import fs from 'fs/promises'
 import { IPC_CHANNELS } from './channels.js'
-import type { DatabaseManager } from '../database/DatabaseManager.js'
+import { DatabaseManager } from '../database/DatabaseManager.js'
 import type { VaultManager } from '../vault/VaultManager.js'
 import { getMainWindow, getVaultManager, initVaultManager } from '../index.js'
 import { LLMProcessManager } from '../agent/LLMProcessManager.js'
@@ -18,6 +18,18 @@ import { AgentVaultManager } from '../agent_vault/AgentVaultManager.js'
 import { run as runProcessNewFiles, type CognitiveJobContext, type JobResult } from '../cognitive_jobs/ProcessNewFilesJob.js'
 import { run as runNoteReview } from '../cognitive_jobs/NoteReviewJob.js'
 import { InboxThreadManager } from '../agent_vault/InboxThreadManager.js'
+import {
+  DEFAULT_PERSONA,
+  DEFAULT_THREAD_PERSONA,
+  DEFAULT_AGENT_SYSTEM_PROMPT,
+  EDIT_TEXT,
+  SUGGEST_FOLDER,
+  CLASSIFY_THOUGHT,
+  GET_MISSING_FIELDS,
+  buildReformatThoughtPrompt,
+  ASSESS_THOUGHT,
+  THREAD_CONTINUATION_SUFFIX,
+} from '../agent/prompts.js'
 
 // ── JSON extraction helper ────────────────────────────────────────────────────
 
@@ -210,19 +222,7 @@ export function setupIpcHandlers(
         dbManager.setSetting('agentProfile', {
           name: 'Wilfred',
           avatar: '✦',
-          systemPrompt: `You are Wilfred, a thoughtful friend who loves to brainstorm and explore ideas together.
-          You're knowledgeable, smart, and genuinely supportive — like that friend who's always curious,
-          asks great questions, and helps you think through things without judgment.
-
-          Your approach:
-          - Collaborative. You think *with* the user, not just for them. You bounce ideas back and forth.
-          - Curious. You ask thoughtful questions that spark deeper thinking.
-          - Knowledgeable. You bring relevant insights, patterns, and connections to the conversation.
-          - Supportive. You encourage exploration and make the user feel heard and understood.
-          - Clear. You communicate ideas simply and elegantly, avoiding unnecessary jargon.
-          - Practical. When action is needed, you help break things down into doable steps.
-
-          Whether organizing notes, researching, editing, or just chatting — you're here as a thinking partner.`,
+          systemPrompt: DEFAULT_AGENT_SYSTEM_PROMPT,
         })
       }
 
@@ -284,19 +284,7 @@ export function setupIpcHandlers(
         dbManager.setSetting('agentProfile', {
           name: 'Wilfred',
           avatar: '✦',
-          systemPrompt: `You are Wilfred, a thoughtful friend who loves to brainstorm and explore ideas together.
-          You're knowledgeable, smart, and genuinely supportive — like that friend who's always curious,
-          asks great questions, and helps you think through things without judgment.
-
-          Your approach:
-          - Collaborative. You think *with* the user, not just for them. You bounce ideas back and forth.
-          - Curious. You ask thoughtful questions that spark deeper thinking.
-          - Knowledgeable. You bring relevant insights, patterns, and connections to the conversation.
-          - Supportive. You encourage exploration and make the user feel heard and understood.
-          - Clear. You communicate ideas simply and elegantly, avoiding unnecessary jargon.
-          - Practical. When action is needed, you help break things down into doable steps.
-
-          Whether organizing notes, researching, editing, or just chatting — you're here as a thinking partner.`,
+          systemPrompt: DEFAULT_AGENT_SYSTEM_PROMPT,
         })
       }
 
@@ -346,8 +334,20 @@ export function setupIpcHandlers(
         await fs.rm(folderPath, { recursive: true, force: true })
       }
 
-      // Clear the abbey path from the database
-      dbManager.setSetting('vaultPath', null)
+      // Delete the database file entirely
+      const dbPath = dbManager.getDbPath()
+      dbManager.close()
+      await fs.unlink(dbPath).catch(() => {}) // Ignore if file doesn't exist
+      await fs.unlink(`${dbPath}-shm`).catch(() => {}) // WAL mode files
+      await fs.unlink(`${dbPath}-wal`).catch(() => {})
+
+      // Reinitialize the database
+      const appDataPath = app.getPath('userData')
+      const newDbManager = new DatabaseManager(appDataPath)
+      await newDbManager.initialize()
+      
+      // Replace the global dbManager reference
+      Object.assign(dbManager, newDbManager)
 
       return { success: true }
     } catch (error) {
@@ -656,7 +656,7 @@ export function setupIpcHandlers(
     }
 
     const agentProfileChat = dbManager.getSetting('agentProfile') as { name?: string; avatar?: string; systemPrompt?: string } | null
-    const persona = agentProfileChat?.systemPrompt ?? 'You are Wilfred, a thoughtful friend who loves brainstorming and exploring ideas together. Be warm, curious, and supportive.'
+    const persona = agentProfileChat?.systemPrompt ?? DEFAULT_PERSONA
 
     try {
       const client = new LLMClient(llmConfig)
@@ -682,8 +682,7 @@ export function setupIpcHandlers(
       const response = await client.chat([
         {
           role: 'system',
-          content:
-            'You are a precise text editor. Apply the user\'s instruction to the provided text and return ONLY the edited text. Do not add explanations, commentary, or formatting outside the text itself.',
+          content: EDIT_TEXT,
         },
         {
           role: 'user',
@@ -731,8 +730,7 @@ export function setupIpcHandlers(
       const response = await client.chat([
         {
           role: 'system',
-          content:
-            'You are a filing assistant. Given a note and a list of folders, respond with ONLY the most appropriate folder path from the list. No explanation, no punctuation — just the exact folder path as shown.',
+          content: SUGGEST_FOLDER,
         },
         {
           role: 'user',
@@ -764,8 +762,7 @@ export function setupIpcHandlers(
         const response = await client.chat([
           {
             role: 'system',
-            content:
-              'You are a note classifier. Given a note and a list of templates, pick the best matching template and suggest a folder. Respond with ONLY valid JSON in this exact shape: {"templateId":"<id or null>","confidence":<0-1>,"folder":"<suggested folder path>"}. No extra text.',
+            content: CLASSIFY_THOUGHT,
           },
           {
             role: 'user',
@@ -795,8 +792,7 @@ export function setupIpcHandlers(
       const response = await client.chat([
         {
           role: 'system',
-          content:
-            'You are a note assistant. Compare the note to the template and identify what key information is missing or unclear. Respond with ONLY valid JSON: {"questions":[{"field":"<field name>","question":"<question for user>","hint":"<optional hint>"}]}. Return an empty array if nothing is missing.',
+          content: GET_MISSING_FIELDS,
         },
         {
           role: 'user',
@@ -831,8 +827,7 @@ export function setupIpcHandlers(
         const response = await client.chat([
           {
             role: 'system',
-            content:
-              "You are a note formatter. Reformat the provided note into the given template structure. Use the original ideas and wording — don't invent new content. Fill template sections using the original note and any additional answers.\n\nObsidian compatibility rules:\n- Preserve the YAML frontmatter block (between --- delimiters) at the top of the note. If the template includes frontmatter, fill in the title, tags, created, and type fields from the note's content.\n- Use [[Note Name]] wiki-link syntax when referencing other notes or people.\n- Format dates as YYYY-MM-DD (e.g. 2026-04-11).\n- Use standard markdown headings, checkboxes (- [ ]), and callouts (> [!NOTE]) where appropriate.\n\nReturn ONLY the reformatted note as markdown.",
+            content: buildReformatThoughtPrompt(),
           },
           {
             role: 'user',
@@ -866,17 +861,7 @@ export function setupIpcHandlers(
         const response = await client.chat([
           {
             role: 'system',
-            content: `You are a note analyzer. Given a note and a list of templates, provide a comprehensive assessment.
-Respond with ONLY valid JSON in this exact shape:
-{
-  "templateId": "<best matching template id — always pick the closest one, never return null>",
-  "confidence": <0.0-1.0>,
-  "folder": "<suggested destination folder path, e.g. Projects/>",
-  "alreadyFormatted": <true if the note already follows the template structure well, false otherwise>,
-  "missingFields": [{"field": "<name>", "question": "<short question to ask user>", "hint": "<optional example>"}],
-  "suggestedTags": ["<tag1>", "<tag2>", "<tag3>"]
-}
-Always pick the closest matching templateId — use your best judgement even for low confidence. Keep suggestedTags to 3-5 relevant lowercase single-word or hyphenated tags. Return empty array for missingFields if nothing important is missing. No extra text.`,
+            content: ASSESS_THOUGHT,
           },
           {
             role: 'user',
@@ -1137,13 +1122,13 @@ Always pick the closest matching templateId — use your best judgement even for
       .map((m) => `${m.role === 'agent' ? agentProfile?.name ?? 'Agent' : userName ?? 'Human'}: ${m.content}`)
       .join('\n\n')
 
-    const persona = agentProfile?.systemPrompt ?? 'You are a thoughtful assistant helping the user with their notes and knowledge management.'
+    const persona = agentProfile?.systemPrompt ?? DEFAULT_THREAD_PERSONA
 
     // 3. Call LLM for response
     try {
       const client = new LLMClient(llmConfig)
       const response = await client.chat([
-        { role: 'system', content: `${persona}\n\nYou are continuing a conversation thread. Respond warmly and concisely to the user's last message.` },
+        { role: 'system', content: `${persona}\n\n${THREAD_CONTINUATION_SUFFIX}` },
         { role: 'user', content: `Conversation so far:\n${conversation}\n\nPlease respond to the user's last message.` },
       ])
 

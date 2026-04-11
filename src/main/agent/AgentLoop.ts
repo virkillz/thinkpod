@@ -11,6 +11,7 @@ import { getEnabledToolDefinitions, DEFAULT_TOOLS_CONFIG } from './ToolDefinitio
 import { ToolExecutor, ToolContext } from './ToolExecutor.js'
 import type { ToolsConfig } from './tools/types.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
+import { buildAgentTaskPrompt } from './prompts.js'
 
 export class TaskAbortedError extends Error {
   constructor() {
@@ -194,21 +195,7 @@ export class AgentLoop {
   }
 
   private buildSystemPrompt(taskName: string, instruction: string): string {
-    return `${this.config.persona}
-
-You are executing a task: "${taskName}"
-Task instruction: ${instruction}
-
-You have access to tools to work with the vault's files. When you complete your work, call finish_task().
-
-Rules:
-- Be methodical: work step by step
-- When uncertain, use add_comment() to ask rather than guess
-- Keep notes clear and concise
-- finish_task() when done
-
-Vault root: ${this.config.vaultPath}
-Today: ${new Date().toISOString().split('T')[0]}`
+    return buildAgentTaskPrompt(this.config.persona, taskName, instruction, this.config.vaultPath)
   }
 
   private async buildVaultIndex(): Promise<string> {

@@ -6,6 +6,7 @@ import { getEnabledToolDefinitions, DEFAULT_TOOLS_CONFIG } from './ToolDefinitio
 import { ToolExecutor } from './ToolExecutor.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
 import type { ToolsConfig } from './tools/types.js'
+import { INVOCATION_DOCS_REVIEW, INVOCATION_GENERAL_CHAT } from './prompts.js'
 
 export type InvocationType = 'docs_review' | 'general_chat'
 
@@ -23,18 +24,10 @@ export interface ChatAgentConfig {
 
 export type OnToolUse = (toolName: string, args: Record<string, unknown>) => void
 
-// Default invocation prompt templates
+// Default invocation prompt templates (text lives in prompts.ts)
 const DEFAULT_INVOCATION_PROMPTS: Record<InvocationType, string> = {
-  docs_review: `You are currently reviewing the markdown document at {file_path}.
-The user may want to discuss the content, ask questions, or request edits, summaries, or other operations.
-Use available tools when appropriate.
-
-Current document content:
----
-{file_content}
----`,
-  general_chat: `The user is in a general conversation. No specific document is open.
-Answer questions, help with the vault, or discuss ideas.`,
+  docs_review: INVOCATION_DOCS_REVIEW,
+  general_chat: INVOCATION_GENERAL_CHAT,
 }
 
 const MAX_CHAT_ITERATIONS = 10

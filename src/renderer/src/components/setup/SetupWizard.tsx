@@ -4,6 +4,7 @@ import { StepVault } from './StepVault.js'
 import { StepLLM } from './StepLLM.js'
 import { StepVoice } from './StepVoice.js'
 import { useAppStore } from '../../store/appStore.js'
+import { DEFAULT_TEMPLATES } from '@main/vault/noteTemplates.js'
 import wilfredAvatar from '../../assets/avatar01.png'
 
 interface SetupWizardProps {
@@ -28,12 +29,24 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     setCurrentStep('vault')
   }
 
-  const handleStepComplete = () => {
+  const handleStepComplete = async () => {
     switch (currentStep) {
-      case 'vault':   setCurrentStep('llm');   break
-      case 'llm':     setCurrentStep('voice'); break
-      case 'voice':   onComplete();            break
+      case 'vault':   
+        setCurrentStep('llm')
+        break
+      case 'llm':     
+        setCurrentStep('voice')
+        break
+      case 'voice':
+        await handleFinalizeSetup()
+        break
     }
+  }
+
+  const handleFinalizeSetup = async () => {
+    // Inject default templates before completing setup
+    await window.electronAPI.setSetting('noteTemplates', DEFAULT_TEMPLATES)
+    onComplete()
   }
 
   const handleStepBack = () => {
@@ -170,7 +183,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                 <StepVoice
                   onContinue={handleStepComplete}
                   onBack={handleStepBack}
-                  onSkip={onComplete}
+                  onSkip={handleFinalizeSetup}
                 />
               )}
             </div>

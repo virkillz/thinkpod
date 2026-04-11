@@ -1,4 +1,5 @@
 import { LLMClient, LLMConfig } from './LLMClient.js'
+import { buildCognitiveSystemInstruction, buildCognitiveRetryInstruction } from './prompts.js'
 
 export interface CognitiveCallConfig {
   /** Narrow, pre-assembled prompt describing the task and source content */
@@ -44,10 +45,7 @@ export class CognitiveRunner {
 
     // Retry once with a stricter re-prompt
     console.warn('[CognitiveRunner] First attempt failed validation, retrying...')
-    const retryInstruction =
-      `Return ONLY valid JSON matching this exact schema, with no markdown fences, no explanation:\n` +
-      JSON.stringify(config.outputSchema, null, 2) +
-      `\n\nExample of correct output:\n${JSON.stringify(config.example, null, 2)}`
+    const retryInstruction = buildCognitiveRetryInstruction(config.outputSchema, config.example)
 
     const retryResult = await this.attempt<T>(config.prompt, retryInstruction, maxTokens, config.outputSchema)
     if (retryResult === null) {
@@ -84,16 +82,7 @@ export class CognitiveRunner {
   }
 
   private buildSystemInstruction(schema: SchemaObject, example: object): string {
-    return [
-      'You are a structured data extractor. Your output must be valid JSON only.',
-      'Do not include markdown code fences, explanations, or any text outside the JSON object.',
-      '',
-      'Required output schema:',
-      JSON.stringify(schema, null, 2),
-      '',
-      'Example of correct output:',
-      JSON.stringify(example, null, 2),
-    ].join('\n')
+    return buildCognitiveSystemInstruction(schema, example)
   }
 
   /**

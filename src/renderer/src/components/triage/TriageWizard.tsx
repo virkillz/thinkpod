@@ -4,7 +4,7 @@ import {
   Tag, FolderOpen, FileText, Pencil,
 } from 'lucide-react'
 import { MarkdownPreview } from '../codex/MarkdownPreview.js'
-import type { NoteTemplate } from '../views/SettingsView.js'
+import type { NoteTemplate } from '@main/vault/noteTemplates.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
