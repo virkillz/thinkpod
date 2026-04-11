@@ -48,6 +48,7 @@ export interface UniversalEditorProps {
   onContentChange?: (content: string) => void
 
   placeholder?: string
+  initialContent?: string
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -64,9 +65,10 @@ export function UniversalEditor({
   showViewToggle,
   onContentChange,
   placeholder: placeholderProp,
+  initialContent = '',
 }: UniversalEditorProps) {
   // ── Content ───────────────────────────────────────────────────────────────
-  const [content, setContent] = useState('')
+  const [content, setContent] = useState(initialContent)
   const canvasRef = useRef<WritingCanvasHandle>(null)
   const lastSavedRef = useRef('')   // tracks what's on disk — skip redundant saves
 

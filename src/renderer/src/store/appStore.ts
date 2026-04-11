@@ -75,6 +75,8 @@ interface AppState {
   // Thoughts
   thoughtCount: number
   refreshThoughtCount: () => Promise<void>
+  newThoughtDraft: string
+  setNewThoughtDraft: (draft: string) => void
 
   // Agent
   isAgentRunning: boolean
@@ -153,6 +155,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Thoughts
   thoughtCount: 0,
+  newThoughtDraft: '',
+  setNewThoughtDraft: (draft) => set({ newThoughtDraft: draft }),
   refreshThoughtCount: async () => {
     const { vault } = get()
     if (!vault) return

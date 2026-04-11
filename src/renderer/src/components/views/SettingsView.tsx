@@ -596,6 +596,7 @@ export interface NoteTemplate {
   isEnabled: boolean
   format: string
   defaultFolder: string
+  requireTags: boolean
 }
 
 const DEFAULT_TEMPLATES: NoteTemplate[] = [
@@ -605,6 +606,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     description: 'Daily reflection and personal notes',
     isEnabled: true,
     defaultFolder: 'Journal/',
+    requireTags: true,
     format: `# Journal — [date]
 
 ## How am I feeling?
@@ -631,6 +633,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     description: 'Structured notes from a meeting with agenda and action items',
     isEnabled: true,
     defaultFolder: 'Meetings/',
+    requireTags: false,
     format: `# Meeting: [Subject]
 
 **Attendees:** [Name 1, Name 2]
@@ -655,6 +658,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     description: 'Progress notes for a project including goals and blockers',
     isEnabled: true,
     defaultFolder: 'Projects/',
+    requireTags: true,
     format: `# Project: [Name]
 
 **Status:** [Active / On Hold / Done]
@@ -681,6 +685,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     description: 'A simple checklist of tasks',
     isEnabled: true,
     defaultFolder: 'Todos/',
+    requireTags: false,
     format: `# Todo: [Subject]
 
 ## Tasks
@@ -699,6 +704,7 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     description: 'A saved link with context and tags',
     isEnabled: true,
     defaultFolder: 'Bookmarks/',
+    requireTags: true,
     format: `# [Page Title]
 
 **URL:** [URL]
@@ -717,9 +723,10 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
   {
     id: 'ideas',
     title: 'Ideas',
-    description: 'A captured idea with description and next steps',
+    description: 'A captured idea with comprehensible description',
     isEnabled: true,
     defaultFolder: 'Ideas/',
+    requireTags: true,
     format: `# Idea: [Title]
 
 ## What is it?
@@ -740,9 +747,24 @@ const DEFAULT_TEMPLATES: NoteTemplate[] = [
     description: "Unstructured catch-all for anything that doesn't fit elsewhere",
     isEnabled: true,
     defaultFolder: 'Others/',
+    requireTags: false,
     format: `# Braindump — [date]
 
 [Write anything here, no structure needed]`,
+  },
+  {
+    id: 'credentials',
+    title: 'Sensitive Credentials',
+    description: 'Store passwords, API keys, and other sensitive credentials',
+    isEnabled: true,
+    defaultFolder: 'Credentials/',
+    requireTags: false,
+    format: `# Sensitive Credentials
+
+Platform Name: 
+Type: 
+Value: 
+Note: `,
   },
 ]
 
@@ -760,7 +782,13 @@ function TemplatesTab() {
   const loadTemplates = async () => {
     const saved = await window.electronAPI.getSetting('noteTemplates') as NoteTemplate[] | null
     if (saved && Array.isArray(saved) && saved.length > 0) {
-      setTemplates(saved)
+      const savedIds = new Set(saved.map(t => t.id))
+      const newDefaults = DEFAULT_TEMPLATES.filter(t => !savedIds.has(t.id))
+      const merged = [...saved, ...newDefaults]
+      setTemplates(merged)
+      if (newDefaults.length > 0) {
+        await window.electronAPI.setSetting('noteTemplates', merged)
+      }
     } else {
       setTemplates(DEFAULT_TEMPLATES)
       await window.electronAPI.setSetting('noteTemplates', DEFAULT_TEMPLATES)
@@ -795,6 +823,7 @@ function TemplatesTab() {
       isEnabled: true,
       format: '',
       defaultFolder: '',
+      requireTags: true,
     }
     setEditDraft(draft)
     setEditingId('new')
