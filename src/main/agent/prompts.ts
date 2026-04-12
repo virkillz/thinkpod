@@ -154,37 +154,3 @@ export function buildAgentTaskPrompt(
   return parts.join('\n')
 }
 
-// ---------------------------------------------------------------------------
-// CognitiveRunner.ts — structured JSON extraction
-// ---------------------------------------------------------------------------
-
-/**
- * Build the system instruction for a CognitiveRunner call.
- * @param schema  JSON schema object for the expected output
- * @param example A filled-in example of correct output
- */
-export function buildCognitiveSystemInstruction(schema: object, example: object): string {
-  return [
-    'You are a structured data extractor. Your output must be valid JSON only.',
-    'Do not include markdown code fences, explanations, or any text outside the JSON object.',
-    '',
-    'Required output schema:',
-    JSON.stringify(schema, null, 2),
-    '',
-    'Example of correct output:',
-    JSON.stringify(example, null, 2),
-  ].join('\n')
-}
-
-/**
- * Retry instruction used by CognitiveRunner when the first attempt fails validation.
- * @param schema  Same schema passed to the first attempt
- * @param example Same example passed to the first attempt
- */
-export function buildCognitiveRetryInstruction(schema: object, example: object): string {
-  return (
-    `Return ONLY valid JSON matching this exact schema, with no markdown fences, no explanation:\n` +
-    JSON.stringify(schema, null, 2) +
-    `\n\nExample of correct output:\n${JSON.stringify(example, null, 2)}`
-  )
-}

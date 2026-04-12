@@ -77,14 +77,6 @@ export const IPC_CHANNELS = {
   SKILLS_LIST: 'skills:list',
   SKILLS_OPEN_FOLDER: 'skills:open-folder',
 
-  // Cognitive jobs (system scheduler)
-  COGNITIVE_JOB_LIST: 'cognitive:list',
-  COGNITIVE_JOB_TRIGGER: 'cognitive:trigger',
-  COGNITIVE_JOB_DRY_RUN: 'cognitive:dry-run',
-  COGNITIVE_JOB_TOGGLE: 'cognitive:toggle',
-  COGNITIVE_JOB_EDIT_SCHEDULE: 'cognitive:edit-schedule',
-  PUSH_COGNITIVE_JOB_PROGRESS: 'push:cognitive-job-progress',
-
   // Graph & Stats
   GRAPH_GET_DATA: 'graph:get-data',
   STATS_GET_OVERVIEW: 'stats:get-overview',
