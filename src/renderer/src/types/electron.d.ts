@@ -121,6 +121,17 @@ export interface ElectronAPI {
   agentChatSend: (sessionId: string, message: string) => Promise<{ success: boolean; content?: string; toolCallCount?: number; error?: string; toolErrors?: { toolName: string; error: string; ts: number }[] }>
   agentChatNew: (contextType: string, contextKey: string, filePath?: string) => Promise<{ success: boolean; sessionId?: string; error?: string }>
   agentChatGetSystemPrompt: (sessionId: string) => Promise<{ success: boolean; systemPrompt?: string; error?: string }>
+  agentChatGetAllSessions: () => Promise<{
+    success: boolean
+    sessions?: Array<{
+      id: string
+      context_type: string
+      context_key: string
+      created_at: number
+      last_message_at: number
+    }>
+    error?: string
+  }>
 
   // Inbox
   listInbox: () => Promise<Array<{

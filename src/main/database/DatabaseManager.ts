@@ -475,6 +475,26 @@ export class DatabaseManager {
     this.db.prepare('UPDATE chat_sessions SET last_message_at = ? WHERE id = ?').run(Date.now(), sessionId)
   }
 
+  getAllChatSessions(): Array<{
+    id: string
+    context_type: string
+    context_key: string
+    created_at: number
+    last_message_at: number
+  }> {
+    return this.db.prepare(`
+      SELECT id, context_type, context_key, created_at, last_message_at
+      FROM chat_sessions
+      ORDER BY last_message_at DESC
+    `).all() as Array<{
+      id: string
+      context_type: string
+      context_key: string
+      created_at: number
+      last_message_at: number
+    }>
+  }
+
   // Cognitive jobs
   getCognitiveJobs(): Array<{
     id: number

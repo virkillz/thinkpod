@@ -1059,6 +1059,16 @@ export function setupIpcHandlers(
     return { success: true, systemPrompt: agent.getSystemPrompt() }
   })
 
+  // Agent: Get all chat sessions
+  ipcMain.handle(IPC_CHANNELS.AGENT_CHAT_GET_ALL_SESSIONS, async () => {
+    try {
+      const sessions = dbManager.getAllChatSessions()
+      return { success: true, sessions }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Agent: Abort task
   ipcMain.handle(IPC_CHANNELS.AGENT_ABORT_TASK, async () => {
     currentAgentLoop?.abort()

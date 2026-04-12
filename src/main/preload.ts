@@ -43,6 +43,7 @@ const IPC_CHANNELS = {
   AGENT_CHAT_SEND: 'agent:chat-send',
   AGENT_CHAT_NEW: 'agent:chat-new',
   AGENT_CHAT_GET_SYSTEM_PROMPT: 'agent:chat-get-system-prompt',
+  AGENT_CHAT_GET_ALL_SESSIONS: 'agent:chat-get-all-sessions',
   INBOX_LIST: 'inbox:list',
   INBOX_READ: 'inbox:read',
   INBOX_MARK_READ: 'inbox:mark-read',
@@ -147,6 +148,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.AGENT_CHAT_NEW, contextType, contextKey, filePath),
   agentChatGetSystemPrompt: (sessionId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.AGENT_CHAT_GET_SYSTEM_PROMPT, sessionId),
+  agentChatGetAllSessions: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_CHAT_GET_ALL_SESSIONS),
 
   // Inbox
   listInbox: () => ipcRenderer.invoke(IPC_CHANNELS.INBOX_LIST),

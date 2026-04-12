@@ -46,6 +46,7 @@ export const IPC_CHANNELS = {
   AGENT_CHAT_SEND: 'agent:chat-send',
   AGENT_CHAT_NEW: 'agent:chat-new',
   AGENT_CHAT_GET_SYSTEM_PROMPT: 'agent:chat-get-system-prompt',
+  AGENT_CHAT_GET_ALL_SESSIONS: 'agent:chat-get-all-sessions',
 
   // Inbox
   INBOX_LIST: 'inbox:list',
