@@ -232,6 +232,11 @@ export interface ElectronAPI {
   onVoiceDownloadProgress: (callback: (data: { modelName: string; progress: number }) => void) => () => void
   onVoiceTranscript: (callback: (data: { text: string; isFinal: boolean }) => void) => () => void
   onChatToolUse: (callback: (data: { sessionId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
+
+  // Personalization
+  getPersonalizationTopic: (topic: string) => Promise<{ success: boolean; content: string | null; error?: string }>
+  writePersonalizationTopic: (topic: string, content: string) => Promise<{ success: boolean; error?: string }>
+  summarizePersonalization: (sessionId: string, topic: string) => Promise<{ success: boolean; summary?: string; error?: string }>
 }
 
 interface ChatMessage {

@@ -16,6 +16,8 @@ import { WhisperManager, WHISPER_MODELS, type VoiceConfig } from '../whisper/Whi
 import { getToolMetas, DEFAULT_TOOLS_CONFIG } from '../agent/tools/index.js'
 import { VoiceCaptureService } from '../whisper/VoiceCaptureService.js'
 import { InboxThreadManager } from '../agent_vault/InboxThreadManager.js'
+import { PersonalizationManager, type PersonalizationTopic } from '../personalization/PersonalizationManager.js'
+import { PERSONALIZATION_OPENING_TRIGGERS } from '../agent/prompts.js'
 import {
   DEFAULT_PERSONA,
   DEFAULT_THREAD_PERSONA,
@@ -966,6 +968,16 @@ export function setupIpcHandlers(
           filePath
         )
         activeChatAgents.set(sessionId, agent)
+
+        // For a new personalization session, fire the fabricated opening trigger
+        // so the agent asks the first question. Only the agent's response is returned
+        // (openingMessage) — the fabricated user message is hidden from the UI.
+        if (contextType === 'personalization' && history.length === 0) {
+          const trigger = PERSONALIZATION_OPENING_TRIGGERS[contextKey] ?? `ask me about my ${contextKey}`
+          const { content } = await agent.send(trigger)
+          return { success: true, sessionId, history: [], openingMessage: content }
+        }
+
         return { success: true, sessionId, history }
       } catch (error) {
         return { success: false, error: (error as Error).message }
@@ -1317,6 +1329,37 @@ export function setupIpcHandlers(
     const vaultManager = getVaultManager()
     if (!vaultManager) return { totalDocuments: 0, totalTags: 0, avgTagsPerDoc: 0, topTags: [] }
     return buildStatsOverview(vaultManager.vaultPath)
+  })
+
+  // ── Personalization ─────────────────────────────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.PERSONALIZATION_GET_TOPIC, async (_, topic: PersonalizationTopic) => {
+    const vaultManager = getVaultManager()
+    if (!vaultManager) return { success: false, error: 'No vault initialized' }
+    const pm = new PersonalizationManager(vaultManager.vaultPath)
+    const content = await pm.getTopicContent(topic)
+    return { success: true, content }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PERSONALIZATION_WRITE_TOPIC, async (_, topic: PersonalizationTopic, content: string) => {
+    const vaultManager = getVaultManager()
+    if (!vaultManager) return { success: false, error: 'No vault initialized' }
+    const pm = new PersonalizationManager(vaultManager.vaultPath)
+    await pm.writeTopicContent(topic, content)
+    return { success: true }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PERSONALIZATION_SUMMARIZE, async (_, sessionId: string, topic: string) => {
+    const agent = activeChatAgents.get(sessionId)
+    if (!agent) return { success: false, error: 'Session not found' }
+    const userProfile = dbManager.getSetting('userProfile') as { name?: string } | null
+    const userName = userProfile?.name?.trim() || 'the user'
+    try {
+      const summary = await agent.summarize(topic, userName)
+      return { success: true, summary }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
   })
 
 }

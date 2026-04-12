@@ -84,6 +84,11 @@ export const IPC_CHANNELS = {
   // Vault reset
   VAULT_RESET: 'vault:reset',
 
+  // Personalization
+  PERSONALIZATION_GET_TOPIC: 'personalization:get-topic',
+  PERSONALIZATION_WRITE_TOPIC: 'personalization:write-topic',
+  PERSONALIZATION_SUMMARIZE: 'personalization:summarize',
+
   // App
   APP_GET_VERSION: 'app:get-version',
   USER_SELECT_IMAGE: 'user:select-image',

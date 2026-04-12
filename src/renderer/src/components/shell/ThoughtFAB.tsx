@@ -15,7 +15,7 @@ export function ThoughtFAB() {
   }
 
   return (
-    <div className="fixed bottom-28 right-6 z-40">
+    <div className="fixed bottom-28 right-6 z-30">
       <button
         onClick={handleNewThought}
         className={`

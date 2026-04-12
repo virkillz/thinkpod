@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, User, ScrollText, Clock, Calendar, Wrench, Puzzle, MessageCircle } from 'lucide-react'
+import { Bot, User, ScrollText, Clock, Calendar, Wrench, Puzzle, MessageCircle, Fingerprint } from 'lucide-react'
 import { ProfileTab } from './agents/ProfileTab.js'
 import { PromptsTab } from './agents/PromptsTab.js'
 import { TasksTab } from './agents/TasksTab.js'
@@ -7,11 +7,13 @@ import { SchedulesTab } from './agents/SchedulesTab.js'
 import { ToolsTab } from './agents/ToolsTab.js'
 import { SkillsTab } from './agents/SkillsTab.js'
 import { SessionsTab } from './agents/SessionsTab.js'
+import { PersonalizationTab } from './agents/PersonalizationTab.js'
 
-type Tab = 'profile' | 'prompts' | 'tasks' | 'schedules' | 'tools' | 'skills' | 'sessions'
+type Tab = 'profile' | 'prompts' | 'tasks' | 'schedules' | 'tools' | 'skills' | 'sessions' | 'personalization'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'profile', label: 'Profile', icon: User },
+  { id: 'personalization', label: 'Personalization', icon: Fingerprint },
   { id: 'prompts', label: 'Prompts', icon: ScrollText },
   { id: 'tasks', label: 'Tasks', icon: Clock },
   { id: 'schedules', label: 'Schedules', icon: Calendar },
@@ -54,6 +56,7 @@ export function AgentsView() {
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-6">
         {activeTab === 'profile' && <ProfileTab />}
+        {activeTab === 'personalization' && <PersonalizationTab />}
         {activeTab === 'prompts' && <PromptsTab />}
         {activeTab === 'tasks' && <TasksTab />}
         {activeTab === 'schedules' && <SchedulesTab />}

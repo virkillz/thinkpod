@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Send, RotateCcw, ScrollText, Wrench, AlertTriangle, MessageSquare } from 'lucide-react'
+import { X, Send, RotateCcw, ScrollText, Wrench, AlertTriangle, MessageSquare, Check, Loader2, StopCircle } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
 const TOOL_LABELS: Record<string, string> = {
@@ -32,7 +32,7 @@ function useExitAnimation(isOpen: boolean, duration: number = 200) {
 export interface AgentChatPanelProps {
   isOpen: boolean
   onClose: () => void
-  contextType: 'docs_review' | 'general_chat'
+  contextType: 'docs_review' | 'general_chat' | 'personalization'
   contextKey: string
   contextFilePath?: string
   onStatusChange?: (status: 'idle' | 'running' | 'error') => void
@@ -104,6 +104,11 @@ export function AgentChatPanel({
   const [currentTool, setCurrentTool] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Personalization: summarize flow
+  const [isSummarizing, setIsSummarizing] = useState(false)
+  const [summaryPreview, setSummaryPreview] = useState<string | null>(null)
+  const [isSavingSummary, setIsSavingSummary] = useState(false)
+
   // Track the context that was used to open the current session so we can
   // detect when the user switches documents while the panel is open.
   const openedContextKey = useRef<string | null>(null)
@@ -150,6 +155,21 @@ export function AgentChatPanel({
       const spResult = await window.electronAPI.agentChatGetSystemPrompt(result.sessionId)
       if (spResult.success && spResult.systemPrompt) {
         setSystemPrompt(spResult.systemPrompt)
+      }
+
+      // Personalization sessions return an openingMessage on first open —
+      // the fabricated user trigger was sent silently; show only the agent reply.
+      const openingMessage = (result as Record<string, unknown>).openingMessage as string | undefined
+      if (openingMessage) {
+        const openingMsg: UIMessage = {
+          id: Date.now().toString(),
+          role: 'agent',
+          content: openingMessage,
+          ts: Date.now(),
+        }
+        setMessages([openingMsg])
+        setIsSessionLoading(false)
+        return
       }
 
       // If there's an initial agent message and no history, send it to the agent
@@ -267,6 +287,31 @@ export function AgentChatPanel({
     const spResult = await window.electronAPI.agentChatGetSystemPrompt(result.sessionId)
     if (spResult.success && spResult.systemPrompt) {
       setSystemPrompt(spResult.systemPrompt)
+    }
+  }
+
+  const handleSummarize = async () => {
+    if (!sessionId) return
+    setIsSummarizing(true)
+    try {
+      const result = await window.electronAPI.summarizePersonalization(sessionId, contextKey)
+      if (result.success && result.summary) {
+        setSummaryPreview(result.summary)
+      }
+    } finally {
+      setIsSummarizing(false)
+    }
+  }
+
+  const handleSaveSummary = async () => {
+    if (!summaryPreview) return
+    setIsSavingSummary(true)
+    try {
+      await window.electronAPI.writePersonalizationTopic(contextKey, summaryPreview)
+      setSummaryPreview(null)
+      onClose()
+    } finally {
+      setIsSavingSummary(false)
     }
   }
 
@@ -450,6 +495,18 @@ export function AgentChatPanel({
               disabled={isSessionLoading || !sessionId}
               className="flex-1 px-3 py-2 bg-parchment-base rounded-lg border border-parchment-dark focus:outline-none focus:border-accent text-sm disabled:opacity-50"
             />
+            {contextType === 'personalization' && (
+              <button
+                onClick={handleSummarize}
+                disabled={isLoading || isSessionLoading || isSummarizing || messages.length === 0}
+                title="Finish and summarize to file"
+                className="p-2 bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 disabled:hover:scale-100"
+              >
+                {isSummarizing
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <StopCircle className="w-4 h-4" />}
+              </button>
+            )}
             <button
               onClick={handleSend}
               disabled={!input.trim() || isLoading || !sessionId}
@@ -460,6 +517,58 @@ export function AgentChatPanel({
           </div>
         </div>
       </div>
+      {/* Summary preview modal */}
+      {summaryPreview !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSummaryPreview(null)} />
+          <div className="relative bg-parchment-card rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[80vh]">
+            {/* Agent message bubble */}
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-start gap-3">
+                <img
+                  src={agentAvatar}
+                  alt={agentName}
+                  className="w-8 h-8 rounded-full object-cover border border-parchment-dark shrink-0 mt-0.5"
+                />
+                <div className="bg-parchment-sidebar rounded-2xl rounded-tl-md px-4 py-3 text-sm text-ink-primary leading-relaxed">
+                  I've wrapped up our conversation into a short profile. If it looks right to you, I can save it to{' '}
+                  <code className="bg-parchment-dark/60 px-1 py-0.5 rounded text-xs font-mono">
+                    .thinkpod/user_profile/{contextKey}.md
+                  </code>
+                  {' '}— or keep chatting to refine it.
+                </div>
+              </div>
+            </div>
+
+            {/* Summary content */}
+            <div className="flex-1 overflow-y-auto px-5 pb-4">
+              <pre className="text-sm text-ink-primary whitespace-pre-wrap leading-relaxed font-sans bg-parchment rounded-xl border border-parchment-dark p-4">
+                {summaryPreview}
+              </pre>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-parchment-dark">
+              <button
+                onClick={() => setSummaryPreview(null)}
+                className="px-4 py-2 rounded-lg text-sm text-ink-muted hover:text-ink-primary transition-colors"
+              >
+                Keep chatting
+              </button>
+              <button
+                onClick={handleSaveSummary}
+                disabled={isSavingSummary}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 disabled:opacity-50 transition-colors"
+              >
+                {isSavingSummary
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Check className="w-3.5 h-3.5" />}
+                Looks good, save it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

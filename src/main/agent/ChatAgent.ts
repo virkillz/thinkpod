@@ -6,10 +6,17 @@ import { getEnabledToolDefinitions, DEFAULT_TOOLS_CONFIG } from './ToolDefinitio
 import { ToolExecutor } from './ToolExecutor.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
 import type { ToolsConfig } from './tools/types.js'
-import { INVOCATION_DOCS_REVIEW, INVOCATION_GENERAL_CHAT, SYSTEM_PROMPT } from './prompts.js'
+import {
+  INVOCATION_DOCS_REVIEW,
+  INVOCATION_GENERAL_CHAT,
+  SYSTEM_PROMPT,
+  buildPersonalizationInvocationPrompt,
+  PERSONALIZATION_SUMMARIZE_PROMPT,
+} from './prompts.js'
 import { SkillRegistry } from './SkillRegistry.js'
+import { PersonalizationManager, type PersonalizationTopic } from '../personalization/PersonalizationManager.js'
 
-export type InvocationType = 'docs_review' | 'general_chat'
+export type InvocationType = 'docs_review' | 'general_chat' | 'personalization'
 
 export interface ChatAgentConfig {
   vaultPath: string
@@ -26,9 +33,11 @@ export interface ChatAgentConfig {
 export type OnToolUse = (toolName: string, args: Record<string, unknown>) => void
 
 // Default invocation prompt templates (text lives in prompts.ts)
+// personalization is always built dynamically — this is a placeholder only
 const DEFAULT_INVOCATION_PROMPTS: Record<InvocationType, string> = {
   docs_review: INVOCATION_DOCS_REVIEW,
   general_chat: INVOCATION_GENERAL_CHAT,
+  personalization: '',
 }
 
 const MAX_CHAT_ITERATIONS = 10
@@ -79,7 +88,7 @@ export class ChatAgent {
     const session = new ChatSession(ChatSession.sessionsDir(config.vaultPath), sessionId)
     const executor = new ToolExecutor({ vaultPath: config.vaultPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
 
-    const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextFilePath)
+    const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextKey, contextFilePath)
 
     const history = isNew ? [] : await session.readAll()
 
@@ -109,7 +118,7 @@ export class ChatAgent {
     await session.clear()
 
     const executor = new ToolExecutor({ vaultPath: config.vaultPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
-    const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextFilePath)
+    const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextKey, contextFilePath)
     const agent = new ChatAgent(
       new LLMClient(config.llmConfig),
       session,
@@ -203,6 +212,7 @@ export class ChatAgent {
   private static async buildSystemPrompt(
     config: ChatAgentConfig,
     contextType: InvocationType,
+    contextKey?: string,
     contextFilePath?: string
   ): Promise<string> {
     const templates = await ChatAgent.loadInvocationPrompts(config.dbManager)
@@ -219,6 +229,10 @@ export class ChatAgent {
       invocationPrompt = invocationPrompt
         .replace('{file_path}', fullPath)
         .replace('{file_content}', fileContent)
+    } else if (contextType === 'personalization' && contextKey) {
+      const pm = new PersonalizationManager(config.vaultPath)
+      const existingContent = await pm.getTopicContent(contextKey as PersonalizationTopic)
+      invocationPrompt = buildPersonalizationInvocationPrompt(contextKey, existingContent)
     }
 
     const registry = new SkillRegistry(config.vaultPath)
@@ -230,6 +244,24 @@ export class ChatAgent {
     return parts.join('\n')
   }
 
+  async summarize(topic: string, userName = 'the user'): Promise<string> {
+    const transcript = this.messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n\n')
+
+    const systemPrompt = PERSONALIZATION_SUMMARIZE_PROMPT
+      .replace(/{topic}/g, topic)
+      .replace(/{userName}/g, userName)
+    const summaryMessages: LLMMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Conversation:\n\n${transcript}` },
+    ]
+
+    const response = await this.client.chat(summaryMessages)
+    return response.content ?? ''
+  }
+
   private static async loadInvocationPrompts(
     dbManager: DatabaseManager
   ): Promise<Record<InvocationType, string>> {
@@ -237,6 +269,7 @@ export class ChatAgent {
     return {
       docs_review: saved?.docs_review ?? DEFAULT_INVOCATION_PROMPTS.docs_review,
       general_chat: saved?.general_chat ?? DEFAULT_INVOCATION_PROMPTS.general_chat,
+      personalization: '',
     }
   }
 

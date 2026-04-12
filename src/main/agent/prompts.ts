@@ -112,6 +112,71 @@ export const INVOCATION_GENERAL_CHAT = `The user is in a general conversation. N
 Answer questions, help with the vault, or discuss ideas.`
 
 // ---------------------------------------------------------------------------
+// Personalization — interview-style topic chat + summarization
+// ---------------------------------------------------------------------------
+
+export const PERSONALIZATION_TOPIC_LABELS: Record<string, string> = {
+  interests: 'interests',
+  values: 'values and beliefs',
+  career: 'career',
+  health: 'health',
+  family: 'family',
+}
+
+/**
+ * Fabricated first user message that triggers the agent's opening question.
+ * Sent silently — not shown in the UI.
+ */
+export const PERSONALIZATION_OPENING_TRIGGERS: Record<string, string> = {
+  interests: 'ask me about my interests in general — give me a list',
+  values: 'ask me about my values, political beliefs, and whether I am a religious person',
+  career: 'ask me where I am now in my career — am I working, studying, or building my own business',
+  health: 'ask me about my health in general — what do you need to know',
+  family: 'ask me about my family situation — am I single, engaged, or in a relationship',
+}
+
+/**
+ * Build the invocation prompt for a personalization session.
+ * If existingContent is provided, the agent asks follow-up questions instead of starting fresh.
+ */
+export function buildPersonalizationInvocationPrompt(
+  topic: string,
+  existingContent: string | null
+): string {
+  const topicLabel = PERSONALIZATION_TOPIC_LABELS[topic] ?? topic
+
+  const lines = [
+    `You are conducting a friendly interview to learn about the user's ${topicLabel}.`,
+    'Ask one question at a time. Wait for their answer before asking the next.',
+    'Be curious, warm, and conversational, but importantly, concise. Stay on topic. Avoid unnecessary extra commentary.',
+    'Do not suggest answers or fill in details yourself — let the user speak freely.',
+  ]
+
+  if (existingContent) {
+    lines.push(
+      '',
+      `Here is what we already know about this person's ${topicLabel}:`,
+      '---',
+      existingContent.trim(),
+      '---',
+      'Ask follow-up questions to deepen or update this information. Avoid repeating what is already known.'
+    )
+  }
+
+  return lines.join('\n')
+}
+
+/**
+ * System prompt for the one-shot summarization call.
+ * Placeholders: {topic}, {userName}
+ */
+export const PERSONALIZATION_SUMMARIZE_PROMPT =
+  `You are a note writer. Based on the conversation provided, write a clear, factual summary of what was learned about {userName}'s {topic}.\n` +
+  `Write using {userName}'s name directly (e.g. "{userName} enjoys hiking..."). Be specific and concrete — capture key facts, preferences, and details mentioned.\n` +
+  `Do not invent anything not mentioned.\n` +
+  `Return ONLY the markdown content — no headings, no code fences, no extra commentary.`
+
+// ---------------------------------------------------------------------------
 // AgentLoop.ts — agentic task system prompt (dynamic parts filled at runtime)
 // ---------------------------------------------------------------------------
 

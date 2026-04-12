@@ -76,6 +76,9 @@ const IPC_CHANNELS = {
   PUSH_VOICE_TRANSCRIPT: 'push:voice-transcript',
   GRAPH_GET_DATA: 'graph:get-data',
   STATS_GET_OVERVIEW: 'stats:get-overview',
+  PERSONALIZATION_GET_TOPIC: 'personalization:get-topic',
+  PERSONALIZATION_WRITE_TOPIC: 'personalization:write-topic',
+  PERSONALIZATION_SUMMARIZE: 'personalization:summarize',
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -217,4 +220,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Graph & Stats
   getGraphData: () => ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_DATA),
   getStatsOverview: () => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_OVERVIEW),
+
+  // Personalization
+  getPersonalizationTopic: (topic: string) => ipcRenderer.invoke(IPC_CHANNELS.PERSONALIZATION_GET_TOPIC, topic),
+  writePersonalizationTopic: (topic: string, content: string) => ipcRenderer.invoke(IPC_CHANNELS.PERSONALIZATION_WRITE_TOPIC, topic, content),
+  summarizePersonalization: (sessionId: string, topic: string) => ipcRenderer.invoke(IPC_CHANNELS.PERSONALIZATION_SUMMARIZE, sessionId, topic),
 })
