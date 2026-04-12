@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { FolderOpen, Loader2, Puzzle, RefreshCw } from 'lucide-react'
+import { useAppStore } from '../../../store/appStore.js'
 
 interface SkillMeta {
   name: string
@@ -8,6 +9,7 @@ interface SkillMeta {
 }
 
 export function SkillsTab() {
+  const { agentName } = useAppStore()
   const [skills, setSkills] = useState<SkillMeta[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -30,9 +32,9 @@ export function SkillsTab() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-ink-muted">
-            Skills extend Wilfred with domain-specific knowledge. Drop a{' '}
+            Skills extend {agentName} with domain-specific knowledge. Drop a{' '}
             <code className="text-xs bg-parchment-sidebar px-1 py-0.5 rounded">SKILL.md</code>{' '}
-            directory into the skills folder and Wilfred picks it up automatically.
+            directory into the skills folder and {agentName} picks it up automatically.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-4">

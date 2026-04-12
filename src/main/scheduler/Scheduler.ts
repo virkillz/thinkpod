@@ -193,7 +193,9 @@ export class Scheduler extends EventEmitter {
       throw new Error('LLM not configured')
     }
 
-    let persona = 'You are Wilfred, a diligent assistant in ThinkPod.'
+    const agentProfile = this.dbManager.getSetting('agentProfile') as { name?: string; systemPrompt?: string } | null
+    const agentName = agentProfile?.name ?? 'Wilfred'
+    let persona = `You are ${agentName}, a diligent assistant in ThinkPod.`
     try {
       const personaPath = path.join(this.vaultManager.vaultPath, '.thinkpod', 'wilfred.md')
       persona = await fs.readFile(personaPath, 'utf-8')

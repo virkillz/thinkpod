@@ -32,15 +32,15 @@ const DEFAULT_WIDGETS: WidgetConfig = {
   topTags: false,
 }
 
-const WIDGET_LABELS: Record<keyof WidgetConfig, { label: string; description: string; panel: 'main' | 'right' }> = {
-  wilfredObservation: { label: "Wilfred's Observation", description: 'A daily insight from your writing patterns', panel: 'main' },
+const getWidgetLabels = (agentName: string): Record<keyof WidgetConfig, { label: string; description: string; panel: 'main' | 'right' }> => ({
+  wilfredObservation: { label: `${agentName}'s Observation`, description: 'A daily insight from your writing patterns', panel: 'main' },
   quickCapture:       { label: 'Quick Capture',         description: 'Capture a thought without leaving the dashboard', panel: 'main' },
   onThisDay:          { label: 'On This Day',           description: 'A note you wrote on this date in a prior year', panel: 'right' },
   pickUp:             { label: 'Pick Up Where You Left Off', description: 'Your most recently created thought', panel: 'right' },
   unfinishedThoughts: { label: 'Unfinished Thoughts',   description: 'Dormant drafts worth revisiting', panel: 'right' },
   lastNotes:          { label: 'Last Notes',            description: 'Your 5 most recently modified notes', panel: 'right' },
   topTags:            { label: 'Top Tags',              description: 'Most frequently used tags in your vault', panel: 'right' },
-}
+})
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -85,9 +85,12 @@ export function DashboardView() {
     unreadInbox,
     setUnreadInbox,
     setAgentChatOpen,
+    setInitialAgentMessage,
     setCurrentView,
     setSelectedFile,
   } = useAppStore()
+
+  const WIDGET_LABELS = getWidgetLabels(agentName)
 
   // Wilfred observation
   const [obsText, setObsText] = useState<string | null>(null)
@@ -312,7 +315,10 @@ export function DashboardView() {
               agentName={agentName}
               obsLoading={obsLoading}
               obsText={obsText}
-              onExplore={() => setAgentChatOpen(true)}
+              onExplore={(observationText) => {
+                setInitialAgentMessage(observationText)
+                setAgentChatOpen(true)
+              }}
             />
           )}
 

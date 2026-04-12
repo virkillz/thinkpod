@@ -14,14 +14,14 @@ export function WidgetToggleRow({ label, description, enabled, onToggle }: Widge
       </div>
       <button
         onClick={onToggle}
-        className={`relative w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 mt-0.5
+        className={`relative w-10 h-5 rounded-full flex-shrink-0 transition-colors duration-200 mt-0.5
                     ${enabled ? 'bg-accent' : 'bg-parchment-dark'}`}
         role="switch"
         aria-checked={enabled}
       >
         <span
           className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200
-                      ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`}
+                      ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`}
         />
       </button>
     </div>

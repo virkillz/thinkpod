@@ -230,7 +230,7 @@ export class AgentLoop {
       function: {
         name: 'write_inbox',
         arguments: JSON.stringify({
-          title: 'Response from Wilfred',
+          title: 'Response from Agent',
           content,
           type: 'insight',
           source_files: [],

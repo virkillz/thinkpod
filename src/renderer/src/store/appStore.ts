@@ -63,6 +63,8 @@ interface AppState {
   isAgentChatOpen: boolean
   toggleAgentChat: () => void
   setAgentChatOpen: (open: boolean) => void
+  initialAgentMessage: string | null
+  setInitialAgentMessage: (message: string | null) => void
 
   // User Profile
   userProfile: UserProfile
@@ -144,6 +146,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAgentChatOpen: false,
   toggleAgentChat: () => set((state) => ({ isAgentChatOpen: !state.isAgentChatOpen })),
   setAgentChatOpen: (open) => set({ isAgentChatOpen: open }),
+  initialAgentMessage: null,
+  setInitialAgentMessage: (message) => set({ initialAgentMessage: message }),
 
   // User Profile
   userProfile: { name: 'Chief', bio: '', avatarDataUrl: null },

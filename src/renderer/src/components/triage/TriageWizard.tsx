@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { X, Loader2, Check, ChevronRight, Tag, FolderOpen, FileText } from 'lucide-react'
 import { MarkdownPreview } from '../codex/MarkdownPreview.js'
 import type { NoteTemplate } from '@main/vault/noteTemplates.js'
+import { useAppStore } from '../../store/appStore.js'
 import wilfredAvatar from '../../assets/avatar01.png'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -179,6 +180,7 @@ function applyFrontmatter(
 // ─── TriageWizard ─────────────────────────────────────────────────────────────
 
 export function TriageWizard({ fileName, filePath, content: initialContent, onClose, onDone }: TriageWizardProps) {
+  const { agentName, agentAvatar } = useAppStore()
   const [templates, setTemplates] = useState<NoteTemplate[]>([])
   const [analyzingLine] = useState(() => ANALYZING_LINES[Math.floor(Math.random() * ANALYZING_LINES.length)])
   const [reformattingLine] = useState(() => REFORMATTING_LINES[Math.floor(Math.random() * REFORMATTING_LINES.length)])
@@ -390,12 +392,12 @@ export function TriageWizard({ fileName, filePath, content: initialContent, onCl
 
       <div className="relative flex items-end gap-5 w-full max-w-3xl">
 
-        {/* Wilfred avatar */}
+        {/* Agent avatar */}
         <div className="relative flex-shrink-0 flex flex-col items-center gap-2 mb-2 z-10">
           <div className="w-20 h-20 rounded-full overflow-hidden shadow-lg ring-4 ring-accent/20 animate-breathe">
-            <img src={wilfredAvatar} alt="Wilfred" className="w-full h-full object-cover" />
+            <img src={agentAvatar || wilfredAvatar} alt={agentName} className="w-full h-full object-cover" />
           </div>
-          <span className="text-xs text-ink-muted font-medium tracking-wide">Wilfred</span>
+          <span className="text-xs text-ink-muted font-medium tracking-wide">{agentName}</span>
         </div>
 
         {/* Speech bubble */}

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Send, Trash2, ScrollText, Wrench, AlertTriangle } from 'lucide-react'
+import { X, Send, RotateCcw, ScrollText, Wrench, AlertTriangle, MessageSquare } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
-import avatar01 from '../../assets/avatar01.png'
 
 const TOOL_LABELS: Record<string, string> = {
   read_file: 'Reading file',
@@ -94,7 +93,7 @@ export function AgentChatPanel({
   contextFilePath,
   onStatusChange,
 }: AgentChatPanelProps) {
-  const { agentName, userProfile } = useAppStore()
+  const { agentName, agentAvatar, initialAgentMessage, setInitialAgentMessage, setCurrentView } = useAppStore()
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -135,27 +134,76 @@ export function AgentChatPanel({
 
       // Restore history from JSONL — chat bubbles + failed tool calls as inline indicators
       const history = result.history ?? []
-      setMessages(
-        history
-          .filter(m => m.role === 'user' || m.role === 'assistant' || (m.role === 'tool_result' && m.toolSuccess === false))
-          .map(m => ({
-            id: `${m.ts}-${m.role}`,
-            role: m.role === 'user' ? 'user' : m.role === 'tool_result' ? 'tool_error' : 'agent',
-            content: m.content,
-            ts: m.ts,
-            toolName: m.toolName,
-          }))
-      )
+      const historyMessages: UIMessage[] = history
+        .filter(m => m.role === 'user' || m.role === 'assistant' || (m.role === 'tool_result' && m.toolSuccess === false))
+        .map(m => ({
+          id: `${m.ts}-${m.role}`,
+          role: (m.role === 'user' ? 'user' : m.role === 'tool_result' ? 'tool_error' : 'agent') as 'user' | 'agent' | 'tool_error',
+          content: m.content,
+          ts: m.ts,
+          toolName: m.toolName,
+        }))
+
+      setMessages(historyMessages)
 
       // Pre-fetch system prompt for the view button
       const spResult = await window.electronAPI.agentChatGetSystemPrompt(result.sessionId)
       if (spResult.success && spResult.systemPrompt) {
         setSystemPrompt(spResult.systemPrompt)
       }
+
+      // If there's an initial agent message and no history, send it to the agent
+      if (initialAgentMessage && historyMessages.length === 0) {
+        setInitialAgentMessage(null)
+        setIsSessionLoading(false)
+        
+        // Send the observation as a user message to give agent context
+        const userMsg: UIMessage = { 
+          id: Date.now().toString(), 
+          role: 'user', 
+          content: `I'd like to explore this observation you made: "${initialAgentMessage}"`, 
+          ts: Date.now() 
+        }
+        setMessages([userMsg])
+        setIsLoading(true)
+        onStatusChange?.('running')
+
+        try {
+          const sendResult = await window.electronAPI.agentChatSend(result.sessionId, userMsg.content)
+          setCurrentTool(null)
+          const agentMsg: UIMessage = {
+            id: (Date.now() + 1).toString(),
+            role: 'agent',
+            content: sendResult.success && sendResult.content
+              ? sendResult.content
+              : sendResult.error ?? 'I was unable to respond. Please check the LLM configuration.',
+            ts: Date.now(),
+          }
+          const errorMsgs: UIMessage[] = (sendResult.toolErrors ?? []).map(e => ({
+            id: `${e.ts}-tool_error`,
+            role: 'tool_error',
+            content: e.error,
+            ts: e.ts,
+            toolName: e.toolName,
+          }))
+          setMessages([userMsg, agentMsg, ...errorMsgs])
+          onStatusChange?.('idle')
+        } catch {
+          setCurrentTool(null)
+          setMessages(prev => [
+            ...prev,
+            { id: (Date.now() + 1).toString(), role: 'agent', content: 'Something went wrong.', ts: Date.now() },
+          ])
+          onStatusChange?.('error')
+        } finally {
+          setIsLoading(false)
+        }
+        return
+      }
     } finally {
       setIsSessionLoading(false)
     }
-  }, [contextType, contextKey, contextFilePath])
+  }, [contextType, contextKey, contextFilePath, initialAgentMessage, setInitialAgentMessage, onStatusChange])
 
   useEffect(() => {
     if (!isOpen) return
@@ -255,7 +303,7 @@ export function AgentChatPanel({
         <div className="flex items-center justify-between px-4 py-3 bg-accent text-white">
           <div className="flex items-center gap-2">
             <img
-              src={userProfile.avatarDataUrl || avatar01}
+              src={agentAvatar}
               alt={agentName}
               className="w-7 h-7 rounded-full object-cover border border-white/30"
             />
@@ -267,6 +315,17 @@ export function AgentChatPanel({
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {/* View all sessions */}
+            <button
+              onClick={() => {
+                setCurrentView('agents')
+                onClose()
+              }}
+              title="View all sessions"
+              className="p-1.5 hover:bg-white/20 rounded-md transition-all duration-200"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
             {/* View system prompt */}
             <button
               onClick={() => setShowSystemPrompt(true)}
@@ -280,10 +339,10 @@ export function AgentChatPanel({
             <button
               onClick={handleClearSession}
               disabled={isLoading || isSessionLoading}
-              title="Clear conversation"
+              title="Start new conversation"
               className="p-1.5 hover:bg-white/20 rounded-md transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              <Trash2 className="w-4 h-4" />
+              <RotateCcw className="w-4 h-4" />
             </button>
             {/* Close */}
             <button

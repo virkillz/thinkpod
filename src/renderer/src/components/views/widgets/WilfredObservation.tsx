@@ -6,7 +6,7 @@ interface WilfredObservationProps {
   agentName: string
   obsLoading: boolean
   obsText: string | null
-  onExplore: () => void
+  onExplore: (observationText: string) => void
 }
 
 const THINKING_MESSAGES = [
@@ -32,7 +32,7 @@ export function WilfredObservation({ agentName, obsLoading, obsText, onExplore }
   }, [obsLoading])
 
   return (
-    <section className="relative bg-parchment-light border-l-4 border-accent rounded-r-lg p-5 shadow-sm">
+    <section className="relative bg-parchment-light rounded-r-lg py-5 shadow-sm">
       <div className="flex items-start gap-4">
         <div className="flex-shrink-0">
           <img 
@@ -63,7 +63,7 @@ export function WilfredObservation({ agentName, obsLoading, obsText, onExplore }
                 "{obsText}"
               </blockquote>
               <button
-                onClick={onExplore}
+                onClick={() => onExplore(obsText)}
                 className="mt-4 inline-flex items-center gap-1.5 text-sm text-accent hover:text-accent-hover transition-colors font-sans font-medium"
               >
                 Explore this <ArrowRight className="w-3.5 h-3.5" />
