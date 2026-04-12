@@ -32,16 +32,19 @@ export class VaultIndexer {
 
   async indexFile(relativePath: string): Promise<void> {
     const fullPath = path.join(this.vaultPath, relativePath)
-    
+
     try {
-      const content = await fs.readFile(fullPath, 'utf-8')
+      const [content, stat] = await Promise.all([
+        fs.readFile(fullPath, 'utf-8'),
+        fs.stat(fullPath),
+      ])
       const title = this.extractTitle(content, relativePath)
-      const folder = relativePath.includes('/') 
-        ? relativePath.slice(0, relativePath.lastIndexOf('/')) 
+      const folder = relativePath.includes('/')
+        ? relativePath.slice(0, relativePath.lastIndexOf('/'))
         : ''
       const wordCount = this.countWords(content)
 
-      this.dbManager.indexFile(relativePath, title, content, folder, wordCount)
+      this.dbManager.indexFile(relativePath, title, content, folder, wordCount, '', stat.mtimeMs)
     } catch (error) {
       throw new Error(`Failed to index file ${relativePath}: ${(error as Error).message}`)
     }

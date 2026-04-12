@@ -569,9 +569,10 @@ export class DatabaseManager {
   }
 
   // Index or update file in search index
-  indexFile(path: string, title: string, content: string, folder: string, wordCount: number, tags: string = ''): void {
+  indexFile(path: string, title: string, content: string, folder: string, wordCount: number, tags: string = '', modifiedAt?: number): void {
     const now = Date.now()
-    
+    const fileModifiedAt = modifiedAt ?? now
+
     this.db.transaction(() => {
       // Update or insert into files table
       this.db.prepare(`
@@ -584,7 +585,7 @@ export class DatabaseManager {
           word_count = excluded.word_count,
           tags = excluded.tags,
           content = excluded.content
-      `).run(path, title, folder, now, now, wordCount, tags, content)
+      `).run(path, title, folder, now, fileModifiedAt, wordCount, tags, content)
 
       // Update FTS index (FTS5 virtual tables don't support upsert — delete then insert)
       this.db.prepare('DELETE FROM files_fts WHERE path = ?').run(path)

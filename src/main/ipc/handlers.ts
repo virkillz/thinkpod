@@ -532,6 +532,11 @@ export function setupIpcHandlers(
     }
   })
 
+  // Files: Get Recent
+  ipcMain.handle(IPC_CHANNELS.FILES_GET_RECENT, async (_, limit: number = 5) => {
+    return dbManager.getRecentFiles(limit)
+  })
+
   // Settings: Get
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, async (_, key: string) => {
     return dbManager.getSetting(key)
@@ -679,7 +684,8 @@ export function setupIpcHandlers(
     }
 
     const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; avatar?: string; systemPrompt?: string } | null
-    const persona = agentProfile?.systemPrompt ?? 'You are Wilfred, a thoughtful friend who loves brainstorming and exploring ideas together.'
+    const agentName = agentProfile?.name ?? 'Wilfred'
+    const persona = (agentProfile?.systemPrompt ?? DEFAULT_PERSONA).replace(/{agentName}/g, agentName)
 
     const toolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
 
@@ -720,7 +726,8 @@ export function setupIpcHandlers(
     }
 
     const agentProfileChat = dbManager.getSetting('agentProfile') as { name?: string; avatar?: string; systemPrompt?: string } | null
-    const persona = agentProfileChat?.systemPrompt ?? DEFAULT_PERSONA
+    const agentName = agentProfileChat?.name ?? 'Wilfred'
+    const persona = (agentProfileChat?.systemPrompt ?? DEFAULT_PERSONA).replace(/{agentName}/g, agentName)
 
     try {
       const client = new LLMClient(llmConfig)
@@ -965,9 +972,10 @@ export function setupIpcHandlers(
       const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
-      const agentProfile = dbManager.getSetting('agentProfile') as { systemPrompt?: string } | null
+      const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; systemPrompt?: string } | null
       const userProfile = dbManager.getSetting('userProfile') as { name?: string; bio?: string } | null
-      const basePersona = agentProfile?.systemPrompt ?? 'You are a thoughtful friend who loves brainstorming and exploring ideas together.'
+      const agentName = agentProfile?.name ?? 'Wilfred'
+      const basePersona = (agentProfile?.systemPrompt ?? DEFAULT_PERSONA).replace(/{agentName}/g, agentName)
       const userName = userProfile?.name?.trim()
       const userBio = userProfile?.bio?.trim()
       const userContext = userName
@@ -1017,9 +1025,10 @@ export function setupIpcHandlers(
       const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
-      const agentProfile = dbManager.getSetting('agentProfile') as { systemPrompt?: string } | null
+      const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; systemPrompt?: string } | null
       const userProfile = dbManager.getSetting('userProfile') as { name?: string; bio?: string } | null
-      const basePersona = agentProfile?.systemPrompt ?? 'You are a thoughtful friend who loves brainstorming and exploring ideas together.'
+      const agentName = agentProfile?.name ?? 'Wilfred'
+      const basePersona = (agentProfile?.systemPrompt ?? DEFAULT_PERSONA).replace(/{agentName}/g, agentName)
       const userName = userProfile?.name?.trim()
       const userBio = userProfile?.bio?.trim()
       const userContext = userName
@@ -1172,6 +1181,7 @@ export function setupIpcHandlers(
     const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; systemPrompt?: string } | null
     const userProfile = dbManager.getSetting('userProfile') as { name?: string } | null
     const userName = userProfile?.name?.trim()
+    const agentName = agentProfile?.name ?? 'Wilfred'
 
     const threadManager = new InboxThreadManager(path.join(abbey.vaultPath, '_inbox'))
 
@@ -1186,7 +1196,7 @@ export function setupIpcHandlers(
       .map((m) => `${m.role === 'agent' ? agentProfile?.name ?? 'Agent' : userName ?? 'Human'}: ${m.content}`)
       .join('\n\n')
 
-    const persona = agentProfile?.systemPrompt ?? DEFAULT_THREAD_PERSONA
+    const persona = (agentProfile?.systemPrompt ?? DEFAULT_THREAD_PERSONA).replace(/{agentName}/g, agentName)
 
     // 3. Call LLM for response
     try {

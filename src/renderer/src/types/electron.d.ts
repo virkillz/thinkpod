@@ -13,6 +13,7 @@ export interface ElectronAPI {
   writeFile: (path: string, content: string) => Promise<{ success: boolean }>
   moveFile: (from: string, to: string) => Promise<{ success: boolean }>
   deleteFile: (path: string) => Promise<{ success: boolean }>
+  getRecentFiles: (limit?: number) => Promise<Array<{ path: string; title: string; modified_at: number; word_count: number }>>
   searchFiles: (query: string) => Promise<{
     success: boolean
     results: Array<{

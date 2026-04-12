@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   FILES_MOVE: 'files:move',
   FILES_DELETE: 'files:delete',
   FILES_SEARCH: 'files:search',
+  FILES_GET_RECENT: 'files:get-recent',
 
   // Comments
   COMMENTS_GET: 'comments:get',

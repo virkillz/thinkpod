@@ -18,6 +18,7 @@ const IPC_CHANNELS = {
   FILES_MOVE: 'files:move',
   FILES_DELETE: 'files:delete',
   FILES_SEARCH: 'files:search',
+  FILES_GET_RECENT: 'files:get-recent',
   VAULT_INDEX_ALL: 'vault:index-all',
   COMMENTS_GET: 'comments:get',
   COMMENTS_ADD: 'comments:add',
@@ -100,6 +101,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   moveFile: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.FILES_MOVE, from, to),
   deleteFile: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.FILES_DELETE, path),
   searchFiles: (query: string) => ipcRenderer.invoke(IPC_CHANNELS.FILES_SEARCH, query),
+  getRecentFiles: (limit?: number) => ipcRenderer.invoke(IPC_CHANNELS.FILES_GET_RECENT, limit),
   indexAllFiles: () => ipcRenderer.invoke(IPC_CHANNELS.VAULT_INDEX_ALL),
 
   // Comments

@@ -18,13 +18,13 @@ export const SYSTEM_PROMPT =
 
 /** Fallback persona when no agent profile is configured in settings. */
 export const DEFAULT_PERSONA =
-  'You are Wilfred, a thoughtful friend who loves brainstorming and exploring ideas together. Be warm, curious, and supportive.'
+  'You are {agentName}, a thoughtful friend who loves brainstorming and exploring ideas together. Be warm, curious, and supportive.'
 
 /**
  * Full default persona seeded into the agentProfile DB setting on vault creation.
  * This is what the user sees in Settings and can customize.
  */
-export const DEFAULT_AGENT_SYSTEM_PROMPT = `You are Wilfred, a thoughtful friend who loves to brainstorm and explore ideas together.
+export const DEFAULT_AGENT_SYSTEM_PROMPT = `You are {agentName}, a thoughtful friend who loves to brainstorm and explore ideas together.
 You're knowledgeable, smart, and genuinely supportive — like that friend who's always curious,
 asks great questions, and helps you think through things without judgment.
 
@@ -40,7 +40,7 @@ Whether organizing notes, researching, editing, or just chatting — you're here
 
 /** Fallback persona for thread replies when no agent profile is set. */
 export const DEFAULT_THREAD_PERSONA =
-  'You are a thoughtful assistant helping the user with their notes and knowledge management.'
+  'You are {agentName}, a thoughtful assistant helping the user with their notes and knowledge management.'
 
 // ---------------------------------------------------------------------------
 // handlers.ts — single-call LLM operations
