@@ -37,7 +37,7 @@ interface AppState {
   setVault: (vault: VaultInfo | null) => void
 
   // Navigation
-  currentView: 'dashboard' | 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought' | 'about'
+  currentView: 'dashboard' | 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought' | 'about' | 'search' | 'graph'
   setCurrentView: (view: AppState['currentView']) => void
 
   // Files

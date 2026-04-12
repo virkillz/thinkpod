@@ -2,6 +2,7 @@ import { ipcMain, dialog, app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 import fs from 'fs/promises'
 import { IPC_CHANNELS } from './channels.js'
+import { buildGraphData, buildStatsOverview } from '../vault/MarkdownParser.js'
 import { DatabaseManager } from '../database/DatabaseManager.js'
 import { SkillRegistry } from '../agent/SkillRegistry.js'
 import type { VaultManager } from '../vault/VaultManager.js'
@@ -389,6 +390,23 @@ export function setupIpcHandlers(
     }
   })
 
+  // Vault: Index all files
+  ipcMain.handle(IPC_CHANNELS.VAULT_INDEX_ALL, async () => {
+    const abbey = getVaultManager()
+    if (!abbey) {
+      return { success: false, error: 'No vault initialized' }
+    }
+
+    try {
+      const { VaultIndexer } = await import('../vault/VaultIndexer.js')
+      const indexer = new VaultIndexer(abbey.vaultPath, dbManager)
+      const result = await indexer.indexAllFiles()
+      return { success: true, ...result }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Files: List directory
   ipcMain.handle(IPC_CHANNELS.FILES_LIST, async (_, dirPath: string) => {
     const abbey = getVaultManager()
@@ -436,6 +454,16 @@ export function setupIpcHandlers(
     const fullPath = path.join(abbey.vaultPath, filePath)
     await fs.mkdir(path.dirname(fullPath), { recursive: true })
     await fs.writeFile(fullPath, content, 'utf-8')
+    
+    // Index the file for search
+    try {
+      const { VaultIndexer } = await import('../vault/VaultIndexer.js')
+      const indexer = new VaultIndexer(abbey.vaultPath, dbManager)
+      await indexer.indexFile(filePath)
+    } catch (error) {
+      console.error(`Failed to index file ${filePath}:`, error)
+    }
+    
     return { success: true }
   })
 
@@ -486,6 +514,21 @@ export function setupIpcHandlers(
       return { success: true }
     } catch (error) {
       return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Files: Search
+  ipcMain.handle(IPC_CHANNELS.FILES_SEARCH, async (_, query: string) => {
+    const abbey = getVaultManager()
+    if (!abbey) {
+      throw new Error('No vault initialized')
+    }
+
+    try {
+      const results = dbManager.searchFiles(query, 50)
+      return { success: true, results }
+    } catch (error) {
+      return { success: false, error: (error as Error).message, results: [] }
     }
   })
 
@@ -1266,6 +1309,20 @@ export function setupIpcHandlers(
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }
+  })
+
+  // ── Graph & Stats ──────────────────────────────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.GRAPH_GET_DATA, async () => {
+    const vaultManager = getVaultManager()
+    if (!vaultManager) return { nodes: [], links: [] }
+    return buildGraphData(vaultManager.vaultPath)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.STATS_GET_OVERVIEW, async () => {
+    const vaultManager = getVaultManager()
+    if (!vaultManager) return { totalDocuments: 0, totalTags: 0, avgTagsPerDoc: 0, topTags: [] }
+    return buildStatsOverview(vaultManager.vaultPath)
   })
 
   // ── Cognitive Jobs ─────────────────────────────────────────────────────────

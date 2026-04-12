@@ -1,13 +1,14 @@
-import { useState } from 'react'
-import { Info, HelpCircle, Server, Github, ExternalLink, BookOpen, MessageCircle, Brain, Shield, Zap, Cloud, Laptop, Copy, Check, Keyboard } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Info, HelpCircle, Server, Github, ExternalLink, BookOpen, MessageCircle, Brain, Shield, Zap, Cloud, Laptop, Copy, Check, Keyboard, BarChart2 } from 'lucide-react'
 
-type AboutTab = 'about' | 'faq' | 'providers' | 'shortcuts'
+type AboutTab = 'about' | 'faq' | 'providers' | 'shortcuts' | 'stats'
 
 const TABS: { id: AboutTab; label: string; icon: React.ElementType }[] = [
   { id: 'about', label: 'About', icon: Info },
   { id: 'faq', label: 'FAQ', icon: HelpCircle },
   { id: 'providers', label: 'Providers', icon: Server },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
+  { id: 'stats', label: 'Stats', icon: BarChart2 },
 ]
 
 function AboutTab() {
@@ -314,6 +315,87 @@ function ShortcutsTab() {
   )
 }
 
+// ─── Stats Tab ────────────────────────────────────────────────────────────────
+
+function StatsTab() {
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<{
+    totalDocuments: number
+    totalTags: number
+    avgTagsPerDoc: number
+    topTags: Array<{ tag: string; count: number }>
+  } | null>(null)
+
+  useEffect(() => {
+    window.electronAPI.getStatsOverview().then((data) => {
+      setStats(data)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto flex items-center justify-center h-48">
+        <p className="text-ink-muted text-sm animate-pulse">Loading stats…</p>
+      </div>
+    )
+  }
+
+  if (!stats) return null
+
+  const maxCount = stats.topTags[0]?.count ?? 1
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-8">
+      <div className="text-center space-y-2">
+        <h2 className="text-2xl font-serif font-semibold text-ink-primary">Vault Statistics</h2>
+        <p className="text-ink-muted">An overview of your knowledge base</p>
+      </div>
+
+      {/* Overview cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {[
+          { label: 'Documents', value: stats.totalDocuments },
+          { label: 'Unique Tags', value: stats.totalTags },
+          { label: 'Avg Tags / Doc', value: stats.avgTagsPerDoc.toFixed(1) },
+        ].map(({ label, value }) => (
+          <div key={label} className="p-5 rounded-xl bg-parchment-card border border-parchment-dark text-center">
+            <p className="text-3xl font-serif font-bold text-accent">{value}</p>
+            <p className="text-sm text-ink-muted mt-1">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Top tags */}
+      {stats.topTags.length > 0 ? (
+        <section className="space-y-4">
+          <h3 className="text-lg font-serif font-semibold text-ink-primary flex items-center gap-2">
+            <BarChart2 className="w-5 h-5 text-accent" /> Top Tags
+          </h3>
+          <div className="space-y-2">
+            {stats.topTags.map(({ tag, count }) => (
+              <div key={tag} className="flex items-center gap-3">
+                <span className="w-36 text-sm text-ink-secondary truncate text-right">{tag}</span>
+                <div className="flex-1 h-2 rounded-full bg-parchment-dark overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-accent transition-all"
+                    style={{ width: `${(count / maxCount) * 100}%` }}
+                  />
+                </div>
+                <span className="w-8 text-xs text-ink-faint text-right">{count}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <div className="text-center p-8 rounded-xl bg-parchment-card border border-parchment-dark">
+          <p className="text-ink-muted text-sm">No tags found. Add <code className="text-accent">tags:</code> frontmatter to your notes.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function AboutView() {
@@ -345,6 +427,7 @@ export function AboutView() {
             {activeTab === 'faq' && <FAQTab />}
             {activeTab === 'providers' && <ProvidersTab />}
             {activeTab === 'shortcuts' && <ShortcutsTab />}
+            {activeTab === 'stats' && <StatsTab />}
           </div>
         </div>
       </div>

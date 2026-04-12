@@ -1,9 +1,9 @@
-import { BookOpen, Mail, Inbox, Bot, Settings, Menu, X, Info, Home } from 'lucide-react'
+import { BookOpen, Mail, Inbox, Bot, Settings, Menu, X, Info, Home, Search, GitFork } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 import { FileTree } from '../codex/FileTree.js'
 
 type NavItem = {
-  id: 'dashboard' | 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought' | 'about'
+  id: 'dashboard' | 'notes' | 'inbox' | 'thoughts' | 'agents' | 'settings' | 'newthought' | 'about' | 'search' | 'graph'
   label: string
   icon: React.ElementType
   badge?: number
@@ -11,8 +11,10 @@ type NavItem = {
 
 const mainNavItems: NavItem[] = [
   { id: 'dashboard', label: 'Home', icon: Home },
-  { id: 'inbox', label: 'Inbox', icon: Mail, badge: 0 },
   { id: 'thoughts', label: 'Thoughts', icon: Inbox },
+  { id: 'inbox', label: 'Inbox', icon: Mail, badge: 0 },
+  { id: 'search', label: 'Search', icon: Search },
+  { id: 'graph', label: 'Graph', icon: GitFork },
   { id: 'notes', label: 'Notes', icon: BookOpen },
 ]
 

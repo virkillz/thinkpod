@@ -10,6 +10,8 @@ import { NewThoughtView } from '../views/NewThoughtView.js'
 import { AgentsView } from '../views/AgentsView.js'
 import { SettingsView } from '../views/SettingsView.js'
 import { AboutView } from '../views/AboutView.js'
+import { SearchView } from '../views/SearchView.js'
+import { GraphView } from '../views/GraphView.js'
 import { AgentFAB } from './AgentFAB.js'
 import { ThoughtFAB } from './ThoughtFAB.js'
 
@@ -46,6 +48,13 @@ export function MainShell() {
         return
       }
       
+      // Search: Cmd/Ctrl+K
+      if (isMod && e.key === 'k') {
+        e.preventDefault()
+        setCurrentView('search')
+        return
+      }
+      
       // Toggle Sidebar: Cmd/Ctrl+B
       if (isMod && e.key === 'b') {
         e.preventDefault()
@@ -76,12 +85,16 @@ export function MainShell() {
         return <ThoughtsView />
       case 'newthought':
         return <NewThoughtView />
+      case 'search':
+        return <SearchView />
       case 'agents':
         return <AgentsView />
       case 'settings':
         return <SettingsView />
       case 'about':
         return <AboutView />
+      case 'graph':
+        return <GraphView />
       default:
         return <DashboardView />
     }

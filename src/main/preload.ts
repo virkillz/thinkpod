@@ -17,6 +17,8 @@ const IPC_CHANNELS = {
   FILES_WRITE: 'files:write',
   FILES_MOVE: 'files:move',
   FILES_DELETE: 'files:delete',
+  FILES_SEARCH: 'files:search',
+  VAULT_INDEX_ALL: 'vault:index-all',
   COMMENTS_GET: 'comments:get',
   COMMENTS_ADD: 'comments:add',
   COMMENTS_DISMISS: 'comments:dismiss',
@@ -76,6 +78,8 @@ const IPC_CHANNELS = {
   COGNITIVE_JOB_TOGGLE: 'cognitive:toggle',
   COGNITIVE_JOB_EDIT_SCHEDULE: 'cognitive:edit-schedule',
   PUSH_COGNITIVE_JOB_PROGRESS: 'push:cognitive-job-progress',
+  GRAPH_GET_DATA: 'graph:get-data',
+  STATS_GET_OVERVIEW: 'stats:get-overview',
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -95,6 +99,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFile: (path: string, content: string) => ipcRenderer.invoke(IPC_CHANNELS.FILES_WRITE, path, content),
   moveFile: (from: string, to: string) => ipcRenderer.invoke(IPC_CHANNELS.FILES_MOVE, from, to),
   deleteFile: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.FILES_DELETE, path),
+  searchFiles: (query: string) => ipcRenderer.invoke(IPC_CHANNELS.FILES_SEARCH, query),
+  indexAllFiles: () => ipcRenderer.invoke(IPC_CHANNELS.VAULT_INDEX_ALL),
 
   // Comments
   getComments: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.COMMENTS_GET, filePath),
@@ -219,4 +225,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(IPC_CHANNELS.PUSH_COGNITIVE_JOB_PROGRESS, (_, data) => callback(data))
     return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_COGNITIVE_JOB_PROGRESS)
   },
+
+  // Graph & Stats
+  getGraphData: () => ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_DATA),
+  getStatsOverview: () => ipcRenderer.invoke(IPC_CHANNELS.STATS_GET_OVERVIEW),
 })

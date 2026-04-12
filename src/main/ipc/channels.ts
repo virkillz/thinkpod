@@ -5,6 +5,7 @@ export const IPC_CHANNELS = {
   VAULT_INIT: 'vault:init',
   VAULT_GET_INFO: 'vault:get-info',
   VAULT_SELECT_FOLDER: 'vault:select-folder',
+  VAULT_INDEX_ALL: 'vault:index-all',
 
   // Files
   FILES_LIST: 'files:list',
@@ -12,6 +13,7 @@ export const IPC_CHANNELS = {
   FILES_WRITE: 'files:write',
   FILES_MOVE: 'files:move',
   FILES_DELETE: 'files:delete',
+  FILES_SEARCH: 'files:search',
 
   // Comments
   COMMENTS_GET: 'comments:get',
@@ -80,6 +82,10 @@ export const IPC_CHANNELS = {
   COGNITIVE_JOB_TOGGLE: 'cognitive:toggle',
   COGNITIVE_JOB_EDIT_SCHEDULE: 'cognitive:edit-schedule',
   PUSH_COGNITIVE_JOB_PROGRESS: 'push:cognitive-job-progress',
+
+  // Graph & Stats
+  GRAPH_GET_DATA: 'graph:get-data',
+  STATS_GET_OVERVIEW: 'stats:get-overview',
 
   // Vault reset
   VAULT_RESET: 'vault:reset',

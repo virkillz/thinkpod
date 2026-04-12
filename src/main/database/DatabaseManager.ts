@@ -36,7 +36,18 @@ export class DatabaseManager {
         created_at INTEGER,
         modified_at INTEGER,
         word_count INTEGER,
-        tags TEXT
+        tags TEXT,
+        content TEXT
+      )
+    `)
+
+    // Full-text search virtual table
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
+        path,
+        title,
+        content,
+        tokenize = 'porter'
       )
     `)
 
@@ -511,6 +522,80 @@ export class DatabaseManager {
 
   getDbPath(): string {
     return this.dbPath
+  }
+
+  // Search files by query
+  searchFiles(query: string, limit: number = 50): Array<{
+    path: string
+    title: string
+    folder: string
+    modified_at: number
+    snippet: string
+    rank: number
+  }> {
+    if (!query.trim()) return []
+
+    // Use FTS5 for full-text search
+    const results = this.db.prepare(`
+      SELECT 
+        f.path,
+        f.title,
+        f.folder,
+        f.modified_at,
+        snippet(files_fts, 2, '<mark>', '</mark>', '...', 32) as snippet,
+        files_fts.rank as rank
+      FROM files_fts
+      JOIN files f ON files_fts.path = f.path
+      WHERE files_fts MATCH ?
+      ORDER BY rank
+      LIMIT ?
+    `).all(query, limit) as Array<{
+      path: string
+      title: string
+      folder: string
+      modified_at: number
+      snippet: string
+      rank: number
+    }>
+
+    return results
+  }
+
+  // Index or update file in search index
+  indexFile(path: string, title: string, content: string, folder: string, wordCount: number, tags: string = ''): void {
+    const now = Date.now()
+    
+    this.db.transaction(() => {
+      // Update or insert into files table
+      this.db.prepare(`
+        INSERT INTO files (path, title, folder, created_at, modified_at, word_count, tags, content)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(path) DO UPDATE SET
+          title = excluded.title,
+          folder = excluded.folder,
+          modified_at = excluded.modified_at,
+          word_count = excluded.word_count,
+          tags = excluded.tags,
+          content = excluded.content
+      `).run(path, title, folder, now, now, wordCount, tags, content)
+
+      // Update FTS index
+      this.db.prepare(`
+        INSERT INTO files_fts (path, title, content)
+        VALUES (?, ?, ?)
+        ON CONFLICT(path) DO UPDATE SET
+          title = excluded.title,
+          content = excluded.content
+      `).run(path, title, content)
+    })()
+  }
+
+  // Remove file from search index
+  removeFileFromIndex(path: string): void {
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM files_fts WHERE path = ?').run(path)
+      this.db.prepare('DELETE FROM files WHERE path = ?').run(path)
+    })()
   }
 
   close(): void {

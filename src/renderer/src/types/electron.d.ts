@@ -13,6 +13,19 @@ export interface ElectronAPI {
   writeFile: (path: string, content: string) => Promise<{ success: boolean }>
   moveFile: (from: string, to: string) => Promise<{ success: boolean }>
   deleteFile: (path: string) => Promise<{ success: boolean }>
+  searchFiles: (query: string) => Promise<{
+    success: boolean
+    results: Array<{
+      path: string
+      title: string
+      folder: string
+      modified_at: number
+      snippet: string
+      rank: number
+    }>
+    error?: string
+  }>
+  indexAllFiles: () => Promise<{ success: boolean; indexed?: number; skipped?: number; error?: string }>
 
   // Comments
   getComments: (filePath: string) => Promise<Array<{
@@ -162,6 +175,18 @@ export interface ElectronAPI {
   triggerCognitiveJob: (name: string) => Promise<{ success: boolean; result?: unknown; error?: string }>
   dryRunCognitiveJob: (name: string) => Promise<{ success: boolean; result?: unknown; error?: string }>
   toggleCognitiveJob: (name: string, isActive: boolean) => Promise<{ success: boolean; error?: string }>
+
+  // Graph & Stats
+  getGraphData: () => Promise<{
+    nodes: Array<{ id: string; label: string; tags: string[]; group: string; val: number }>
+    links: Array<{ source: string; target: string; sharedTags: string[]; weight: number }>
+  }>
+  getStatsOverview: () => Promise<{
+    totalDocuments: number
+    totalTags: number
+    avgTagsPerDoc: number
+    topTags: Array<{ tag: string; count: number }>
+  }>
 
   // App
   getAppVersion: () => Promise<string>

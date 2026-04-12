@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import path from 'path'
 import { DatabaseManager } from './database/DatabaseManager.js'
 import { VaultManager } from './vault/VaultManager.js'
+import { VaultIndexer } from './vault/VaultIndexer.js'
 import { IPC_CHANNELS } from './ipc/channels.js'
 import { setupIpcHandlers, setupScheduler } from './ipc/handlers.js'
 import { SkillRegistry } from './agent/SkillRegistry.js'
@@ -11,6 +12,7 @@ const isDev = process.env.NODE_ENV === 'development'
 let mainWindow: BrowserWindow | null = null
 let dbManager: DatabaseManager | null = null
 let vaultManager: VaultManager | null = null
+let vaultIndexer: VaultIndexer | null = null
 let schedulerStarted = false
 
 export function getMainWindow(): BrowserWindow | null {
@@ -24,9 +26,59 @@ export function getVaultManager(): VaultManager | null {
 export async function initVaultManager(vaultPath: string): Promise<void> {
   vaultManager = new VaultManager(vaultPath)
   await vaultManager.initialize()
-  if (dbManager && !schedulerStarted) {
-    schedulerStarted = true
-    setupScheduler(dbManager)
+  
+  if (dbManager) {
+    vaultIndexer = new VaultIndexer(vaultPath, dbManager)
+    
+    // Index all existing files in the background
+    vaultIndexer.indexAllFiles().then(result => {
+      console.log(`Indexed ${result.indexed} files, skipped ${result.skipped}`)
+    }).catch(error => {
+      console.error('Failed to index vault files:', error)
+    })
+    
+    // Set up file watching for search indexing
+    vaultManager.on('fileAdded', async (filePath: string) => {
+      if (filePath.endsWith('.md') && vaultIndexer) {
+        const relativePath = path.relative(vaultPath, filePath)
+        if (!relativePath.startsWith('_') && !relativePath.startsWith('.')) {
+          try {
+            await vaultIndexer.indexFile(relativePath)
+          } catch (error) {
+            console.error('Failed to index file:', error)
+          }
+        }
+      }
+    })
+    
+    vaultManager.on('fileChanged', async (filePath: string) => {
+      if (filePath.endsWith('.md') && vaultIndexer) {
+        const relativePath = path.relative(vaultPath, filePath)
+        if (!relativePath.startsWith('_') && !relativePath.startsWith('.')) {
+          try {
+            await vaultIndexer.indexFile(relativePath)
+          } catch (error) {
+            console.error('Failed to re-index file:', error)
+          }
+        }
+      }
+    })
+    
+    vaultManager.on('fileRemoved', async (filePath: string) => {
+      if (filePath.endsWith('.md') && vaultIndexer) {
+        const relativePath = path.relative(vaultPath, filePath)
+        try {
+          await vaultIndexer.removeFile(relativePath)
+        } catch (error) {
+          console.error('Failed to remove file from index:', error)
+        }
+      }
+    })
+    
+    if (!schedulerStarted) {
+      schedulerStarted = true
+      setupScheduler(dbManager)
+    }
   }
 }
 
@@ -77,6 +129,53 @@ async function initializeApp(): Promise<void> {
   if (vaultPath) {
     vaultManager = new VaultManager(vaultPath)
     await vaultManager.initialize()
+    
+    vaultIndexer = new VaultIndexer(vaultPath, dbManager)
+    
+    // Index all existing files in the background
+    vaultIndexer.indexAllFiles().then(result => {
+      console.log(`Indexed ${result.indexed} files, skipped ${result.skipped}`)
+    }).catch(error => {
+      console.error('Failed to index vault files:', error)
+    })
+    
+    // Set up file watching for search indexing
+    vaultManager.on('fileAdded', async (filePath: string) => {
+      if (filePath.endsWith('.md') && vaultIndexer) {
+        const relativePath = path.relative(vaultPath, filePath)
+        if (!relativePath.startsWith('_') && !relativePath.startsWith('.')) {
+          try {
+            await vaultIndexer.indexFile(relativePath)
+          } catch (error) {
+            console.error('Failed to index file:', error)
+          }
+        }
+      }
+    })
+    
+    vaultManager.on('fileChanged', async (filePath: string) => {
+      if (filePath.endsWith('.md') && vaultIndexer) {
+        const relativePath = path.relative(vaultPath, filePath)
+        if (!relativePath.startsWith('_') && !relativePath.startsWith('.')) {
+          try {
+            await vaultIndexer.indexFile(relativePath)
+          } catch (error) {
+            console.error('Failed to re-index file:', error)
+          }
+        }
+      }
+    })
+    
+    vaultManager.on('fileRemoved', async (filePath: string) => {
+      if (filePath.endsWith('.md') && vaultIndexer) {
+        const relativePath = path.relative(vaultPath, filePath)
+        try {
+          await vaultIndexer.removeFile(relativePath)
+        } catch (error) {
+          console.error('Failed to remove file from index:', error)
+        }
+      }
+    })
   }
 
   // Create window BEFORE setting up IPC handlers
