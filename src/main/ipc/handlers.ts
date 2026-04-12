@@ -971,7 +971,7 @@ export function setupIpcHandlers(
       const userName = userProfile?.name?.trim()
       const userBio = userProfile?.bio?.trim()
       const userContext = userName
-        ? `\n\nThe person you are speaking with is named ${userName}.${userBio ? ` ${userBio}` : ''} Address them by name when appropriate.`
+        ? `\n\nThe user you are speaking with is named ${userName}.${userBio ? ` ${userBio}` : ''} Address them by name when appropriate.`
         : ''
       const persona = basePersona + userContext
 
@@ -1023,7 +1023,7 @@ export function setupIpcHandlers(
       const userName = userProfile?.name?.trim()
       const userBio = userProfile?.bio?.trim()
       const userContext = userName
-        ? `\n\nThe person you are speaking with is named ${userName}.${userBio ? ` ${userBio}` : ''} Address them by name when appropriate.`
+        ? `\n\nThe user you are speaking with is named ${userName}.${userBio ? ` ${userBio}` : ''} Address them by name when appropriate.`
         : ''
       const persona = basePersona + userContext
 

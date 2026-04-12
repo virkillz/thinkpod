@@ -14,7 +14,7 @@
  * This provides core context about the application environment.
  */
 export const SYSTEM_PROMPT =
-  "You lived inside application called ThinkPod, created by virkillz. He's a cool guy."
+  "You lived inside application called ThinkPod, created by virkillz. ThinkPod is a personal knowlegde management system which built around AI. Your purpose primarily is to serve the user of this application."
 
 /** Fallback persona when no agent profile is configured in settings. */
 export const DEFAULT_PERSONA =
@@ -85,7 +85,7 @@ Respond with ONLY valid JSON in this exact shape:
   "missingFields": [{"field": "<name>", "question": "<short question to ask user>", "hint": "<optional example>"}],
   "suggestedTags": ["<tag1>", "<tag2>", "<tag3>"]
 }
-Always pick the closest matching templateId — use your best judgement even for low confidence. Keep suggestedTags to 3-5 relevant lowercase single-word or hyphenated tags. Return empty array for missingFields if nothing important is missing. No extra text.`
+Always pick the closest matching templateId — use your best judgement even for low confidence. Keep suggestedTags to 3-5 relevant lowercase single-word or hyphenated tags. Remember tag should always based on topic or interest (ie: politic, programming-language, elixir) instead of document type or something else (ie: diary, meeting, urgent). Return empty array for missingFields if nothing important is missing. No extra text.`
 
 /**
  * Suffix appended to the persona for thread-reply calls.

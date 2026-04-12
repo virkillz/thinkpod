@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, FileText, Folder, Clock, Loader2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useAppStore } from '../../store/appStore.js'
 
 interface SearchResult {
   path: string
@@ -16,7 +16,7 @@ export function SearchView() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
-  const navigate = useNavigate()
+  const { setSelectedFile, setCurrentView } = useAppStore()
 
   const performSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
@@ -53,7 +53,8 @@ export function SearchView() {
   }, [query, performSearch])
 
   const handleResultClick = (result: SearchResult) => {
-    navigate(`/notes?file=${encodeURIComponent(result.path)}`)
+    setSelectedFile(result.path)
+    setCurrentView('notes')
   }
 
   const formatDate = (timestamp: number) => {

@@ -291,7 +291,7 @@ function buildConsolidationPrompt(
     ? `EXISTING CONTENT:\n${existing.trim()}`
     : 'EXISTING CONTENT: (empty)'
 
-  return `You are helping maintain a knowledge file about ${userName || 'this person'}.
+  return `You are helping maintain a knowledge file about ${userName || 'the user.'}.
 
 File: ${fileName}.md
 ${existingSection}
@@ -320,7 +320,7 @@ function buildQuestionDedupePrompt(
   const factsList =
     newFacts.length > 0 ? newFacts.map((f) => `- ${f}`).join('\n') : '(none)'
 
-  return `You are managing open questions about ${userName || 'this person'}.
+  return `You are managing open questions about ${userName || 'the user'}.
 
 NEW QUESTIONS (0-indexed):
 ${newList}
@@ -340,7 +340,7 @@ Return the question texts verbatim for "new" — do not rewrite them.`
 }
 
 function buildImportanceScoringPrompt(questionText: string, userName: string): string {
-  return `Rate how important this open question is for understanding ${userName || 'this person'} on a scale of 1–5:
+  return `Rate how important this open question is for understanding ${userName || 'the user'} on a scale of 1–5:
 
 5 — Critical: directly affects understanding of goals, core relationships, or identity
 4 — Significant: would meaningfully improve understanding

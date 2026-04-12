@@ -41,6 +41,13 @@ export class DatabaseManager {
       )
     `)
 
+    // Migrations: add columns that may be missing from older databases
+    const filesCols = this.db.pragma('table_info(files)') as Array<{ name: string }>
+    const colNames = filesCols.map(c => c.name)
+    if (!colNames.includes('content')) {
+      this.db.exec('ALTER TABLE files ADD COLUMN content TEXT')
+    }
+
     // Full-text search virtual table
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
@@ -579,13 +586,11 @@ export class DatabaseManager {
           content = excluded.content
       `).run(path, title, folder, now, now, wordCount, tags, content)
 
-      // Update FTS index
+      // Update FTS index (FTS5 virtual tables don't support upsert — delete then insert)
+      this.db.prepare('DELETE FROM files_fts WHERE path = ?').run(path)
       this.db.prepare(`
         INSERT INTO files_fts (path, title, content)
         VALUES (?, ?, ?)
-        ON CONFLICT(path) DO UPDATE SET
-          title = excluded.title,
-          content = excluded.content
       `).run(path, title, content)
     })()
   }
