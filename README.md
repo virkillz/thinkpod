@@ -1,3 +1,41 @@
+<p align="center">
+  <picture>
+    <img alt="ThinkPod" src="assets/icon-small.png" width="140">
+  </picture>
+</p>
+
+<h1 align="center">ThinkPod</h1>
+<p align="center"><b>IDE for your thought, not your code</b><br>Personal Knowledge Management, with built in AI Agents. 100% Local. Run on 8GB VRAM </p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License">
+  <img src="https://img.shields.io/badge/platform-Apple%20Silicon-black?logo=apple" alt="Apple Silicon">
+</p>
+
+<p align="center">
+  <a href="mailto:junkim.dot@gmail.com">virkill@gmail.com</a> · <a href="https://omlx.ai/me">https://virkill.com</a>
+</p>
+
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#models">Models</a> ·
+  <a href="#cli-configuration">CLI Configuration</a> ·
+</p>
+
+---
+
+<p align="center">
+  <img src="assets/screenshot.png" alt="ThinkPod Screenshot" width="800">
+</p>
+
+> *Most note-taking apps treat AI as a *reactive* tool — you ask, it answers. ThinkPod flips this: the agent is *proactive*, running continuously, building its own understanding of your vault over time. This is not just a feature difference. It's a philosophical one.*
+>
+> *AI Agent should have agency. Wilfred live inside your Thinkpod, learn about you, bounce idea with you, and it can be 100% local, offline, and free.*
+
+
+
 # ThinkPod
 
 > An IDE for your thoughts, not your code. 100% Local.
@@ -15,14 +53,6 @@ At its foundation, ThinkPod embeds an AI agent — **Wilfred** — deeply into e
 - **Local-first.** All your notes and AI processing run on your machine. No cloud, no subscription, no privacy trade-off.
 - **Agent-native.** Wilfred is not a chatbot bolted on top — he lives inside the app and participates in the lifecycle of your writing.
 - **Fast capture.** Ideas are fleeting. ThinkPod makes it as quick and frictionless as possible to get thoughts down, then helps you make them better.
-
----
-
-## The Core Differentiator
-
-Most note-taking apps treat AI as a *reactive* tool — you ask, it answers. ThinkPod flips this: the agent is *proactive*, running continuously, building its own understanding of your vault over time. This is not just a feature difference. It's a philosophical one.
-
-The closest analogy: imagine a brilliant research assistant who lives in your library, reads everything you've written, thinks about it while you sleep, and leaves you notes in the morning. No other consumer tool does this at this level. Obsidian, Notion, Bear — all passive. This is the gap.
 
 ---
 
