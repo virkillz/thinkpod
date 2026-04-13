@@ -213,12 +213,15 @@ export class Scheduler extends EventEmitter {
       // use default
     }
 
+    const toolsConfig = this.dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
+
     const loop = new AgentLoop(
       {
         vaultPath: this.vaultManager.vaultPath,
         dbManager: this.dbManager,
         llmConfig,
         persona,
+        toolsConfig: toolsConfig ?? undefined,
       },
       (run) => {
         this.emit('taskUpdate', run)

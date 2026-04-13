@@ -21,6 +21,7 @@ import { writeInboxTool } from './core/write_inbox.js'
 import { finishTaskTool } from './core/finish_task.js'
 import { readSkillTool }    from './core/read_skill.js'
 import { searchVaultTool }  from './core/search_vault.js'
+import { getTopicTool }     from './core/get_topic.js'
 
 // ─── Extended tools ───────────────────────────────────────────────────────────
 import { fetchUrlTool }    from './extended/fetch_url.js'
@@ -39,6 +40,7 @@ export const TOOL_REGISTRY: ToolEntry[] = [
   finishTaskTool,
   readSkillTool,
   searchVaultTool,
+  getTopicTool,
   fetchUrlTool,
   runBashTool,
   braveSearchTool,

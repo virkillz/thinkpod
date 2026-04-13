@@ -4,7 +4,7 @@ export const braveSearchTool: ToolEntry = {
   meta: {
     name: 'brave_search',
     label: 'Brave Search',
-    description: 'Search the web using the Brave Search API.',
+    description: 'Search the web and internet using the Brave Search API.',
     category: 'extended',
     defaultEnabled: false,
     configSchema: {
@@ -19,7 +19,7 @@ export const braveSearchTool: ToolEntry = {
     type: 'function',
     function: {
       name: 'brave_search',
-      description: 'Search the web using the Brave Search API. Returns results with title, URL, and description.',
+      description: 'Search the WEB and INTERNET using the Brave Search API. Use this for finding information online, NOT for searching local vault documents. Returns web search results with title, URL, and description.',
       parameters: {
         type: 'object',
         properties: {

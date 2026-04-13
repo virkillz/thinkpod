@@ -4,7 +4,7 @@ export const searchVaultTool: ToolEntry = {
   meta: {
     name: 'search_vault',
     label: 'Search Vault',
-    description: 'Full-text search across all notes in the vault.',
+    description: 'Full-text search across all local notes and documents in the vault.',
     category: 'core',
     defaultEnabled: true,
   },
@@ -13,7 +13,7 @@ export const searchVaultTool: ToolEntry = {
     function: {
       name: 'search_vault',
       description:
-        'Search all notes in the vault by keyword or phrase. Returns ranked results with a short snippet and the full file path. Use read_file to get the complete content of any result.',
+        'Search all LOCAL notes and documents in the vault by keyword or phrase. This searches your personal vault only, NOT the internet. Returns ranked results with a short snippet and the full file path. Use read_file to get the complete content of any result.',
       parameters: {
         type: 'object',
         properties: {

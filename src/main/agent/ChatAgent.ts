@@ -50,6 +50,7 @@ export class ChatAgent {
   private systemPrompt: string
   private messages: LLMMessage[] = []
   private toolsConfig: ToolsConfig
+  private dbManager: DatabaseManager
 
   private constructor(
     client: LLMClient,
@@ -58,7 +59,8 @@ export class ChatAgent {
     sessionId: string,
     systemPrompt: string,
     history: ChatMessage[],
-    toolsConfig: ToolsConfig
+    toolsConfig: ToolsConfig,
+    dbManager: DatabaseManager
   ) {
     this.client = client
     this.session = session
@@ -66,6 +68,7 @@ export class ChatAgent {
     this.sessionId = sessionId
     this.systemPrompt = systemPrompt
     this.toolsConfig = toolsConfig
+    this.dbManager = dbManager
 
     // Reconstruct in-memory message list from JSONL history (excluding system)
     this.messages = [
@@ -99,7 +102,8 @@ export class ChatAgent {
       sessionId,
       systemPrompt,
       history,
-      config.toolsConfig ?? DEFAULT_TOOLS_CONFIG
+      config.toolsConfig ?? DEFAULT_TOOLS_CONFIG,
+      config.dbManager
     )
 
     return { agent, sessionId, history }
@@ -126,7 +130,8 @@ export class ChatAgent {
       sessionId,
       systemPrompt,
       [],
-      config.toolsConfig ?? DEFAULT_TOOLS_CONFIG
+      config.toolsConfig ?? DEFAULT_TOOLS_CONFIG,
+      config.dbManager
     )
 
     return { agent, sessionId }
@@ -145,7 +150,9 @@ export class ChatAgent {
     while (iterations < MAX_CHAT_ITERATIONS) {
       iterations++
 
-      const chatTools = getEnabledToolDefinitions(this.toolsConfig, { includeFinishTask: false })
+      // Fetch current tools config from database to pick up newly enabled tools
+      const currentToolsConfig = this.dbManager.getSetting('toolsConfig') as ToolsConfig | null
+      const chatTools = getEnabledToolDefinitions(currentToolsConfig ?? DEFAULT_TOOLS_CONFIG, { includeFinishTask: false })
       const response = await this.client.chatWithTools(this.messages, chatTools as unknown[])
 
       if (!response.toolCalls || response.toolCalls.length === 0) {

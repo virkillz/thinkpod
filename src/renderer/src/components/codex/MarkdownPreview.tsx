@@ -61,11 +61,11 @@ function PropertiesPanel({ fm }: { fm: Record<string, FmValue> }) {
   if (entries.length === 0) return null
 
   return (
-    <div className="mb-8 rounded-xl border border-parchment-dark/40 bg-parchment-card/60 overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-parchment-dark/40">
+    <div className="mb-8 rounded-xl border border-parchment-dark/20 bg-parchment-card/60 overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-parchment-dark/20">
         <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Properties</span>
       </div>
-      <div className="divide-y divide-parchment-dark/40">
+      <div className="divide-y divide-parchment-dark/20">
         {entries.map(([key, value]) => (
           <div key={key} className="flex items-start gap-3 px-4 py-2.5">
             <span className="text-ink-light mt-0.5 flex-shrink-0">{fieldIcon(key)}</span>
@@ -101,7 +101,7 @@ export function MarkdownPreview({ content }: MarkdownPreviewProps) {
   const fm = parsed ? parsed.fm : null
 
   return (
-    <div className="markdown-preview font-serif leading-relaxed text-ink-primary">
+    <div className="markdown-preview font-serif leading-relaxed text-ink-primary break-words">
       {fm && <PropertiesPanel fm={fm} />}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
@@ -122,7 +122,7 @@ export function MarkdownPreview({ content }: MarkdownPreviewProps) {
             className
               ? <code className={`block font-mono text-sm leading-relaxed ${className}`}>{children}</code>
               : <code className="font-mono text-sm bg-parchment-dark/60 text-ink-primary px-1.5 py-0.5 rounded">{children}</code>,
-          pre: ({ children }) => <pre className="bg-parchment-dark/40 border border-parchment-dark rounded-lg p-4 overflow-x-auto mb-4 font-mono text-sm">{children}</pre>,
+          pre: ({ children }) => <pre className="bg-parchment-dark/40 border border-parchment-dark rounded-lg p-4 overflow-x-auto mb-4 font-mono text-sm whitespace-pre-wrap break-words">{children}</pre>,
           hr: () => <hr className="border-parchment-dark my-6" />,
           table: ({ children }) => <div className="overflow-x-auto mb-4"><table className="w-full border-collapse text-sm">{children}</table></div>,
           thead: ({ children }) => <thead className="bg-parchment-dark/40">{children}</thead>,
