@@ -79,32 +79,42 @@ let voiceCaptureService: VoiceCaptureService | null = null
 
 // ── LLM config resolution ─────────────────────────────────────────────────────
 
-interface FullLLMConfig {
-  mode?: 'builtin' | 'external'
+interface LLMProfileRaw {
+  id: string
+  name: string
+  provider: string
   baseUrl: string
   model: string
   apiKey?: string
   builtinQuant?: string
 }
 
+interface LLMStorage {
+  profiles: LLMProfileRaw[]
+  activeId: string | null
+}
+
 /**
  * Returns the effective LLM config to hand to LLMClient.
- * When mode is 'builtin', swaps in the local server URL so all existing
- * LLMClient usage works unchanged with zero handler modifications.
+ * For builtin profiles, swaps in the local server URL so all existing
+ * LLMClient usage works unchanged.
  */
 function getEffectiveLLMConfig(
   dbManager: DatabaseManager
 ): { baseUrl: string; model: string; apiKey?: string } | null {
-  const raw = dbManager.getSetting('llmConfig') as FullLLMConfig | null
-  if (!raw) return null
+  const storage = dbManager.getSetting('llmConfig') as LLMStorage | null
+  if (!storage?.profiles || !storage.activeId) return null
 
-  if (raw.mode === 'builtin') {
+  const profile = storage.profiles.find(p => p.id === storage.activeId)
+  if (!profile) return null
+
+  if (profile.provider === 'builtin') {
     const url = llmProcessManager?.getUrl()
     if (!url) return null
     return { baseUrl: url, model: 'gemma-4-e4b-builtin' }
   }
 
-  return { baseUrl: raw.baseUrl, model: raw.model, apiKey: raw.apiKey }
+  return { baseUrl: profile.baseUrl, model: profile.model, apiKey: profile.apiKey || undefined }
 }
 
 function pushToRenderer(channel: string, data: unknown): void {
@@ -120,11 +130,12 @@ export function setupIpcHandlers(
   llmModelManager = new LLMModelManager(dbManager)
 
   // Auto-start built-in model if it was configured and downloaded
-  const storedConfig = dbManager.getSetting('llmConfig') as FullLLMConfig | null
-  if (storedConfig?.mode === 'builtin' && storedConfig.builtinQuant) {
-    llmModelManager.isModelDownloaded(storedConfig.builtinQuant).then(async (downloaded) => {
+  const storedLLM = dbManager.getSetting('llmConfig') as LLMStorage | null
+  const autoStartProfile = storedLLM?.profiles?.find(p => p.id === storedLLM?.activeId) ?? null
+  if (autoStartProfile?.provider === 'builtin' && autoStartProfile.builtinQuant) {
+    llmModelManager.isModelDownloaded(autoStartProfile.builtinQuant).then(async (downloaded) => {
       if (downloaded && !llmProcessManager) {
-        const modelPath = llmModelManager!.getModelPath(storedConfig.builtinQuant!)
+        const modelPath = llmModelManager!.getModelPath(autoStartProfile.builtinQuant!)
         llmProcessManager = new LLMProcessManager()
         llmProcessManager.on('status', (status: string) => {
           pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, status)
@@ -134,7 +145,12 @@ export function setupIpcHandlers(
           pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
         })
         const started = await llmProcessManager.start(modelPath)
-        if (!started) llmProcessManager = null
+        if (started) {
+          const url = llmProcessManager.getUrl()
+          if (url) dbManager.setSetting('llmBuiltinUrl', url)
+        } else {
+          llmProcessManager = null
+        }
       }
     }).catch((err) => log.error('[LLM auto-start]', err))
   }
@@ -212,7 +228,9 @@ export function setupIpcHandlers(
       const started = await llmProcessManager.start(modelPath)
       log.info('[LLM_MODEL_START] start() returned:', started, 'url:', llmProcessManager.getUrl())
       if (started) {
-        return { success: true, url: llmProcessManager.getUrl() }
+        const url = llmProcessManager.getUrl()
+        if (url) dbManager.setSetting('llmBuiltinUrl', url)
+        return { success: true, url }
       } else {
         llmProcessManager = null
         return { success: false, error: 'Failed to load model' }
@@ -227,6 +245,7 @@ export function setupIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.LLM_MODEL_STOP, async () => {
     llmProcessManager?.stop()
     llmProcessManager = null
+    dbManager.setSetting('llmBuiltinUrl', null)
     return { success: true }
   })
 
@@ -670,6 +689,13 @@ export function setupIpcHandlers(
   // Settings: Set
   ipcMain.handle(IPC_CHANNELS.SETTINGS_SET, async (_, key: string, value: unknown) => {
     dbManager.setSetting(key, value)
+    
+    // Clear cached chat agents when LLM config changes so they reinitialize with new settings
+    if (key === 'llmConfig') {
+      activeChatAgents.clear()
+      log.info('[Settings] LLM config changed, cleared cached chat agents')
+    }
+    
     return { success: true }
   })
 

@@ -6,7 +6,7 @@ import { LoadingScreen } from './components/common/LoadingScreen.js'
 
 function App() {
   const [isLoading, setIsLoading] = useState(true)
-  const { isSetupComplete, setSetupComplete, setVault, setLLMConfig, setUserProfile } = useAppStore()
+  const { isSetupComplete, setSetupComplete, setVault, setLLMStorage, setUserProfile } = useAppStore()
 
   useEffect(() => {
     const checkVault = async () => {
@@ -16,16 +16,12 @@ function App() {
           setVault(vaultInfo)
           setSetupComplete(true)
 
-          // Restore persisted LLM config
+          // Restore persisted LLM profiles
           const saved = await window.electronAPI.getSetting('llmConfig') as {
-            baseUrl?: string; model?: string; apiKey?: string
+            profiles?: unknown[]; activeId?: string | null
           } | null
-          if (saved?.baseUrl) {
-            setLLMConfig({
-              baseUrl: saved.baseUrl,
-              model: saved.model ?? '',
-              apiKey: saved.apiKey ?? '',
-            })
+          if (saved?.profiles) {
+            setLLMStorage(saved.profiles as Parameters<typeof setLLMStorage>[0], saved.activeId ?? null)
           }
 
           // Restore persisted user profile
@@ -48,7 +44,7 @@ function App() {
     }
 
     checkVault()
-  }, [setVault, setSetupComplete, setLLMConfig, setUserProfile])
+  }, [setVault, setSetupComplete, setLLMStorage, setUserProfile])
 
   if (isLoading) {
     return <LoadingScreen />

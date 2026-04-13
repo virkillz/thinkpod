@@ -3,7 +3,7 @@ import { StepWelcome } from './StepWelcome.js'
 import { StepVault } from './StepVault.js'
 import { StepLLM } from './StepLLM.js'
 import { StepVoice } from './StepVoice.js'
-import { useAppStore, type LLMConfig } from '../../store/appStore.js'
+import { useAppStore, type LLMProfile } from '../../store/appStore.js'
 import { DEFAULT_TEMPLATES } from '@main/vault/noteTemplates.js'
 import wilfredAvatar from '../../assets/avatar01.png'
 
@@ -20,7 +20,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [selectedAbbeyPath, setSelectedAbbeyPath] = useState<string | null>(null)
   const [vaultError, setVaultError] = useState<string | null>(null)
   const [vaultNeedsInit, setVaultNeedsInit] = useState(false)
-  const { setVault, setLLMConfig, setUserProfile } = useAppStore()
+  const { setVault, setLLMStorage, setUserProfile } = useAppStore()
 
   const handleWelcomeComplete = async (name: string) => {
     const profile = { name, bio: '', avatarDataUrl: null }
@@ -105,9 +105,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     }
   }
 
-  const handleLLMConfigured = (config: LLMConfig) => {
-    setLLMConfig(config)
-    window.electronAPI.setSetting('llmConfig', config)
+  const handleLLMConfigured = (profile: LLMProfile) => {
+    setLLMStorage([profile], profile.id)
+    window.electronAPI.setSetting('llmConfig', { profiles: [profile], activeId: profile.id })
     handleStepComplete()
   }
 

@@ -3,13 +3,23 @@ import { useAppStore } from '../../store/appStore.js'
 import { AgentChatPanel } from './AgentChatPanel.js'
 
 export function AgentFAB() {
-  const { agentAvatar, selectedFile, currentView, isAgentChatOpen, toggleAgentChat, setAgentChatOpen } = useAppStore()
+  const { agentAvatar, selectedFile, currentView, isAgentChatOpen, toggleAgentChat, setAgentChatOpen, llmProfiles, activeProfileId } = useAppStore()
   const [isAnimating, setIsAnimating] = useState(false)
   const [showGreeting, setShowGreeting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle')
   const [serverReachable, setServerReachable] = useState(true)
 
+  const activeProfile = llmProfiles.find(p => p.id === activeProfileId) ?? null
+  const isBuiltinProvider = activeProfile?.provider === 'builtin'
+
   useEffect(() => {
+    // For API-based providers, assume they're always reachable
+    if (!isBuiltinProvider) {
+      setServerReachable(!!activeProfile)
+      return
+    }
+
+    // For built-in provider, monitor actual server status
     window.electronAPI.getLLMModelInfo().then((info) => {
       setServerReachable(info.serverRunning)
     })
@@ -17,7 +27,7 @@ export function AgentFAB() {
       setServerReachable(s === 'ready')
     })
     return unsub
-  }, [])
+  }, [isBuiltinProvider, activeProfile])
 
   useEffect(() => {
     const timer = setTimeout(() => {

@@ -183,11 +183,21 @@ export class Scheduler extends EventEmitter {
       })
     }
 
-    const llmConfig = this.dbManager.getSetting('llmConfig') as {
-      baseUrl: string
-      model: string
-      apiKey?: string
-    } | null
+    interface LLMStorageMin {
+      profiles: Array<{ id: string; provider: string; baseUrl: string; model: string; apiKey?: string; builtinQuant?: string }>
+      activeId: string | null
+    }
+    const stored = this.dbManager.getSetting('llmConfig') as LLMStorageMin | null
+    const activeProfile = stored?.profiles?.find(p => p.id === stored?.activeId) ?? null
+    if (!activeProfile) {
+      throw new Error('LLM not configured')
+    }
+    const llmConfig = activeProfile.provider === 'builtin'
+      ? (() => {
+          const url = this.dbManager.getSetting('llmBuiltinUrl') as string | null
+          return url ? { baseUrl: url, model: 'gemma-4-e4b-builtin', apiKey: undefined } : null
+        })()
+      : { baseUrl: activeProfile.baseUrl, model: activeProfile.model, apiKey: activeProfile.apiKey }
 
     if (!llmConfig) {
       throw new Error('LLM not configured')

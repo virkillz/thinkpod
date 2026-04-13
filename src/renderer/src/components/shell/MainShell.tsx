@@ -17,7 +17,7 @@ import { ThoughtFAB } from './ThoughtFAB.js'
 import { StatusBar } from './StatusBar.js'
 
 export function MainShell() {
-  const { currentView, refreshFileTree, refreshThoughtCount, setTheme, setCurrentView, setAgentProfile, toggleSidebar, toggleAgentChat, showStatusBar, setShowStatusBar, setLLMConfig } = useAppStore()
+  const { currentView, refreshFileTree, refreshThoughtCount, setTheme, setCurrentView, setAgentProfile, toggleSidebar, toggleAgentChat, showStatusBar, setShowStatusBar, setLLMStorage } = useAppStore()
 
   useEffect(() => {
     refreshFileTree()
@@ -40,7 +40,10 @@ export function MainShell() {
       if (typeof saved === 'boolean') setShowStatusBar(saved)
     })
     window.electronAPI.getSetting('llmConfig').then((saved) => {
-      if (saved && typeof saved === 'object') setLLMConfig(saved as Parameters<typeof setLLMConfig>[0])
+      if (saved && typeof saved === 'object') {
+        const s = saved as { profiles?: unknown[]; activeId?: string | null }
+        if (s.profiles) setLLMStorage(s.profiles as Parameters<typeof setLLMStorage>[0], s.activeId ?? null)
+      }
     })
   }, [])
 

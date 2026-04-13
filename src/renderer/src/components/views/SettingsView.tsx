@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import type { NoteTemplate } from '@main/vault/noteTemplates.js'
 import { DEFAULT_TEMPLATES } from '@main/vault/noteTemplates.js'
-import { Settings, Folder, Key, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download, Zap, Palette, User, TriangleAlert, FileText, Plus, Pencil, Cpu, Globe, FileSearch, Copy, Trash } from 'lucide-react'
+import { Settings, Folder, Check, X, Loader2, Save, AlertTriangle, Trash2, Mic, Download, Zap, Palette, User, FileText, Plus, Pencil, Cpu, FileSearch, Copy } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
-import type { ThemeId, UserProfile } from '../../store/appStore.js'
+import type { ThemeId, UserProfile, LLMProfile, LLMProvider } from '../../store/appStore.js'
 
 type TestStatus = 'idle' | 'testing' | 'success' | 'error'
 type VoiceDownloadState = 'idle' | 'downloading' | 'error'
 type VoiceConfig = { modelName: string; language: 'en' | 'auto' }
 type SettingsTab = 'general' | 'appearance' | 'inference' | 'voice' | 'templates' | 'advanced'
-type LLMode = 'builtin' | 'external'
 type DownloadStatus = 'idle' | 'downloading' | 'done' | 'error'
 
 const QUANT_OPTIONS = [
@@ -358,101 +357,116 @@ function GeneralTab() {
 
 // ─── Inference Tab ────────────────────────────────────────────────────────────
 
-function InferenceTab() {
-  const { llmConfig, setLLMConfig } = useAppStore()
+const PROVIDER_META: Record<LLMProvider, { label: string; baseUrl: string; needsKey: boolean; badge: string }> = {
+  ollama:   { label: 'Ollama',    baseUrl: 'http://localhost:11434/v1',           needsKey: false, badge: 'bg-purple-500/15 text-purple-400'  },
+  lmstudio: { label: 'LM Studio', baseUrl: 'http://localhost:1234/v1',            needsKey: false, badge: 'bg-blue-500/15 text-blue-400'      },
+  openai:   { label: 'OpenAI',    baseUrl: 'https://api.openai.com/v1',           needsKey: true,  badge: 'bg-emerald-500/15 text-emerald-400' },
+  groq:     { label: 'Groq',      baseUrl: 'https://api.groq.com/openai/v1',      needsKey: true,  badge: 'bg-orange-500/15 text-orange-400'  },
+  custom:   { label: 'Custom',    baseUrl: '',                                    needsKey: false, badge: 'bg-ink-muted/20 text-ink-muted'    },
+  builtin:  { label: 'Built-in',  baseUrl: '',                                    needsKey: false, badge: 'bg-accent/15 text-accent'          },
+}
 
-  const [mode, setMode] = useState<LLMode>(llmConfig.mode || 'external')
+function ProviderBadge({ provider }: { provider: LLMProvider }) {
+  const meta = PROVIDER_META[provider]
+  return (
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${meta.badge}`}>
+      {meta.label}
+    </span>
+  )
+}
 
-  // Built-in state
-  const [selectedQuant, setSelectedQuant] = useState(llmConfig.builtinQuant || 'Q4_K_M')
-  const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle')
-  const [downloadProgress, setDownloadProgress] = useState(0)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
+// ─── Builtin server status strip ─────────────────────────────────────────────
+
+type ServerStatus = 'loading' | 'ready' | 'stopped' | 'error'
+
+function BuiltinServerStatus({ status, url, quant, onStatusChange }: {
+  status: ServerStatus
+  url: string | null
+  quant: string
+  onStatusChange: (s: ServerStatus) => void
+}) {
+  if (status === 'loading') return (
+    <div className="flex items-center gap-2 text-sm text-ink-muted">
+      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting server…
+    </div>
+  )
+  if (status === 'ready') return (
+    <div className="flex items-center gap-2 text-sm bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-1.5 text-green-400">
+      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+      <span className="truncate">Running at {url}</span>
+      <button onClick={async () => { onStatusChange('loading'); await window.electronAPI.stopBuiltinLLM(); onStatusChange('stopped') }}
+        className="ml-auto text-xs underline opacity-70 hover:opacity-100 shrink-0">Stop</button>
+    </div>
+  )
+  if (status === 'stopped') return (
+    <div className="flex items-center gap-2 text-sm bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 text-amber-400">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+      Server not running
+      <button onClick={async () => { onStatusChange('loading'); await window.electronAPI.startBuiltinLLM(quant) }}
+        className="ml-auto text-xs underline opacity-70 hover:opacity-100 shrink-0">Start</button>
+    </div>
+  )
+  return (
+    <div className="flex items-center gap-2 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-1.5 text-red-400">
+      <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+      Server error
+      <button onClick={async () => { onStatusChange('loading'); await window.electronAPI.startBuiltinLLM(quant) }}
+        className="ml-auto text-xs underline opacity-70 hover:opacity-100 shrink-0">Retry</button>
+    </div>
+  )
+}
+
+// ─── Profile edit/create form ─────────────────────────────────────────────────
+
+function ProfileForm({ initialProfile, onSave, onCancel }: {
+  initialProfile?: LLMProfile
+  onSave: (profile: LLMProfile) => void
+  onCancel: () => void
+}) {
+  const [name, setName]               = useState(initialProfile?.name ?? '')
+  const [provider, setProvider]       = useState<LLMProvider>(initialProfile?.provider ?? 'ollama')
+  const [baseUrl, setBaseUrl]         = useState(initialProfile?.baseUrl ?? PROVIDER_META.ollama.baseUrl)
+  const [model, setModel]             = useState(initialProfile?.model ?? '')
+  const [apiKey, setApiKey]           = useState(initialProfile?.apiKey ?? '')
+  const [builtinQuant, setBuiltinQuant] = useState(initialProfile?.builtinQuant ?? 'Q4_K_M')
+  const [testStatus, setTestStatus]   = useState<TestStatus>('idle')
+  const [testError, setTestError]     = useState<string | null>(null)
+  const [dlStatus, setDlStatus]       = useState<DownloadStatus>('idle')
+  const [dlProgress, setDlProgress]   = useState(0)
+  const [dlError, setDlError]         = useState<string | null>(null)
   const [downloadedModels, setDownloadedModels] = useState<string[]>([])
-  const [loadingInfo, setLoadingInfo] = useState(true)
-  const [serverStatus, setServerStatus] = useState<'loading' | 'ready' | 'stopped' | 'error'>('stopped')
-  const [serverUrl, setServerUrl] = useState<string | null>(null)
-  const [serverError, setServerError] = useState<string | null>(null)
-
-  // External state
-  const [baseUrl, setBaseUrl] = useState(llmConfig.baseUrl)
-  const [model, setModel] = useState(llmConfig.model)
-  const [apiKey, setApiKey] = useState(llmConfig.apiKey)
-  const [testStatus, setTestStatus] = useState<TestStatus>('idle')
-  const [testError, setTestError] = useState<string | null>(null)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
-  const [testedConfig, setTestedConfig] = useState<{ baseUrl: string; model: string } | null>(null)
-
+  const [loadingModels, setLoadingModels] = useState(false)
   const unsubRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
+    if (provider !== 'builtin') return
+    setLoadingModels(true)
     window.electronAPI.getLLMModelInfo().then((info) => {
       setDownloadedModels(info.downloaded)
-      setLoadingInfo(false)
-      if (info.serverRunning) {
-        setServerStatus('ready')
-        setServerUrl(info.serverUrl)
-      }
+      setLoadingModels(false)
     })
-
-    const unsub = window.electronAPI.onLLMDownloadProgress(({ quant, progress }) => {
-      if (quant === selectedQuant) {
-        setDownloadProgress(progress)
-        if (progress >= 100) {
-          setDownloadStatus('done')
-          setDownloadedModels((prev) => (prev.includes(quant) ? prev : [...prev, quant]))
-        }
-      }
-    })
-    unsubRef.current = unsub
-    return () => unsub()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const unsub = window.electronAPI.onLLMStatus((status: string) => {
-      if (status === 'loading') setServerStatus('loading')
-      else if (status === 'ready') setServerStatus('ready')
-      else if (status === 'stopped') setServerStatus('stopped')
-      else if (status === 'error') setServerStatus('error')
-    })
-    return unsub
-  }, [])
+  }, [provider])
 
   useEffect(() => {
     unsubRef.current?.()
+    if (provider !== 'builtin') return
     const unsub = window.electronAPI.onLLMDownloadProgress(({ quant, progress }) => {
-      if (quant === selectedQuant) {
-        setDownloadProgress(progress)
-        if (progress >= 100) {
-          setDownloadStatus('done')
-          setDownloadedModels((prev) => (prev.includes(quant) ? prev : [...prev, quant]))
-        }
+      if (quant !== builtinQuant) return
+      setDlProgress(progress)
+      if (progress >= 100) {
+        setDlStatus('done')
+        setDownloadedModels(prev => prev.includes(quant) ? prev : [...prev, quant])
       }
     })
     unsubRef.current = unsub
     return () => unsub()
-  }, [selectedQuant])
+  }, [provider, builtinQuant])
 
-  const isDownloaded = downloadedModels.includes(selectedQuant)
-
-  const handleDownload = async () => {
-    setDownloadStatus('downloading')
-    setDownloadProgress(0)
-    setDownloadError(null)
-    const result = await window.electronAPI.downloadLLMModel(selectedQuant)
-    if (result.alreadyExists) {
-      setDownloadStatus('done')
-      setDownloadedModels((prev) => (prev.includes(selectedQuant) ? prev : [...prev, selectedQuant]))
-    } else if (!result.success && !result.cancelled) {
-      setDownloadStatus('error')
-      setDownloadError(result.error ?? 'Download failed')
-    }
-  }
-
-  const handleCancelDownload = async () => {
-    await window.electronAPI.cancelLLMModelDownload()
-    setDownloadStatus('idle')
-    setDownloadProgress(0)
+  const handleProviderChange = (p: LLMProvider) => {
+    setProvider(p)
+    if (p !== 'builtin' && p !== 'custom') setBaseUrl(PROVIDER_META[p].baseUrl)
+    setTestStatus('idle')
+    setTestError(null)
   }
 
   const handleTest = async () => {
@@ -460,309 +474,329 @@ function InferenceTab() {
     setTestError(null)
     try {
       const result = await window.electronAPI.testLLMConnection({ baseUrl, model, apiKey: apiKey || undefined })
-      if (result.success) {
-        setTestStatus('success')
-        setTestedConfig({ baseUrl, model })
-      } else {
-        setTestStatus('error')
-        setTestError(result.error || 'Connection failed')
-      }
-    } catch (err) {
-      setTestStatus('error')
-      setTestError((err as Error).message)
+      if (result.success) { setTestStatus('success') }
+      else { setTestStatus('error'); setTestError(result.error ?? 'Connection failed') }
+    } catch (err) { setTestStatus('error'); setTestError((err as Error).message) }
+  }
+
+  const handleDownload = async () => {
+    setDlStatus('downloading'); setDlProgress(0); setDlError(null)
+    const result = await window.electronAPI.downloadLLMModel(builtinQuant)
+    if (result.alreadyExists) {
+      setDlStatus('done')
+      setDownloadedModels(prev => prev.includes(builtinQuant) ? prev : [...prev, builtinQuant])
+    } else if (!result.success && !result.cancelled) {
+      setDlStatus('error'); setDlError(result.error ?? 'Download failed')
     }
   }
 
-  const handleSave = async () => {
-    let config: { mode: LLMode; baseUrl: string; model: string; apiKey: string; builtinQuant?: string }
-    if (mode === 'builtin') {
-      config = { mode: 'builtin', baseUrl: '', model: 'gemma-4-e4b-builtin', apiKey: '', builtinQuant: selectedQuant }
-    } else {
-      config = { mode: 'external', baseUrl, model, apiKey }
-    }
-    setLLMConfig(config)
-    await window.electronAPI.setSetting('llmConfig', config)
+  const handleSave = () => {
+    onSave({
+      id: initialProfile?.id ?? crypto.randomUUID(),
+      name: name.trim() || PROVIDER_META[provider].label,
+      provider,
+      baseUrl: provider === 'builtin' ? '' : baseUrl,
+      model: provider === 'builtin' ? 'gemma-4-e4b-builtin' : model,
+      apiKey,
+      builtinQuant: provider === 'builtin' ? builtinQuant : undefined,
+    })
+  }
 
-    if (mode === 'builtin') {
+  const isDownloaded = downloadedModels.includes(builtinQuant) || dlStatus === 'done'
+  const quantSizeMb = QUANT_OPTIONS.find(o => o.quant === builtinQuant)?.sizeMb ?? 0
+
+  return (
+    <div className="space-y-4">
+      {/* Name */}
+      <div>
+        <label className="block text-xs font-medium text-ink-muted mb-1">Profile name</label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)}
+          placeholder={PROVIDER_META[provider].label}
+          className="w-full px-3 py-2 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm text-ink-primary" />
+      </div>
+
+      {/* Provider picker */}
+      <div>
+        <label className="block text-xs font-medium text-ink-muted mb-1.5">Provider</label>
+        <div className="grid grid-cols-3 gap-1.5">
+          {(Object.keys(PROVIDER_META) as LLMProvider[]).map(p => (
+            <button key={p} onClick={() => handleProviderChange(p)}
+              className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
+                provider === p ? 'border-accent bg-accent/10 text-ink-primary' : 'border-parchment-dark text-ink-muted hover:border-ink-muted'
+              }`}>
+              {PROVIDER_META[p].label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* External fields */}
+      {provider !== 'builtin' && (<>
+        <div>
+          <label className="block text-xs font-medium text-ink-muted mb-1">Base URL</label>
+          <input type="text" value={baseUrl} onChange={e => { setBaseUrl(e.target.value); setTestStatus('idle') }}
+            placeholder="http://localhost:8000/v1"
+            className="w-full px-3 py-2 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm text-ink-primary" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-muted mb-1">Model</label>
+          <input type="text" value={model} onChange={e => { setModel(e.target.value); setTestStatus('idle') }}
+            placeholder={provider === 'openai' ? 'gpt-4o' : provider === 'groq' ? 'llama-3.3-70b-versatile' : 'model-name'}
+            className="w-full px-3 py-2 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm text-ink-primary" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-muted mb-1">
+            API Key {!PROVIDER_META[provider].needsKey && <span className="font-normal opacity-60">(optional)</span>}
+          </label>
+          <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
+            placeholder={PROVIDER_META[provider].needsKey ? 'sk-…' : 'Leave blank if not required'}
+            className="w-full px-3 py-2 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm text-ink-primary" />
+        </div>
+      </>)}
+
+      {/* Built-in fields */}
+      {provider === 'builtin' && (
+        <div className="space-y-3">
+          {loadingModels ? (
+            <div className="flex items-center gap-2 text-sm text-ink-muted"><Loader2 className="w-4 h-4 animate-spin" /> Checking downloads…</div>
+          ) : (<>
+            <div className="space-y-1.5">
+              {QUANT_OPTIONS.map(opt => {
+                const downloaded = downloadedModels.includes(opt.quant)
+                return (
+                  <button key={opt.quant}
+                    onClick={() => { setBuiltinQuant(opt.quant); setDlStatus('idle'); setDlError(null) }}
+                    disabled={dlStatus === 'downloading'}
+                    className={`w-full p-3 rounded-lg border text-left transition-all ${builtinQuant === opt.quant ? 'border-accent bg-accent/5' : 'border-parchment-dark hover:border-ink-muted'} disabled:opacity-50`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${builtinQuant === opt.quant ? 'border-accent bg-accent' : 'border-ink-muted'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-ink-primary">{opt.label}</span>
+                          <span className="text-xs text-ink-muted">— {opt.description}</span>
+                          {downloaded && <span className="ml-auto flex items-center gap-1 text-xs text-success"><Check className="w-3 h-3" /> Downloaded</span>}
+                        </div>
+                        <div className="text-xs text-ink-muted mt-0.5">{opt.detail} · {opt.sizeMb >= 1000 ? `${(opt.sizeMb/1000).toFixed(1)} GB` : `${opt.sizeMb} MB`}</div>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            {!isDownloaded ? (
+              <div className="space-y-2">
+                {dlStatus === 'downloading' ? (<>
+                  <div className="flex items-center justify-between text-sm text-ink-muted">
+                    <span>Downloading…</span><span>{dlProgress}%</span>
+                  </div>
+                  <div className="h-1.5 bg-parchment-dark rounded-full overflow-hidden">
+                    <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${dlProgress}%` }} />
+                  </div>
+                  <button onClick={async () => { await window.electronAPI.cancelLLMModelDownload(); setDlStatus('idle'); setDlProgress(0) }}
+                    className="text-sm text-ink-muted hover:text-error transition-colors">Cancel</button>
+                </>) : (<>
+                  <button onClick={handleDownload}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors">
+                    <Download className="w-3.5 h-3.5" />
+                    Download {quantSizeMb >= 1000 ? `${(quantSizeMb/1000).toFixed(1)} GB` : `${quantSizeMb} MB`}
+                  </button>
+                  {dlStatus === 'error' && dlError && (
+                    <span className="text-sm text-red-500 flex items-center gap-1"><X className="w-3 h-3" />{dlError}</span>
+                  )}
+                </>)}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-sm text-success"><Check className="w-4 h-4" /> Model ready</div>
+            )}
+          </>)}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 pt-2 border-t border-parchment-dark">
+        {provider !== 'builtin' && (
+          <button onClick={handleTest} disabled={testStatus === 'testing' || !baseUrl || !model}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors disabled:cursor-not-allowed ${
+              testStatus === 'success' ? 'border-green-600 bg-green-600 text-white'
+              : testStatus === 'error' ? 'border-red-600 bg-red-600 text-white'
+              : 'border-accent text-accent hover:bg-accent hover:text-white disabled:border-parchment-dark disabled:text-ink-muted'
+            }`}>
+            {testStatus === 'testing' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {testStatus === 'success' && <Check className="w-3.5 h-3.5" />}
+            {testStatus === 'error'   && <X     className="w-3.5 h-3.5" />}
+            {testStatus === 'testing' ? 'Testing…' : testStatus === 'success' ? 'Connected' : testStatus === 'error' ? 'Failed' : 'Test'}
+          </button>
+        )}
+        <button onClick={handleSave}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors">
+          <Save className="w-3.5 h-3.5" /> Save
+        </button>
+        <button onClick={onCancel} className="px-3 py-1.5 text-ink-muted hover:text-ink-primary text-sm transition-colors">
+          Cancel
+        </button>
+        {testError && <span className="text-xs text-red-500 ml-1">{testError}</span>}
+      </div>
+    </div>
+  )
+}
+
+// ─── Inference Tab root ───────────────────────────────────────────────────────
+
+function InferenceTab() {
+  const { llmProfiles, activeProfileId, setLLMStorage } = useAppStore()
+  const [editingId, setEditingId] = useState<string | 'new' | null>(null)
+  const [activatingId, setActivatingId] = useState<string | null>(null)
+  const [activateError, setActivateError] = useState<string | null>(null)
+  const [serverStatus, setServerStatus] = useState<ServerStatus>('stopped')
+  const [serverUrl, setServerUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    window.electronAPI.getLLMModelInfo().then((info) => {
+      if (info.serverRunning) { setServerStatus('ready'); setServerUrl(info.serverUrl) }
+    })
+    const unsub = window.electronAPI.onLLMStatus((status: string) => {
+      if      (status === 'loading') setServerStatus('loading')
+      else if (status === 'ready')   setServerStatus('ready')
+      else if (status === 'stopped') setServerStatus('stopped')
+      else if (status === 'error')   setServerStatus('error')
+    })
+    return unsub
+  }, [])
+
+  const persist = (profiles: LLMProfile[], activeId: string | null) => {
+    setLLMStorage(profiles, activeId)
+    window.electronAPI.setSetting('llmConfig', { profiles, activeId })
+  }
+
+  const handleSaveProfile = (profile: LLMProfile) => {
+    const exists = llmProfiles.some(p => p.id === profile.id)
+    const updated = exists ? llmProfiles.map(p => p.id === profile.id ? profile : p) : [...llmProfiles, profile]
+    persist(updated, activeProfileId)
+    setEditingId(null)
+  }
+
+  const handleDeleteProfile = (id: string) => {
+    const updated = llmProfiles.filter(p => p.id !== id)
+    const newActive = activeProfileId === id ? (updated[0]?.id ?? null) : activeProfileId
+    persist(updated, newActive)
+    if (editingId === id) setEditingId(null)
+  }
+
+  const handleActivate = async (id: string) => {
+    const profile = llmProfiles.find(p => p.id === id)
+    if (!profile) return
+    setActivatingId(id)
+    setActivateError(null)
+    if (profile.provider === 'builtin') {
       setServerStatus('loading')
-      const result = await window.electronAPI.startLLMModel(selectedQuant)
+      const result = await window.electronAPI.startBuiltinLLM(profile.builtinQuant ?? 'Q4_K_M')
       if (result.success) {
         setServerStatus('ready')
         setServerUrl(result.url ?? null)
+        persist(llmProfiles, id)
       } else {
         setServerStatus('error')
-        setServerError(result.error ?? 'Failed to start server')
+        setActivateError(result.error ?? 'Failed to start model')
       }
+    } else {
+      persist(llmProfiles, id)
     }
-
-    setSaveStatus('saved')
-    setTimeout(() => setSaveStatus('idle'), 2000)
-  }
-
-  const handleStopServer = async () => {
-    setServerStatus('loading')
-    setServerError(null)
-    await window.electronAPI.stopLLMServer()
-    setServerStatus('stopped')
-  }
-
-  const isConfigChanged = testedConfig ? testedConfig.baseUrl !== baseUrl || testedConfig.model !== model : true
-  const canTestExternal = testStatus === 'idle' || testStatus === 'success' || testStatus === 'error'
-
-  const handleInputChange = (setter: (v: string) => void, value: string) => {
-    setter(value)
-    setTestStatus('idle')
-    setTestError(null)
-    setSaveStatus('idle')
+    setActivatingId(null)
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark space-y-6">
-        {/* Mode picker */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setMode('builtin')}
-            className={`p-4 rounded-xl border-2 text-left transition-all ${mode === 'builtin' ? 'border-accent bg-accent/5' : 'border-parchment-dark hover:border-ink-muted'}`}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Cpu className={`w-4 h-4 ${mode === 'builtin' ? 'text-accent' : 'text-ink-muted'}`} />
-              <span className={`font-medium text-sm ${mode === 'builtin' ? 'text-ink-primary' : 'text-ink-muted'}`}>Built-in</span>
-              <span className="ml-auto flex items-center gap-1">
-                {llmConfig.mode === 'builtin' && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">Active</span>}
-              </span>
-            </div>
-            <p className="text-xs text-ink-muted">Run locally with no internet needed.</p>
-          </button>
-          <button
-            onClick={() => setMode('external')}
-            className={`p-4 rounded-xl border-2 text-left transition-all ${mode === 'external' ? 'border-accent bg-accent/5' : 'border-parchment-dark hover:border-ink-muted'}`}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Globe className={`w-4 h-4 ${mode === 'external' ? 'text-accent' : 'text-ink-muted'}`} />
-              <span className={`font-medium text-sm ${mode === 'external' ? 'text-ink-primary' : 'text-ink-muted'}`}>External API</span>
-              <span className="ml-auto flex items-center gap-1">
-                {llmConfig.mode !== 'builtin' && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">Active</span>}
-              </span>
-            </div>
-            <p className="text-xs text-ink-muted">Ollama, LM Studio, OpenAI, Groq, etc.</p>
-          </button>
+    <div className="max-w-2xl mx-auto space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink-primary">Connection Profiles</h3>
+          <p className="text-xs text-ink-muted mt-0.5">Switch between providers and models for experimentation.</p>
         </div>
-
-        {/* Built-in panel */}
-        {mode === 'builtin' && (
-          <div className="space-y-4">
-            {loadingInfo ? (
-              <div className="flex items-center gap-2 text-ink-muted text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Checking downloaded models…
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  {QUANT_OPTIONS.map((opt) => {
-                    const downloaded = downloadedModels.includes(opt.quant)
-                    const isSelected = selectedQuant === opt.quant
-                    return (
-                      <button
-                        key={opt.quant}
-                        onClick={() => { setSelectedQuant(opt.quant); setDownloadStatus('idle'); setDownloadError(null) }}
-                        disabled={downloadStatus === 'downloading'}
-                        className={`w-full p-3 rounded-lg border text-left transition-all ${isSelected ? 'border-accent bg-accent/5' : 'border-parchment-dark hover:border-ink-muted'} disabled:opacity-50 disabled:cursor-not-allowed`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${isSelected ? 'border-accent bg-accent' : 'border-ink-muted'}`} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-ink-primary">{opt.label}</span>
-                              <span className="text-xs text-ink-muted">— {opt.description}</span>
-                              {downloaded && <span className="ml-auto flex items-center gap-1 text-xs text-success"><Check className="w-3 h-3" /> Downloaded</span>}
-                            </div>
-                            <div className="text-xs text-ink-muted mt-0.5">{opt.detail} · {opt.sizeMb >= 1000 ? `${(opt.sizeMb / 1000).toFixed(1)} GB` : `${opt.sizeMb} MB`}</div>
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {!isDownloaded && downloadStatus !== 'done' ? (
-                  <div className="space-y-3">
-                    {downloadStatus === 'downloading' ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm text-ink-muted">
-                          <span>Downloading {QUANT_OPTIONS.find(o => o.quant === selectedQuant)?.label}…</span>
-                          <span>{downloadProgress}%</span>
-                        </div>
-                        <div className="h-2 bg-parchment-dark rounded-full overflow-hidden">
-                          <div className="h-full bg-accent rounded-full transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
-                        </div>
-                        <button onClick={handleCancelDownload} className="text-sm text-ink-muted hover:text-error transition-colors">Cancel</button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={handleDownload}
-                        className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg font-medium text-sm transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        Download {(() => { const s = QUANT_OPTIONS.find(o => o.quant === selectedQuant)?.sizeMb ?? 0; return s >= 1000 ? `${(s / 1000).toFixed(1)} GB` : `${s} MB` })()}
-                      </button>
-                    )}
-                    {downloadStatus === 'error' && downloadError && (
-                      <span className="text-sm text-red-600 flex items-center gap-1"><X className="w-3 h-3" /> {downloadError}</span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-success">
-                      <Check className="w-4 h-4" />
-                      Model ready
-                    </div>
-                    {serverStatus === 'loading' && (
-                      <div className="flex items-center gap-2 text-sm text-ink-muted">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Starting local server…
-                      </div>
-                    )}
-                    {serverStatus === 'ready' && (
-                      <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        Server running at {serverUrl}
-                        <button
-                          onClick={handleStopServer}
-                          className="ml-auto text-xs font-medium text-green-700 hover:text-red-700 underline"
-                        >
-                          Stop
-                        </button>
-                      </div>
-                    )}
-                    {serverStatus === 'stopped' && (
-                      <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                        <span className="w-2 h-2 rounded-full bg-amber-500" />
-                        Server not running
-                        <button
-                          onClick={async () => {
-                            setServerStatus('loading')
-                            setServerError(null)
-                            const result = await window.electronAPI.startLLMModel(selectedQuant)
-                            if (!result.success) {
-                              setServerStatus('error')
-                              setServerError(result.error ?? 'Failed to start')
-                            }
-                          }}
-                          className="ml-auto text-xs font-medium text-amber-700 hover:text-amber-900 underline"
-                        >
-                          Start
-                        </button>
-                      </div>
-                    )}
-                    {serverStatus === 'error' && (
-                      <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                        <span className="w-2 h-2 rounded-full bg-red-500" />
-                        Server error: {serverError ?? 'unknown'}
-                        <button
-                          onClick={async () => {
-                            setServerStatus('loading')
-                            setServerError(null)
-                            const result = await window.electronAPI.startLLMModel(selectedQuant)
-                            if (!result.success) {
-                              setServerStatus('error')
-                              setServerError(result.error ?? 'Failed to start')
-                            }
-                          }}
-                          className="ml-auto text-xs font-medium text-red-700 hover:text-red-900 underline"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* External panel */}
-        {mode === 'external' && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-ink-primary mb-1.5">Base URL</label>
-              <input
-                type="text"
-                value={baseUrl}
-                onChange={(e) => handleInputChange(setBaseUrl, e.target.value)}
-                placeholder="http://localhost:8000/v1"
-                className="w-full px-4 py-2.5 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm text-ink-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink-primary mb-1.5">Model Name</label>
-              <input
-                type="text"
-                value={model}
-                onChange={(e) => handleInputChange(setModel, e.target.value)}
-                placeholder="gemma-4-e4b-it"
-                className="w-full px-4 py-2.5 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm text-ink-primary"
-              />
-            </div>
-            <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-ink-primary mb-1.5">
-                <Key className="w-4 h-4" />
-                API Key <span className="text-ink-muted font-normal">(optional)</span>
-              </label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => handleInputChange(setApiKey, e.target.value)}
-                placeholder="Optional — for cloud providers"
-                className="w-full px-4 py-2.5 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm text-ink-primary"
-              />
-            </div>
-
-            <div className="flex items-center gap-3 pt-2 border-t border-parchment-dark">
-              <button
-                onClick={handleTest}
-                disabled={testStatus === 'testing' || !baseUrl || !model}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed ${
-                  testStatus === 'success' && !isConfigChanged
-                    ? 'bg-green-600 text-white'
-                    : testStatus === 'error'
-                    ? 'bg-red-600 text-white'
-                    : 'border border-accent text-accent hover:bg-accent hover:text-white disabled:border-parchment-dark disabled:text-ink-muted'
-                }`}
-              >
-                {testStatus === 'testing' && <Loader2 className="w-4 h-4 animate-spin" />}
-                {testStatus === 'success' && <Check className="w-4 h-4" />}
-                {testStatus === 'error' && <X className="w-4 h-4" />}
-                {testStatus === 'testing' ? 'Testing…' : testStatus === 'success' ? 'Connected' : testStatus === 'error' ? 'Failed' : 'Test Connection'}
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={mode === 'external' && testStatus !== 'success'}
-                className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:bg-ink-light disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                {saveStatus === 'saved' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                {saveStatus === 'saved' ? 'Saved' : 'Save'}
-              </button>
-              {testError && <span className="text-sm text-red-600">{testError}</span>}
-            </div>
-          </div>
-        )}
-
-        {/* Save for builtin */}
-        {mode === 'builtin' && (
-          <div className="flex items-center gap-3 pt-2 border-t border-parchment-dark">
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              {saveStatus === 'saved' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-              {saveStatus === 'saved' ? 'Saved' : 'Save'}
-            </button>
-          </div>
-        )}
+        <button onClick={() => setEditingId('new')} disabled={editingId === 'new'}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium transition-colors">
+          <Plus className="w-3.5 h-3.5" /> New Profile
+        </button>
       </div>
+
+      {/* Profile list */}
+      <div className="space-y-2">
+        {llmProfiles.length === 0 && editingId !== 'new' && (
+          <div className="bg-parchment-card border border-parchment-dark rounded-xl p-8 text-center">
+            <Cpu className="w-8 h-8 text-ink-light mx-auto mb-3" />
+            <p className="text-sm text-ink-muted">No profiles yet. Add one to connect Wilfred to a language model.</p>
+          </div>
+        )}
+
+        {llmProfiles.map(profile => {
+          const isActive = profile.id === activeProfileId
+          const isActivating = activatingId === profile.id
+          const isEditing = editingId === profile.id
+          const modelLabel = profile.provider === 'builtin'
+            ? (QUANT_OPTIONS.find(q => q.quant === profile.builtinQuant)?.label ?? profile.builtinQuant)
+            : profile.model
+
+          return (
+            <div key={profile.id}
+              className={`bg-parchment-card border rounded-xl overflow-hidden transition-all ${isActive ? 'border-accent/40' : 'border-parchment-dark'}`}>
+
+              {/* Row */}
+              <div className="flex items-center gap-3 p-4">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-green-500' : 'bg-ink-light'}`} />
+                <ProviderBadge provider={profile.provider} />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-ink-primary">{profile.name}</span>
+                  {modelLabel && <span className="text-xs text-ink-muted ml-2">{modelLabel}</span>}
+                </div>
+                {isActive ? (
+                  <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full shrink-0">Active</span>
+                ) : (
+                  <button onClick={() => handleActivate(profile.id)} disabled={isActivating}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-accent text-accent hover:bg-accent hover:text-white disabled:opacity-50 transition-colors shrink-0">
+                    {isActivating && <Loader2 className="w-3 h-3 animate-spin" />}
+                    Activate
+                  </button>
+                )}
+                <button onClick={() => setEditingId(isEditing ? null : profile.id)}
+                  className={`p-1.5 rounded-lg transition-colors ${isEditing ? 'text-accent bg-accent/10' : 'text-ink-muted hover:text-ink-primary hover:bg-parchment-dark'}`}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => handleDeleteProfile(profile.id)}
+                  className="p-1.5 rounded-lg text-ink-muted hover:text-red-500 hover:bg-red-500/10 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Server status (active builtin only) */}
+              {isActive && profile.provider === 'builtin' && (
+                <div className="px-4 pb-3">
+                  <BuiltinServerStatus status={serverStatus} url={serverUrl}
+                    quant={profile.builtinQuant ?? 'Q4_K_M'} onStatusChange={setServerStatus} />
+                </div>
+              )}
+
+              {/* Activate error */}
+              {activateError && activatingId === null && isActive && (
+                <p className="px-4 pb-3 text-xs text-red-500">{activateError}</p>
+              )}
+
+              {/* Edit form */}
+              {isEditing && (
+                <div className="border-t border-parchment-dark p-4">
+                  <ProfileForm initialProfile={profile} onSave={handleSaveProfile} onCancel={() => setEditingId(null)} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* New profile form */}
+      {editingId === 'new' && (
+        <div className="bg-parchment-card border border-parchment-dark rounded-xl p-4">
+          <p className="text-sm font-medium text-ink-primary mb-4">New Profile</p>
+          <ProfileForm onSave={handleSaveProfile} onCancel={() => setEditingId(null)} />
+        </div>
+      )}
     </div>
   )
 }

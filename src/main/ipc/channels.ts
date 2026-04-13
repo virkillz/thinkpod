@@ -129,6 +129,7 @@ export const IPC_CHANNELS = {
   PUSH_VOICE_TRANSCRIPT: 'push:voice-transcript',
   PUSH_LLM_DOWNLOAD_PROGRESS: 'push:llm-download-progress',
   PUSH_LLM_STATUS: 'push:llm-status',
+  PUSH_FILE_CHANGED: 'push:file-changed',
 } as const
 
 export type IpcChannels = typeof IPC_CHANNELS

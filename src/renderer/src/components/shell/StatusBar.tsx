@@ -2,22 +2,26 @@ import { useEffect, useState } from 'react'
 import { Folder, Cpu, Globe } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
-const QUANT_LABELS: Record<string, string> = {
-  Q3_K_M: 'Light',
-  Q4_K_M: 'Balanced',
-  Q5_K_M: 'Quality',
-}
-
 type ServerStatus = 'loading' | 'ready' | 'stopped' | 'error'
 
 export function StatusBar() {
-  const { vault, llmConfig, setCurrentView, setPendingSettingsTab } = useAppStore()
+  const { vault, llmProfiles, activeProfileId, setCurrentView, setPendingSettingsTab } = useAppStore()
   const [version, setVersion] = useState<string>('')
   const [serverStatus, setServerStatus] = useState<ServerStatus>('stopped')
+
+  const activeProfile = llmProfiles.find(p => p.id === activeProfileId) ?? null
+  const isBuiltinProvider = activeProfile?.provider === 'builtin'
 
   useEffect(() => {
     window.electronAPI.getAppVersion().then(setVersion)
 
+    // For API-based providers, assume they're ready
+    if (!isBuiltinProvider) {
+      setServerStatus(activeProfile ? 'ready' : 'stopped')
+      return
+    }
+
+    // For built-in provider, monitor actual server status
     window.electronAPI.getLLMModelInfo().then((info) => {
       setServerStatus(info.serverRunning ? 'ready' : 'stopped')
     })
@@ -29,17 +33,18 @@ export function StatusBar() {
       else if (status === 'error') setServerStatus('error')
     })
     return unsub
-  }, [])
+  }, [isBuiltinProvider, activeProfile])
 
   const handleLLMClick = () => {
     setPendingSettingsTab('inference')
     setCurrentView('settings')
   }
 
-  const modelLabel =
-    llmConfig.mode === 'builtin'
-      ? (QUANT_LABELS[llmConfig.builtinQuant ?? ''] ?? llmConfig.builtinQuant ?? 'Built-in')
-      : llmConfig.model || 'No model'
+  const modelLabel = activeProfile
+    ? activeProfile.provider === 'builtin'
+      ? (activeProfile.builtinQuant ?? 'Built-in')
+      : (activeProfile.model || activeProfile.name)
+    : 'No model'
 
   const dotColor =
     serverStatus === 'ready'
@@ -57,7 +62,9 @@ export function StatusBar() {
       ? 'starting…'
       : serverStatus === 'error'
       ? 'error'
-      : 'stopped'
+      : activeProfile
+      ? 'idle'
+      : 'not configured'
 
   return (
     <div className="h-7 flex items-center px-3 border-t border-parchment-dark bg-parchment-sidebar text-xs text-ink-muted shrink-0 select-none gap-4">
@@ -77,14 +84,18 @@ export function StatusBar() {
         className="flex items-center gap-1.5 hover:text-ink-primary transition-colors group"
         title="Open Inference settings"
       >
-        {llmConfig.mode === 'builtin' ? (
+        {activeProfile?.provider === 'builtin' ? (
           <Cpu className="w-3 h-3 shrink-0" />
         ) : (
           <Globe className="w-3 h-3 shrink-0" />
         )}
         <span className="group-hover:text-ink-primary">{modelLabel}</span>
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
-        <span>{statusLabel}</span>
+        {activeProfile && (
+          <>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+            <span>{statusLabel}</span>
+          </>
+        )}
       </button>
 
       {/* Version */}

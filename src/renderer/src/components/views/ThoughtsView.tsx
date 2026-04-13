@@ -44,6 +44,15 @@ export function ThoughtsView() {
 
   useEffect(() => {
     loadThoughts()
+    
+    const cleanup = window.electronAPI.onFileChanged((data) => {
+      if (data.path.startsWith('_thoughts/') || data.path.startsWith('_thoughts\\')) {
+        loadThoughts()
+        refreshThoughtCount()
+      }
+    })
+    
+    return cleanup
   }, [])
 
   const loadThoughts = async () => {

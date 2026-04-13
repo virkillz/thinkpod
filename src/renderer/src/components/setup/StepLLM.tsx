@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { Check, X, Loader2, Download, Cpu, Globe } from 'lucide-react'
-import type { LLMConfig } from '../../store/appStore.js'
+import type { LLMProfile } from '../../store/appStore.js'
 
 interface StepLLMProps {
-  onContinue: (config: LLMConfig) => void
+  onContinue: (profile: LLMProfile) => void
   onBack: () => void
 }
 
@@ -141,15 +141,25 @@ export function StepLLM({ onContinue, onBack }: StepLLMProps) {
   const handleContinue = () => {
     if (mode === 'builtin') {
       onContinue({
-        mode: 'builtin',
+        id: crypto.randomUUID(),
+        name: 'Built-in',
+        provider: 'builtin',
         builtinQuant: selectedQuant,
         baseUrl: '',
         model: 'gemma-4-e4b-builtin',
         apiKey: '',
       })
     } else {
+      const provider =
+        baseUrl.includes('localhost:11434') ? 'ollama' :
+        baseUrl.includes('localhost:1234') ? 'lmstudio' :
+        baseUrl.includes('api.openai.com') ? 'openai' :
+        baseUrl.includes('api.groq.com') ? 'groq' : 'custom'
       onContinue({
-        mode: 'external',
+        id: crypto.randomUUID(),
+        name: provider === 'ollama' ? 'Ollama' : provider === 'lmstudio' ? 'LM Studio' :
+              provider === 'openai' ? 'OpenAI' : provider === 'groq' ? 'Groq' : 'External',
+        provider,
         baseUrl,
         model,
         apiKey,

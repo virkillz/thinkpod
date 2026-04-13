@@ -254,6 +254,7 @@ export interface ElectronAPI {
   onChatToolUse: (callback: (data: { sessionId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onLLMDownloadProgress: (callback: (data: { quant: string; progress: number }) => void) => () => void
   onLLMStatus: (callback: (status: string) => void) => () => void
+  onFileChanged: (callback: (data: { type: string; path: string }) => void) => () => void
 
   // Personalization
   getPersonalizationTopic: (topic: string) => Promise<{ success: boolean; content: string | null; error?: string }>

@@ -49,8 +49,9 @@ export async function initVaultManager(vaultPath: string): Promise<void> {
     
     // Set up file watching for search indexing
     vaultManager.on('fileAdded', async (filePath: string) => {
+      const relativePath = path.relative(vaultPath, filePath)
+      
       if (filePath.endsWith('.md') && vaultIndexer) {
-        const relativePath = path.relative(vaultPath, filePath)
         if (!relativePath.startsWith('_') && !relativePath.startsWith('.')) {
           try {
             await vaultIndexer.indexFile(relativePath)
@@ -59,11 +60,17 @@ export async function initVaultManager(vaultPath: string): Promise<void> {
           }
         }
       }
+      
+      mainWindow?.webContents.send(IPC_CHANNELS.PUSH_FILE_CHANGED, {
+        type: 'added',
+        path: relativePath
+      })
     })
     
     vaultManager.on('fileChanged', async (filePath: string) => {
+      const relativePath = path.relative(vaultPath, filePath)
+      
       if (filePath.endsWith('.md') && vaultIndexer) {
-        const relativePath = path.relative(vaultPath, filePath)
         if (!relativePath.startsWith('_') && !relativePath.startsWith('.')) {
           try {
             await vaultIndexer.indexFile(relativePath)
@@ -72,17 +79,28 @@ export async function initVaultManager(vaultPath: string): Promise<void> {
           }
         }
       }
+      
+      mainWindow?.webContents.send(IPC_CHANNELS.PUSH_FILE_CHANGED, {
+        type: 'changed',
+        path: relativePath
+      })
     })
     
     vaultManager.on('fileRemoved', async (filePath: string) => {
+      const relativePath = path.relative(vaultPath, filePath)
+      
       if (filePath.endsWith('.md') && vaultIndexer) {
-        const relativePath = path.relative(vaultPath, filePath)
         try {
           await vaultIndexer.removeFile(relativePath)
         } catch (error) {
           log.error('Failed to remove file from index:', error)
         }
       }
+      
+      mainWindow?.webContents.send(IPC_CHANNELS.PUSH_FILE_CHANGED, {
+        type: 'removed',
+        path: relativePath
+      })
     })
     
     if (!schedulerStarted) {
@@ -151,8 +169,9 @@ async function initializeApp(): Promise<void> {
     
     // Set up file watching for search indexing
     vaultManager.on('fileAdded', async (filePath: string) => {
+      const relativePath = path.relative(vaultPath, filePath)
+      
       if (filePath.endsWith('.md') && vaultIndexer) {
-        const relativePath = path.relative(vaultPath, filePath)
         if (!relativePath.startsWith('_') && !relativePath.startsWith('.')) {
           try {
             await vaultIndexer.indexFile(relativePath)
@@ -161,11 +180,17 @@ async function initializeApp(): Promise<void> {
           }
         }
       }
+      
+      mainWindow?.webContents.send(IPC_CHANNELS.PUSH_FILE_CHANGED, {
+        type: 'added',
+        path: relativePath
+      })
     })
     
     vaultManager.on('fileChanged', async (filePath: string) => {
+      const relativePath = path.relative(vaultPath, filePath)
+      
       if (filePath.endsWith('.md') && vaultIndexer) {
-        const relativePath = path.relative(vaultPath, filePath)
         if (!relativePath.startsWith('_') && !relativePath.startsWith('.')) {
           try {
             await vaultIndexer.indexFile(relativePath)
@@ -174,17 +199,28 @@ async function initializeApp(): Promise<void> {
           }
         }
       }
+      
+      mainWindow?.webContents.send(IPC_CHANNELS.PUSH_FILE_CHANGED, {
+        type: 'changed',
+        path: relativePath
+      })
     })
     
     vaultManager.on('fileRemoved', async (filePath: string) => {
+      const relativePath = path.relative(vaultPath, filePath)
+      
       if (filePath.endsWith('.md') && vaultIndexer) {
-        const relativePath = path.relative(vaultPath, filePath)
         try {
           await vaultIndexer.removeFile(relativePath)
         } catch (error) {
           log.error('Failed to remove file from index:', error)
         }
       }
+      
+      mainWindow?.webContents.send(IPC_CHANNELS.PUSH_FILE_CHANGED, {
+        type: 'removed',
+        path: relativePath
+      })
     })
   }
 

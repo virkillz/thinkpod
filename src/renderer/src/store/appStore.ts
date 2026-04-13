@@ -15,8 +15,12 @@ export interface FileNode {
   children?: FileNode[]
 }
 
-export interface LLMConfig {
-  mode: 'builtin' | 'external'
+export type LLMProvider = 'ollama' | 'lmstudio' | 'openai' | 'groq' | 'custom' | 'builtin'
+
+export interface LLMProfile {
+  id: string
+  name: string
+  provider: LLMProvider
   baseUrl: string
   model: string
   apiKey: string
@@ -49,9 +53,10 @@ interface AppState {
   setFileTree: (tree: FileNode[]) => void
   refreshFileTree: () => Promise<void>
 
-  // LLM Config
-  llmConfig: LLMConfig
-  setLLMConfig: (config: Partial<LLMConfig>) => void
+  // LLM Profiles
+  llmProfiles: LLMProfile[]
+  activeProfileId: string | null
+  setLLMStorage: (profiles: LLMProfile[], activeId: string | null) => void
 
   // UI State
   isSidebarOpen: boolean
@@ -126,16 +131,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // LLM Config
-  llmConfig: {
-    mode: 'external' as const,
-    baseUrl: 'http://localhost:8000/v1',
-    model: 'gemma-4-e4b-it-4bit',
-    apiKey: '',
-  },
-  setLLMConfig: (config) => set((state) => ({
-    llmConfig: { ...state.llmConfig, ...config }
-  })),
+  // LLM Profiles
+  llmProfiles: [],
+  activeProfileId: null,
+  setLLMStorage: (profiles, activeId) => set({ llmProfiles: profiles, activeProfileId: activeId }),
 
   // UI State
   isSidebarOpen: true,
