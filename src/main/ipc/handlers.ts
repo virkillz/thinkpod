@@ -1,5 +1,7 @@
 import { ipcMain, dialog, app, BrowserWindow, shell } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import { createRequire } from 'module'
+const _require = createRequire(import.meta.url)
+const { autoUpdater } = _require('electron-updater') as typeof import('electron-updater')
 import path from 'path'
 import fs from 'fs/promises'
 import log from 'electron-log/main.js'

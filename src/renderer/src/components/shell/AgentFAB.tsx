@@ -7,6 +7,17 @@ export function AgentFAB() {
   const [isAnimating, setIsAnimating] = useState(false)
   const [showGreeting, setShowGreeting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle')
+  const [serverReachable, setServerReachable] = useState(true)
+
+  useEffect(() => {
+    window.electronAPI.getLLMModelInfo().then((info) => {
+      setServerReachable(info.serverRunning)
+    })
+    const unsub = window.electronAPI.onLLMStatus((s: string) => {
+      setServerReachable(s === 'ready')
+    })
+    return unsub
+  }, [])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -24,6 +35,7 @@ export function AgentFAB() {
   if (currentView === 'newthought') return null
 
   const getStatusColor = () => {
+    if (!serverReachable) return 'bg-error'
     switch (status) {
       case 'running': return 'bg-warning animate-pulse'
       case 'error': return 'bg-error'
@@ -81,7 +93,7 @@ export function AgentFAB() {
           
           {/* Enhanced online indicator with pulse - positioned outside button */}
           <span className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center z-10">
-            <span className={`absolute w-5 h-5 rounded-full ${status === 'idle' ? 'bg-success/40 animate-ping-slow' : ''}`} />
+            <span className={`absolute w-5 h-5 rounded-full ${status === 'idle' && serverReachable ? 'bg-success/40 animate-ping-slow' : ''}`} />
             <span
               className={`
                 relative w-5 h-5 rounded-full border-2 border-white
