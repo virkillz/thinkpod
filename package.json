@@ -12,6 +12,10 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "preview": "vite preview",
     "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:all": "npm run build && electron-builder --mac --win --linux",
     "postinstall": "electron-builder install-app-deps"
   },
   "devDependencies": {
@@ -23,8 +27,8 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.2.1",
-    "electron": "^35.1.4",
-    "electron-builder": "^26.0.12",
+    "electron": "^41.2.0",
+    "electron-builder": "^26.8.1",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
@@ -36,12 +40,13 @@
     "@codemirror/lang-markdown": "^6.3.2",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.36.5",
-    "better-sqlite3": "^11.9.1",
+    "better-sqlite3": "^12.9.0",
     "chokidar": "^4.0.3",
     "codemirror": "^6.0.1",
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.487.0",
     "node-cron": "^4.2.1",
+    "node-llama-cpp": "^3.18.1",
     "nodejs-whisper": "^0.2.9",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -50,37 +55,5 @@
     "react-router-dom": "^7.5.0",
     "remark-gfm": "^4.0.1",
     "zustand": "^5.0.3"
-  },
-  "build": {
-    "appId": "com.thinkpod.app",
-    "productName": "ThinkPod",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "node_modules/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "resources/skills",
-        "to": "skills",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "mac": {
-      "category": "public.app-category.productivity",
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
-        }
-      ]
-    }
   }
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import avatar01 from '../assets/avatar01.png'
 
-export type ThemeId = 'parchment' | 'midnight' | 'forest' | 'slate' | 'rose'
+export type ThemeId = 'parchment' | 'midnight' | 'forest' | 'slate' | 'rose' | 'ocean' | 'sunset' | 'nordic' | 'lavender' | 'cherry' | 'onyx'
 
 export interface VaultInfo {
   path: string
@@ -16,9 +16,11 @@ export interface FileNode {
 }
 
 export interface LLMConfig {
+  mode: 'builtin' | 'external'
   baseUrl: string
   model: string
   apiKey: string
+  builtinQuant?: string
 }
 
 export interface UserProfile {
@@ -122,6 +124,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // LLM Config
   llmConfig: {
+    mode: 'external' as const,
     baseUrl: 'http://localhost:8000/v1',
     model: 'gemma-4-e4b-it-4bit',
     apiKey: '',

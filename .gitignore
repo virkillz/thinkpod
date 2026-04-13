@@ -5,8 +5,12 @@ node_modules/
 
 # Build outputs
 dist/
-build/
 out/
+build/
+!build/icon.icns
+!build/icon.ico
+!build/icon.png
+!build/entitlements.mac.plist
 *.tsbuildinfo
 
 # Environment files
@@ -51,6 +55,10 @@ Thumbs.db
 
 # Electron
 electron-dist/
+release/
+MyIcon.iconset/
+brain-icon.html
+icongen.sh
 
 # Testing
 coverage/
