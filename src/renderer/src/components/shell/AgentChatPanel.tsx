@@ -36,6 +36,7 @@ export interface AgentChatPanelProps {
   contextKey: string
   contextFilePath?: string
   onStatusChange?: (status: 'idle' | 'running' | 'error') => void
+  forceNew?: boolean
 }
 
 interface UIMessage {
@@ -92,6 +93,7 @@ export function AgentChatPanel({
   contextKey,
   contextFilePath,
   onStatusChange,
+  forceNew = false,
 }: AgentChatPanelProps) {
   const { agentName, agentAvatar, initialAgentMessage, setInitialAgentMessage, setCurrentView } = useAppStore()
   const [messages, setMessages] = useState<UIMessage[]>([])
@@ -131,7 +133,9 @@ export function AgentChatPanel({
   const openSession = useCallback(async () => {
     setIsSessionLoading(true)
     try {
-      const result = await window.electronAPI.agentChatOpen(contextType, contextKey, contextFilePath)
+      const result = (forceNew
+        ? await window.electronAPI.agentChatNew(contextType, contextKey, contextFilePath)
+        : await window.electronAPI.agentChatOpen(contextType, contextKey, contextFilePath)) as Awaited<ReturnType<typeof window.electronAPI.agentChatOpen>>
       if (!result.success || !result.sessionId) return
 
       openedContextKey.current = contextKey
@@ -223,7 +227,7 @@ export function AgentChatPanel({
     } finally {
       setIsSessionLoading(false)
     }
-  }, [contextType, contextKey, contextFilePath, initialAgentMessage, setInitialAgentMessage, onStatusChange])
+  }, [contextType, contextKey, contextFilePath, forceNew, initialAgentMessage, setInitialAgentMessage, onStatusChange])
 
   useEffect(() => {
     if (!isOpen) return
@@ -520,7 +524,7 @@ export function AgentChatPanel({
       {/* Summary preview modal */}
       {summaryPreview !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSummaryPreview(null)} />
+          <div className="absolute inset-0 bg-black/70" onClick={() => setSummaryPreview(null)} />
           <div className="relative bg-parchment-card rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[80vh]">
             {/* Agent message bubble */}
             <div className="px-5 pt-5 pb-4">

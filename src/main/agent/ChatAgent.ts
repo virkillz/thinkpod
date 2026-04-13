@@ -240,6 +240,49 @@ export class ChatAgent {
     const skillsBlock = SkillRegistry.buildMetadataBlock(skills)
 
     const parts = [SYSTEM_PROMPT, '', `${config.persona}\n\n${invocationPrompt}`]
+
+    if (contextType !== 'personalization') {
+      const featureEnabled = config.dbManager.getSetting('personalizationEnabled') as boolean | null
+      if (featureEnabled) {
+        const pm = new PersonalizationManager(config.vaultPath)
+        const summaryContent = await pm.getSummaryContent()
+        const profileEntries = await pm.buildProfileReference()
+
+        if (summaryContent || profileEntries.length > 0) {
+          const block: string[] = ['## About the User', '']
+
+          if (summaryContent) {
+            block.push('Quick facts for immediate context:')
+            block.push('')
+            block.push(summaryContent.trim())
+          }
+
+          if (profileEntries.length > 0) {
+            block.push('')
+            block.push('## Detailed User Profile Files')
+            block.push('')
+            block.push('The user has detailed profile files stored in the vault. Use the `read_file` tool to load')
+            block.push('the relevant file BEFORE responding whenever the conversation touches those topics.')
+            block.push('This gives you much richer context than the quick facts above.')
+            block.push('')
+            block.push('How to read a profile file:')
+            block.push('  Call read_file with the path shown below (relative to vault root).')
+            block.push('  Example: read_file(".thinkpod/user_profile/career.md")')
+            block.push('')
+            block.push('| File path | Read this file when the conversation involves... |')
+            block.push('|-----------|--------------------------------------------------|')
+            for (const entry of profileEntries) {
+              block.push(`| ${entry.relativePath} | ${entry.meta.topics} — ${entry.meta.loadWhen} |`)
+            }
+            block.push('')
+            block.push('Rule: when in doubt, read the file first. It only takes one tool call and makes your response much more relevant.')
+          }
+
+          parts.push('', block.join('\n'))
+        }
+      }
+    }
+
     if (skillsBlock) parts.push('', skillsBlock)
     return parts.join('\n')
   }

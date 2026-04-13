@@ -72,6 +72,48 @@ const THEMES: {
     swatches: ['#FFF1F2', '#FFE4E6', '#E11D48', '#1C0A0B'],
     dark: false,
   },
+  {
+    id: 'ocean',
+    name: 'Ocean',
+    description: 'Deep blue tones with a crisp marine feel',
+    swatches: ['#0C1929', '#162033', '#0EA5E9', '#E0F2FE'],
+    dark: true,
+  },
+  {
+    id: 'sunset',
+    name: 'Sunset',
+    description: 'Warm amber to purple gradient, perfect for evening writing',
+    swatches: ['#1F1410', '#2D1F1A', '#F59E0B', '#FECACA'],
+    dark: true,
+  },
+  {
+    id: 'nordic',
+    name: 'Nordic',
+    description: 'Clean minimal whites and cool grays with subtle blue accents',
+    swatches: ['#F8FAFC', '#F1F5F9', '#94A3B8', '#1E293B'],
+    dark: false,
+  },
+  {
+    id: 'lavender',
+    name: 'Lavender',
+    description: 'Soft purple tones for a calm, creative atmosphere',
+    swatches: ['#FAF5FF', '#EDE9FE', '#A855F7', '#2E1065'],
+    dark: false,
+  },
+  {
+    id: 'cherry',
+    name: 'Cherry',
+    description: 'Dark elegance with subtle pink accents',
+    swatches: ['#1A0A10', '#241115', '#F472B6', '#FECDD3'],
+    dark: true,
+  },
+  {
+    id: 'onyx',
+    name: 'Onyx',
+    description: 'Classic monochrome — black, grey, and white',
+    swatches: ['#0D0D0D', '#1A1A1A', '#E5E5E5', '#FFFFFF'],
+    dark: true,
+  },
 ]
 
 // ─── Appearance Tab ───────────────────────────────────────────────────────────

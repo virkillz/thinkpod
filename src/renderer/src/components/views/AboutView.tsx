@@ -248,6 +248,7 @@ function ShortcutsTab() {
         { key: `${mod} + N`, description: 'Create new thought' },
         { key: `${mod} + B`, description: 'Toggle sidebar' },
         { key: `${mod} + J`, description: 'Toggle Agent Chat (Wilfred)' },
+        { key: `${mod} + H`, description: 'Go to Home' },
         { key: `Esc`, description: 'Close panels / Go back' },
       ]
     },
@@ -257,6 +258,8 @@ function ShortcutsTab() {
         { key: `${mod} + S`, description: 'Save current document' },
         { key: `${mod} + Enter`, description: 'Save and close (in New Thought)' },
         { key: `${mod} + Enter`, description: 'Send message (in Inbox/Chat)' },
+        { key: `${mod} + Z`, description: 'Undo' },
+        { key: `${mod} + Shift + Z`, description: 'Redo' },
       ]
     },
     {

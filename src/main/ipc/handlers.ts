@@ -8,6 +8,7 @@ import { SkillRegistry } from '../agent/SkillRegistry.js'
 import type { VaultManager } from '../vault/VaultManager.js'
 import { getMainWindow, getVaultManager, initVaultManager } from '../index.js'
 import { LLMProcessManager } from '../agent/LLMProcessManager.js'
+import { LLMModelManager, GEMMA_MODELS, type GGUFModelInfo, type LLMBuiltinConfig } from '../agent/LLMModelManager.js'
 import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
 import { LLMClient } from '../agent/LLMClient.js'
 import { ChatAgent, InvocationType } from '../agent/ChatAgent.js'
@@ -30,6 +31,7 @@ import {
   ASSESS_THOUGHT,
   THREAD_CONTINUATION_SUFFIX,
   SYSTEM_PROMPT,
+  PERSONALIZATION_QUICK_FACTS_PROMPT,
 } from '../agent/prompts.js'
 
 // ── JSON extraction helper ────────────────────────────────────────────────────
@@ -60,6 +62,7 @@ function extractJSON(raw: string): unknown {
 
 // Agent state
 let llmProcessManager: LLMProcessManager | null = null
+let llmModelManager: LLMModelManager | null = null
 let currentAgentLoop: AgentLoop | null = null
 let scheduler: Scheduler | null = null
 
@@ -70,6 +73,36 @@ const activeChatAgents = new Map<string, ChatAgent>()
 let whisperManager: WhisperManager | null = null
 let voiceCaptureService: VoiceCaptureService | null = null
 
+// ── LLM config resolution ─────────────────────────────────────────────────────
+
+interface FullLLMConfig {
+  mode?: 'builtin' | 'external'
+  baseUrl: string
+  model: string
+  apiKey?: string
+  builtinQuant?: string
+}
+
+/**
+ * Returns the effective LLM config to hand to LLMClient.
+ * When mode is 'builtin', swaps in the local server URL so all existing
+ * LLMClient usage works unchanged with zero handler modifications.
+ */
+function getEffectiveLLMConfig(
+  dbManager: DatabaseManager
+): { baseUrl: string; model: string; apiKey?: string } | null {
+  const raw = dbManager.getSetting('llmConfig') as FullLLMConfig | null
+  if (!raw) return null
+
+  if (raw.mode === 'builtin') {
+    const url = llmProcessManager?.getUrl()
+    if (!url) return null
+    return { baseUrl: url, model: 'gemma-4-e4b-builtin' }
+  }
+
+  return { baseUrl: raw.baseUrl, model: raw.model, apiKey: raw.apiKey }
+}
+
 function pushToRenderer(channel: string, data: unknown): void {
   const win = getMainWindow()
   win?.webContents.send(channel, data)
@@ -78,8 +111,110 @@ function pushToRenderer(channel: string, data: unknown): void {
 export function setupIpcHandlers(
   dbManager: DatabaseManager
 ): void {
-  // Initialise whisper manager (lazy, no heavy work until needed)
+  // Initialise managers (lazy — no heavy work until needed)
   whisperManager = new WhisperManager(dbManager)
+  llmModelManager = new LLMModelManager(dbManager)
+
+  // Auto-start built-in model if it was configured and downloaded
+  const storedConfig = dbManager.getSetting('llmConfig') as FullLLMConfig | null
+  if (storedConfig?.mode === 'builtin' && storedConfig.builtinQuant) {
+    llmModelManager.isModelDownloaded(storedConfig.builtinQuant).then(async (downloaded) => {
+      if (downloaded && !llmProcessManager) {
+        const modelPath = llmModelManager!.getModelPath(storedConfig.builtinQuant!)
+        llmProcessManager = new LLMProcessManager()
+        llmProcessManager.on('status', (status: string) => {
+          pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, status)
+        })
+        llmProcessManager.on('error', (err: string) => {
+          console.error('[LLM built-in]', err)
+          pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
+        })
+        const started = await llmProcessManager.start(modelPath)
+        if (!started) llmProcessManager = null
+      }
+    }).catch((err) => console.error('[LLM auto-start]', err))
+  }
+
+  // ── Built-in LLM model management ──────────────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.LLM_MODEL_GET_INFO, async () => {
+    const downloaded = await llmModelManager!.listDownloadedModels()
+    const config = await llmModelManager!.getConfig()
+    return {
+      models: GEMMA_MODELS as GGUFModelInfo[],
+      downloaded,
+      config,
+      serverRunning: llmProcessManager?.isRunning() ?? false,
+      serverUrl: llmProcessManager?.getUrl() ?? null,
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.LLM_MODEL_DOWNLOAD, async (_, quant: string) => {
+    try {
+      const alreadyDownloaded = await llmModelManager!.isModelDownloaded(quant)
+      if (alreadyDownloaded) {
+        pushToRenderer(IPC_CHANNELS.PUSH_LLM_DOWNLOAD_PROGRESS, { quant, progress: 100 })
+        return { success: true, alreadyExists: true }
+      }
+
+      await llmModelManager!.downloadModel(quant, (progress) => {
+        pushToRenderer(IPC_CHANNELS.PUSH_LLM_DOWNLOAD_PROGRESS, { quant, progress })
+      })
+      await llmModelManager!.setConfig({ quant } as LLMBuiltinConfig)
+      return { success: true }
+    } catch (error) {
+      const msg = (error as Error).message
+      if (msg === 'Download cancelled') return { success: false, cancelled: true }
+      return { success: false, error: msg }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.LLM_MODEL_CANCEL_DOWNLOAD, async () => {
+    llmModelManager!.cancelDownload()
+    return { success: true }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.LLM_MODEL_DELETE, async (_, quant: string) => {
+    try {
+      await llmModelManager!.deleteModel(quant)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.LLM_MODEL_START, async (_, quant: string) => {
+    if (llmProcessManager?.isRunning()) return { success: true, url: llmProcessManager.getUrl() }
+
+    try {
+      const modelPath = llmModelManager!.getModelPath(quant)
+      llmProcessManager = new LLMProcessManager()
+      llmProcessManager.on('status', (status: string) => {
+        pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, status)
+      })
+      llmProcessManager.on('error', (err: string) => {
+        console.error('[LLM built-in]', err)
+        pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
+      })
+
+      const started = await llmProcessManager.start(modelPath)
+      if (started) {
+        return { success: true, url: llmProcessManager.getUrl() }
+      } else {
+        llmProcessManager = null
+        return { success: false, error: 'Failed to load model' }
+      }
+    } catch (error) {
+      llmProcessManager = null
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.LLM_MODEL_STOP, async () => {
+    llmProcessManager?.stop()
+    llmProcessManager = null
+    return { success: true }
+  })
 
   // Whisper: Get config + available models
   ipcMain.handle(IPC_CHANNELS.WHISPER_GET_CONFIG, async () => {
@@ -600,35 +735,9 @@ export function setupIpcHandlers(
     return `data:${mime};base64,${data.toString('base64')}`
   })
 
-  // LLM: Start server
-  ipcMain.handle(IPC_CHANNELS.LLM_START_SERVER, async (_, config: { model: string; port?: number }) => {
-    if (llmProcessManager) {
-      return { success: false, error: 'Server already running' }
-    }
-
-    llmProcessManager = new LLMProcessManager(config)
-    
-    llmProcessManager.on('status', (status) => {
-      // TODO: Send status update to renderer via IPC or EventEmitter
-      console.log('LLM status:', status)
-    })
-    
-    llmProcessManager.on('log', (log) => {
-      console.log(`[LLM ${log.level}]`, log.message)
-    })
-    
-    llmProcessManager.on('error', (error) => {
-      console.error('[LLM error]', error)
-    })
-
-    const started = await llmProcessManager.start()
-    
-    if (started) {
-      return { success: true, url: llmProcessManager.getUrl() }
-    } else {
-      llmProcessManager = null
-      return { success: false, error: 'Failed to start server' }
-    }
+  // LLM: Start server (legacy — kept for API compatibility; use LLM_MODEL_START for built-in)
+  ipcMain.handle(IPC_CHANNELS.LLM_START_SERVER, async () => {
+    return { success: false, error: 'Use LLM_MODEL_START for built-in model or configure an external API' }
   })
 
   // LLM: Stop server
@@ -654,7 +763,7 @@ export function setupIpcHandlers(
       return { success: false, error: 'No vault initialized' }
     }
 
-    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    const llmConfig = getEffectiveLLMConfig(dbManager)
     if (!llmConfig) {
       return { success: false, error: 'LLM not configured' }
     }
@@ -696,7 +805,7 @@ export function setupIpcHandlers(
 
   // Agent: Chat (single LLM call, no tool loop)
   ipcMain.handle(IPC_CHANNELS.AGENT_CHAT, async (_, message: string) => {
-    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    const llmConfig = getEffectiveLLMConfig(dbManager)
     if (!llmConfig) {
       return { success: false, error: 'LLM not configured' }
     }
@@ -719,7 +828,7 @@ export function setupIpcHandlers(
 
   // LLM: Edit text with a natural language instruction
   ipcMain.handle(IPC_CHANNELS.LLM_EDIT_TEXT, async (_, text: string, instruction: string) => {
-    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    const llmConfig = getEffectiveLLMConfig(dbManager)
     if (!llmConfig) {
       return { success: false, error: 'LLM not configured' }
     }
@@ -747,7 +856,7 @@ export function setupIpcHandlers(
     const abbey = getVaultManager()
     if (!abbey) return { success: false, error: 'No vault initialized' }
 
-    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    const llmConfig = getEffectiveLLMConfig(dbManager)
     if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
     const getFolders = async (dirPath: string, depth = 0): Promise<string[]> => {
@@ -800,7 +909,7 @@ export function setupIpcHandlers(
   ipcMain.handle(
     IPC_CHANNELS.LLM_CLASSIFY_THOUGHT,
     async (_, content: string, templates: { id: string; title: string; description: string }[]) => {
-      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      const llmConfig = getEffectiveLLMConfig(dbManager)
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
       try {
@@ -831,7 +940,7 @@ export function setupIpcHandlers(
 
   // LLM: Identify missing fields in a thought relative to a template
   ipcMain.handle(IPC_CHANNELS.LLM_GET_MISSING_FIELDS, async (_, content: string, templateFormat: string) => {
-    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    const llmConfig = getEffectiveLLMConfig(dbManager)
     if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
     try {
@@ -862,7 +971,7 @@ export function setupIpcHandlers(
   ipcMain.handle(
     IPC_CHANNELS.LLM_REFORMAT_THOUGHT,
     async (_, content: string, templateFormat: string, userAnswers: { field: string; answer: string }[]) => {
-      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      const llmConfig = getEffectiveLLMConfig(dbManager)
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
       try {
@@ -897,7 +1006,7 @@ export function setupIpcHandlers(
       templates: { id: string; title: string; description: string; defaultFolder: string }[],
       currentFolder: string
     ) => {
-      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      const llmConfig = getEffectiveLLMConfig(dbManager)
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
       try {
@@ -945,7 +1054,7 @@ export function setupIpcHandlers(
       const abbey = getVaultManager()
       if (!abbey) return { success: false, error: 'No vault initialized' }
 
-      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      const llmConfig = getEffectiveLLMConfig(dbManager)
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
       const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; systemPrompt?: string } | null
@@ -1008,7 +1117,7 @@ export function setupIpcHandlers(
       const abbey = getVaultManager()
       if (!abbey) return { success: false, error: 'No vault initialized' }
 
-      const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+      const llmConfig = getEffectiveLLMConfig(dbManager)
       if (!llmConfig) return { success: false, error: 'LLM not configured' }
 
       const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; systemPrompt?: string } | null
@@ -1169,7 +1278,7 @@ export function setupIpcHandlers(
       return { success: false, error: 'No vault initialized' }
     }
 
-    const llmConfig = dbManager.getSetting('llmConfig') as { baseUrl: string; model: string; apiKey?: string } | null
+    const llmConfig = getEffectiveLLMConfig(dbManager)
     if (!llmConfig) {
       return { success: false, error: 'LLM not configured' }
     }
@@ -1357,6 +1466,54 @@ export function setupIpcHandlers(
     try {
       const summary = await agent.summarize(topic, userName)
       return { success: true, summary }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PERSONALIZATION_GET_SUMMARY, async () => {
+    const vaultManager = getVaultManager()
+    if (!vaultManager) return { success: false, error: 'No vault initialized' }
+    const pm = new PersonalizationManager(vaultManager.vaultPath)
+    const content = await pm.getSummaryContent()
+    return { success: true, content }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PERSONALIZATION_WRITE_SUMMARY, async (_, content: string) => {
+    const vaultManager = getVaultManager()
+    if (!vaultManager) return { success: false, error: 'No vault initialized' }
+    const pm = new PersonalizationManager(vaultManager.vaultPath)
+    await pm.writeSummaryContent(content)
+    return { success: true }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PERSONALIZATION_SYNC_SUMMARY, async () => {
+    const vaultManager = getVaultManager()
+    if (!vaultManager) return { success: false, error: 'No vault initialized' }
+    const llmConfig = getEffectiveLLMConfig(dbManager)
+    if (!llmConfig) return { success: false, error: 'LLM not configured' }
+
+    const pm = new PersonalizationManager(vaultManager.vaultPath)
+    const filledTopics = await pm.getFilledTopics()
+    if (filledTopics.length === 0) return { success: false, error: 'No profile topics found. Add some content first.' }
+
+    const topicBlocks = await Promise.all(
+      filledTopics.map(async (topic) => {
+        const content = await pm.getTopicContent(topic)
+        return `### ${topic}\n${content}`
+      })
+    )
+    const combinedProfiles = topicBlocks.join('\n\n')
+
+    try {
+      const client = new LLMClient({ ...llmConfig, maxTokens: 400 })
+      const response = await client.chat([
+        { role: 'system', content: PERSONALIZATION_QUICK_FACTS_PROMPT },
+        { role: 'user', content: `User profile files:\n\n${combinedProfiles}` },
+      ])
+      const quickFacts = response.content ?? ''
+      await pm.writeSummaryContent(quickFacts)
+      return { success: true, content: quickFacts }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }

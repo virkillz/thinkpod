@@ -74,11 +74,22 @@ const IPC_CHANNELS = {
   WHISPER_AUDIO_CHUNK: 'whisper:audio-chunk',
   PUSH_VOICE_DOWNLOAD_PROGRESS: 'push:voice-download-progress',
   PUSH_VOICE_TRANSCRIPT: 'push:voice-transcript',
+  LLM_MODEL_GET_INFO: 'llm-model:get-info',
+  LLM_MODEL_DOWNLOAD: 'llm-model:download',
+  LLM_MODEL_CANCEL_DOWNLOAD: 'llm-model:cancel-download',
+  LLM_MODEL_DELETE: 'llm-model:delete',
+  LLM_MODEL_START: 'llm-model:start',
+  LLM_MODEL_STOP: 'llm-model:stop',
+  PUSH_LLM_DOWNLOAD_PROGRESS: 'push:llm-download-progress',
+  PUSH_LLM_STATUS: 'push:llm-status',
   GRAPH_GET_DATA: 'graph:get-data',
   STATS_GET_OVERVIEW: 'stats:get-overview',
   PERSONALIZATION_GET_TOPIC: 'personalization:get-topic',
   PERSONALIZATION_WRITE_TOPIC: 'personalization:write-topic',
   PERSONALIZATION_SUMMARIZE: 'personalization:summarize',
+  PERSONALIZATION_GET_SUMMARY: 'personalization:get-summary',
+  PERSONALIZATION_WRITE_SUMMARY: 'personalization:write-summary',
+  PERSONALIZATION_SYNC_SUMMARY: 'personalization:sync-summary',
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -195,6 +206,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopVoiceCapture: () => ipcRenderer.invoke(IPC_CHANNELS.WHISPER_STOP_CAPTURE),
   sendAudioChunk: (buffer: ArrayBuffer) => ipcRenderer.send(IPC_CHANNELS.WHISPER_AUDIO_CHUNK, buffer),
 
+  // Built-in LLM model management
+  getLLMModelInfo: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_GET_INFO),
+  downloadLLMModel: (quant: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_DOWNLOAD, quant),
+  cancelLLMModelDownload: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_CANCEL_DOWNLOAD),
+  deleteLLMModel: (quant: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_DELETE, quant),
+  startBuiltinLLM: (quant: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_START, quant),
+  stopBuiltinLLM: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_STOP),
+
   // Push events (main → renderer)
   onTaskUpdate: (callback: (run: unknown) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PUSH_TASK_UPDATE, (_, run) => callback(run))
@@ -216,6 +235,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(IPC_CHANNELS.PUSH_CHAT_TOOL_USE, (_, data) => callback(data))
     return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_CHAT_TOOL_USE)
   },
+  onLLMDownloadProgress: (callback: (data: { quant: string; progress: number }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_LLM_DOWNLOAD_PROGRESS, (_, data) => callback(data))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_LLM_DOWNLOAD_PROGRESS)
+  },
+  onLLMStatus: (callback: (status: string) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_LLM_STATUS, (_, status) => callback(status))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_LLM_STATUS)
+  },
 
   // Graph & Stats
   getGraphData: () => ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_DATA),
@@ -225,4 +252,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPersonalizationTopic: (topic: string) => ipcRenderer.invoke(IPC_CHANNELS.PERSONALIZATION_GET_TOPIC, topic),
   writePersonalizationTopic: (topic: string, content: string) => ipcRenderer.invoke(IPC_CHANNELS.PERSONALIZATION_WRITE_TOPIC, topic, content),
   summarizePersonalization: (sessionId: string, topic: string) => ipcRenderer.invoke(IPC_CHANNELS.PERSONALIZATION_SUMMARIZE, sessionId, topic),
+  getPersonalizationSummary: () => ipcRenderer.invoke(IPC_CHANNELS.PERSONALIZATION_GET_SUMMARY),
+  writePersonalizationSummary: (content: string) => ipcRenderer.invoke(IPC_CHANNELS.PERSONALIZATION_WRITE_SUMMARY, content),
+  syncPersonalizationSummary: () => ipcRenderer.invoke(IPC_CHANNELS.PERSONALIZATION_SYNC_SUMMARY),
 })

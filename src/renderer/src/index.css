@@ -123,6 +123,150 @@
   --scrollbar-thumb-hover:   #FB7185;
 }
 
+/* ─── Theme: Ocean ─────────────────────────────────────────────────────────── */
+[data-theme="ocean"] {
+  color-scheme: dark;
+  --color-parchment-base:    #0C1929;
+  --color-parchment-sidebar: #0A1520;
+  --color-parchment-dark:    #162033;
+  --color-parchment-card:    #1A2638;
+  --color-ink-primary:       #E0F2FE;
+  --color-ink-muted:         #7DD3FC;
+  --color-ink-light:         #0369A1;
+  --color-accent-rgb:        14 165 233;
+  --color-accent-hover:      #0284C7;
+  --color-accent-light:      #0EA5E9;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             'Lora', Georgia, serif;
+  --cm-bg:                   #0C1929;
+  --cm-gutter-border:        #162033;
+  --cm-activeline-gutter:    #1A2638;
+  --cm-activeline:           rgba(22, 32, 51, 0.5);
+  --scrollbar-track:         #0A1520;
+  --scrollbar-thumb:         #162033;
+  --scrollbar-thumb-hover:   #1E3048;
+}
+
+/* ─── Theme: Sunset ────────────────────────────────────────────────────────── */
+[data-theme="sunset"] {
+  color-scheme: dark;
+  --color-parchment-base:    #1F1410;
+  --color-parchment-sidebar: #1A110D;
+  --color-parchment-dark:    #2D1F1A;
+  --color-parchment-card:    #261A14;
+  --color-ink-primary:       #FECACA;
+  --color-ink-muted:         #FCA5A5;
+  --color-ink-light:         #92400E;
+  --color-accent-rgb:        245 158 11;
+  --color-accent-hover:      #D97706;
+  --color-accent-light:      #F59E0B;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             'Lora', Georgia, serif;
+  --cm-bg:                   #1F1410;
+  --cm-gutter-border:        #2D1F1A;
+  --cm-activeline-gutter:    #261A14;
+  --cm-activeline:           rgba(45, 31, 26, 0.5);
+  --scrollbar-track:         #1A110D;
+  --scrollbar-thumb:         #2D1F1A;
+  --scrollbar-thumb-hover:   #3D2922;
+}
+
+/* ─── Theme: Nordic ────────────────────────────────────────────────────────── */
+[data-theme="nordic"] {
+  color-scheme: light;
+  --color-parchment-base:    #F8FAFC;
+  --color-parchment-sidebar: #F1F5F9;
+  --color-parchment-dark:    #E2E8F0;
+  --color-parchment-card:    #FFFFFF;
+  --color-ink-primary:       #1E293B;
+  --color-ink-muted:         #64748B;
+  --color-ink-light:         #94A3B8;
+  --color-accent-rgb:        100 116 139;
+  --color-accent-hover:      #475569;
+  --color-accent-light:      #CBD5E1;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             'Inter', system-ui, sans-serif;
+  --cm-bg:                   #F8FAFC;
+  --cm-gutter-border:        #E2E8F0;
+  --cm-activeline-gutter:    #F1F5F9;
+  --cm-activeline:           rgba(226, 232, 240, 0.5);
+  --scrollbar-track:        #E2E8F0;
+  --scrollbar-thumb:         #94A3B8;
+  --scrollbar-thumb-hover:   #64748B;
+}
+
+/* ─── Theme: Lavender ──────────────────────────────────────────────────────── */
+[data-theme="lavender"] {
+  color-scheme: light;
+  --color-parchment-base:    #FAF5FF;
+  --color-parchment-sidebar: #EDE9FE;
+  --color-parchment-dark:    #DDD6FE;
+  --color-parchment-card:    #FFFFFF;
+  --color-ink-primary:       #2E1065;
+  --color-ink-muted:         #7C3AED;
+  --color-ink-light:         #A78BFA;
+  --color-accent-rgb:        168 85 247;
+  --color-accent-hover:      #9333EA;
+  --color-accent-light:      #E9D5FF;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             Georgia, serif;
+  --cm-bg:                   #FAF5FF;
+  --cm-gutter-border:        #DDD6FE;
+  --cm-activeline-gutter:    #EDE9FE;
+  --cm-activeline:           rgba(237, 233, 254, 0.5);
+  --scrollbar-track:         #EDE9FE;
+  --scrollbar-thumb:         #A78BFA;
+  --scrollbar-thumb-hover:   #8B5CF6;
+}
+
+/* ─── Theme: Cherry ────────────────────────────────────────────────────────── */
+[data-theme="cherry"] {
+  color-scheme: dark;
+  --color-parchment-base:    #1A0A10;
+  --color-parchment-sidebar: #140810;
+  --color-parchment-dark:    #241115;
+  --color-parchment-card:    #1E0D12;
+  --color-ink-primary:       #FECDD3;
+  --color-ink-muted:         #F9A8D4;
+  --color-ink-light:         #831843;
+  --color-accent-rgb:        244 114 182;
+  --color-accent-hover:      #EC4899;
+  --color-accent-light:      #F472B6;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             Georgia, serif;
+  --cm-bg:                   #1A0A10;
+  --cm-gutter-border:        #241115;
+  --cm-activeline-gutter:    #1E0D12;
+  --cm-activeline:           rgba(36, 17, 21, 0.5);
+  --scrollbar-track:         #140810;
+  --scrollbar-thumb:         #241115;
+  --scrollbar-thumb-hover:   #341520;
+}
+
+/* ─── Theme: Onyx ──────────────────────────────────────────────────────────── */
+[data-theme="onyx"] {
+  color-scheme: dark;
+  --color-parchment-base:    #0D0D0D;
+  --color-parchment-sidebar: #141414;
+  --color-parchment-dark:    #1F1F1F;
+  --color-parchment-card:    #1A1A1A;
+  --color-ink-primary:       #E5E5E5;
+  --color-ink-muted:         #888888;
+  --color-ink-light:         #555555;
+  --color-accent-rgb:        229 229 229;
+  --color-accent-hover:      #CCCCCC;
+  --color-accent-light:      #333333;
+  --font-ui:                 'Inter', system-ui, sans-serif;
+  --font-editor:             'Inter', system-ui, sans-serif;
+  --cm-bg:                   #0D0D0D;
+  --cm-gutter-border:        #1F1F1F;
+  --cm-activeline-gutter:    #1A1A1A;
+  --cm-activeline:           rgba(31, 31, 31, 0.5);
+  --scrollbar-track:         #141414;
+  --scrollbar-thumb:         #1F1F1F;
+  --scrollbar-thumb-hover:   #2A2A2A;
+}
+
 /* ─── Base ────────────────────────────────────────────────────────────────── */
 :root {
   font-family: var(--font-ui);

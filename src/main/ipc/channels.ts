@@ -88,10 +88,21 @@ export const IPC_CHANNELS = {
   PERSONALIZATION_GET_TOPIC: 'personalization:get-topic',
   PERSONALIZATION_WRITE_TOPIC: 'personalization:write-topic',
   PERSONALIZATION_SUMMARIZE: 'personalization:summarize',
+  PERSONALIZATION_GET_SUMMARY: 'personalization:get-summary',
+  PERSONALIZATION_WRITE_SUMMARY: 'personalization:write-summary',
+  PERSONALIZATION_SYNC_SUMMARY: 'personalization:sync-summary',
 
   // App
   APP_GET_VERSION: 'app:get-version',
   USER_SELECT_IMAGE: 'user:select-image',
+
+  // Built-in LLM model management
+  LLM_MODEL_GET_INFO: 'llm-model:get-info',
+  LLM_MODEL_DOWNLOAD: 'llm-model:download',
+  LLM_MODEL_CANCEL_DOWNLOAD: 'llm-model:cancel-download',
+  LLM_MODEL_DELETE: 'llm-model:delete',
+  LLM_MODEL_START: 'llm-model:start',
+  LLM_MODEL_STOP: 'llm-model:stop',
 
   // Whisper / Voice
   WHISPER_GET_CONFIG: 'whisper:get-config',
@@ -109,6 +120,8 @@ export const IPC_CHANNELS = {
   PUSH_CHAT_TOOL_USE: 'push:chat-tool-use',
   PUSH_VOICE_DOWNLOAD_PROGRESS: 'push:voice-download-progress',
   PUSH_VOICE_TRANSCRIPT: 'push:voice-transcript',
+  PUSH_LLM_DOWNLOAD_PROGRESS: 'push:llm-download-progress',
+  PUSH_LLM_STATUS: 'push:llm-status',
 } as const
 
 export type IpcChannels = typeof IPC_CHANNELS

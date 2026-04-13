@@ -167,6 +167,16 @@ export function buildPersonalizationInvocationPrompt(
 }
 
 /**
+ * System prompt for generating the ## User Quick Facts block in summary.md.
+ * Reads all filled topic files and distills them into concise bullet points.
+ */
+export const PERSONALIZATION_QUICK_FACTS_PROMPT =
+  `You are a personal profile writer. Based on the user profile files provided, write a concise "## User Quick Facts" section in markdown.\n` +
+  `Format it as a short bullet list of the most important facts: name (if known), age, location, occupation, family situation, and any other standout personal details.\n` +
+  `Keep it to 3-6 bullet points. Be specific and concrete. Do not invent anything not in the files.\n` +
+  `Return ONLY the markdown section starting with "## User Quick Facts" — no extra commentary.`
+
+/**
  * System prompt for the one-shot summarization call.
  * Placeholders: {topic}, {userName}
  */

@@ -3,7 +3,7 @@ import { StepWelcome } from './StepWelcome.js'
 import { StepVault } from './StepVault.js'
 import { StepLLM } from './StepLLM.js'
 import { StepVoice } from './StepVoice.js'
-import { useAppStore } from '../../store/appStore.js'
+import { useAppStore, type LLMConfig } from '../../store/appStore.js'
 import { DEFAULT_TEMPLATES } from '@main/vault/noteTemplates.js'
 import wilfredAvatar from '../../assets/avatar01.png'
 
@@ -105,7 +105,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     }
   }
 
-  const handleLLMConfigured = (config: { baseUrl: string; model: string; apiKey: string }) => {
+  const handleLLMConfigured = (config: LLMConfig) => {
     setLLMConfig(config)
     window.electronAPI.setSetting('llmConfig', config)
     handleStepComplete()

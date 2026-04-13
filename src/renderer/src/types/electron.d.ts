@@ -204,6 +204,20 @@ export interface ElectronAPI {
   getAppVersion: () => Promise<string>
   selectUserImage: () => Promise<string | null>
 
+  // Built-in LLM model management
+  getLLMModelInfo: () => Promise<{
+    models: GGUFModelInfo[]
+    downloaded: string[]
+    config: LLMBuiltinConfig | null
+    serverRunning: boolean
+    serverUrl: string | null
+  }>
+  downloadLLMModel: (quant: string) => Promise<{ success: boolean; alreadyExists?: boolean; cancelled?: boolean; error?: string }>
+  cancelLLMModelDownload: () => Promise<{ success: boolean }>
+  deleteLLMModel: (quant: string) => Promise<{ success: boolean; error?: string }>
+  startBuiltinLLM: (quant: string) => Promise<{ success: boolean; url?: string; error?: string }>
+  stopBuiltinLLM: () => Promise<{ success: boolean }>
+
   // Whisper / Voice
   getWhisperConfig: () => Promise<{
     config: VoiceConfig | null
@@ -232,11 +246,16 @@ export interface ElectronAPI {
   onVoiceDownloadProgress: (callback: (data: { modelName: string; progress: number }) => void) => () => void
   onVoiceTranscript: (callback: (data: { text: string; isFinal: boolean }) => void) => () => void
   onChatToolUse: (callback: (data: { sessionId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
+  onLLMDownloadProgress: (callback: (data: { quant: string; progress: number }) => void) => () => void
+  onLLMStatus: (callback: (status: string) => void) => () => void
 
   // Personalization
   getPersonalizationTopic: (topic: string) => Promise<{ success: boolean; content: string | null; error?: string }>
   writePersonalizationTopic: (topic: string, content: string) => Promise<{ success: boolean; error?: string }>
   summarizePersonalization: (sessionId: string, topic: string) => Promise<{ success: boolean; summary?: string; error?: string }>
+  getPersonalizationSummary: () => Promise<{ success: boolean; content: string | null; error?: string }>
+  writePersonalizationSummary: (content: string) => Promise<{ success: boolean; error?: string }>
+  syncPersonalizationSummary: () => Promise<{ success: boolean; content?: string; error?: string }>
 }
 
 interface ChatMessage {
@@ -259,6 +278,18 @@ interface ModelInfo {
   sizeMb: number
   tier: 'fast' | 'accurate' | 'custom'
   languages: 'english-only' | 'multilingual'
+}
+
+interface GGUFModelInfo {
+  quant: string
+  label: string
+  description: string
+  sizeMb: number
+  filename: string
+}
+
+interface LLMBuiltinConfig {
+  quant: string
 }
 
 interface TaskRun {
