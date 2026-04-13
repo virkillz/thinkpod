@@ -43,20 +43,29 @@ export class LLMProcessManager extends EventEmitter {
     if (this.model || this.isLoading) return false
 
     this.isLoading = true
+    console.log('[LLMProcessManager.start] emitting loading status')
     this.emit('status', 'loading')
 
     try {
+      console.log('[LLMProcessManager.start] importing node-llama-cpp...')
       const { getLlama } = await import('node-llama-cpp')
 
-      this.llama = await getLlama()
+      console.log('[LLMProcessManager.start] calling getLlama("lastBuild")...')
+      this.llama = await getLlama('lastBuild')
+      console.log('[LLMProcessManager.start] llama instance created, loading model from:', modelPath)
+
+      console.log('[LLMProcessManager.start] calling llama.loadModel()...')
       this.model = await this.llama.loadModel({ modelPath })
+      console.log('[LLMProcessManager.start] model loaded, starting HTTP server...')
 
       this.serverUrl = await this.startHttpServer()
+      console.log('[LLMProcessManager.start] server started at:', this.serverUrl)
 
       this.isLoading = false
       this.emit('status', 'ready')
       return true
     } catch (error) {
+      console.error('[LLMProcessManager.start] error:', error)
       this.isLoading = false
       this.model = null
       this.llama = null

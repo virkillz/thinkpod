@@ -60,6 +60,7 @@ const IPC_CHANNELS = {
   TASK_DELETE: 'task:delete',
   TASK_LIST: 'task:list',
   APP_GET_VERSION: 'app:get-version',
+  APP_GET_LOGS: 'app:get-logs',
   USER_SELECT_IMAGE: 'user:select-image',
   PUSH_TASK_UPDATE: 'push:task-update',
   PUSH_TASK_END: 'push:task-end',
@@ -186,6 +187,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
+  getAppLogs: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_LOGS),
   selectUserImage: () => ipcRenderer.invoke(IPC_CHANNELS.USER_SELECT_IMAGE),
 
   // Tools

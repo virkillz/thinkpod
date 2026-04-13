@@ -1,11 +1,21 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import path from 'path'
+import { fileURLToPath } from 'url'
+import log from 'electron-log/main.js'
 import { DatabaseManager } from './database/DatabaseManager.js'
 import { VaultManager } from './vault/VaultManager.js'
 import { VaultIndexer } from './vault/VaultIndexer.js'
 import { IPC_CHANNELS } from './ipc/channels.js'
 import { setupIpcHandlers, setupScheduler } from './ipc/handlers.js'
 import { SkillRegistry } from './agent/SkillRegistry.js'
+
+log.initialize()
+log.transports.file.level = 'info'
+log.transports.console.level = 'debug'
+log.info('ThinkPod main process starting…')
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -32,9 +42,9 @@ export async function initVaultManager(vaultPath: string): Promise<void> {
     
     // Index all existing files in the background
     vaultIndexer.indexAllFiles().then(result => {
-      console.log(`Indexed ${result.indexed} files, skipped ${result.skipped}`)
+      log.info(`Indexed ${result.indexed} files, skipped ${result.skipped}`)
     }).catch(error => {
-      console.error('Failed to index vault files:', error)
+      log.error('Failed to index vault files:', error)
     })
     
     // Set up file watching for search indexing
@@ -45,7 +55,7 @@ export async function initVaultManager(vaultPath: string): Promise<void> {
           try {
             await vaultIndexer.indexFile(relativePath)
           } catch (error) {
-            console.error('Failed to index file:', error)
+            log.error('Failed to index file:', error)
           }
         }
       }
@@ -58,7 +68,7 @@ export async function initVaultManager(vaultPath: string): Promise<void> {
           try {
             await vaultIndexer.indexFile(relativePath)
           } catch (error) {
-            console.error('Failed to re-index file:', error)
+            log.error('Failed to re-index file:', error)
           }
         }
       }
@@ -70,7 +80,7 @@ export async function initVaultManager(vaultPath: string): Promise<void> {
         try {
           await vaultIndexer.removeFile(relativePath)
         } catch (error) {
-          console.error('Failed to remove file from index:', error)
+          log.error('Failed to remove file from index:', error)
         }
       }
     })
@@ -134,9 +144,9 @@ async function initializeApp(): Promise<void> {
     
     // Index all existing files in the background
     vaultIndexer.indexAllFiles().then(result => {
-      console.log(`Indexed ${result.indexed} files, skipped ${result.skipped}`)
+      log.info(`Indexed ${result.indexed} files, skipped ${result.skipped}`)
     }).catch(error => {
-      console.error('Failed to index vault files:', error)
+      log.error('Failed to index vault files:', error)
     })
     
     // Set up file watching for search indexing
@@ -147,7 +157,7 @@ async function initializeApp(): Promise<void> {
           try {
             await vaultIndexer.indexFile(relativePath)
           } catch (error) {
-            console.error('Failed to index file:', error)
+            log.error('Failed to index file:', error)
           }
         }
       }
@@ -160,7 +170,7 @@ async function initializeApp(): Promise<void> {
           try {
             await vaultIndexer.indexFile(relativePath)
           } catch (error) {
-            console.error('Failed to re-index file:', error)
+            log.error('Failed to re-index file:', error)
           }
         }
       }
@@ -172,7 +182,7 @@ async function initializeApp(): Promise<void> {
         try {
           await vaultIndexer.removeFile(relativePath)
         } catch (error) {
-          console.error('Failed to remove file from index:', error)
+          log.error('Failed to remove file from index:', error)
         }
       }
     })

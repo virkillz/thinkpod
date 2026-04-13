@@ -1,6 +1,7 @@
 import { ipcMain, dialog, app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 import fs from 'fs/promises'
+import log from 'electron-log/main.js'
 import { IPC_CHANNELS } from './channels.js'
 import { buildGraphData, buildStatsOverview } from '../vault/MarkdownParser.js'
 import { DatabaseManager } from '../database/DatabaseManager.js'
@@ -126,13 +127,13 @@ export function setupIpcHandlers(
           pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, status)
         })
         llmProcessManager.on('error', (err: string) => {
-          console.error('[LLM built-in]', err)
+          log.error('[LLM built-in]', err)
           pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
         })
         const started = await llmProcessManager.start(modelPath)
         if (!started) llmProcessManager = null
       }
-    }).catch((err) => console.error('[LLM auto-start]', err))
+    }).catch((err) => log.error('[LLM auto-start]', err))
   }
 
   // ── Built-in LLM model management ──────────────────────────────────────────
@@ -184,20 +185,29 @@ export function setupIpcHandlers(
   })
 
   ipcMain.handle(IPC_CHANNELS.LLM_MODEL_START, async (_, quant: string) => {
-    if (llmProcessManager?.isRunning()) return { success: true, url: llmProcessManager.getUrl() }
+    log.info('[LLM_MODEL_START] called with quant:', quant)
+    if (llmProcessManager?.isRunning()) {
+      log.info('[LLM_MODEL_START] already running, returning existing URL')
+      return { success: true, url: llmProcessManager.getUrl() }
+    }
 
     try {
+      log.info('[LLM_MODEL_START] getting model path for:', quant)
       const modelPath = llmModelManager!.getModelPath(quant)
+      log.info('[LLM_MODEL_START] model path:', modelPath)
       llmProcessManager = new LLMProcessManager()
       llmProcessManager.on('status', (status: string) => {
+        log.info('[LLM built-in status]', status)
         pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, status)
       })
       llmProcessManager.on('error', (err: string) => {
-        console.error('[LLM built-in]', err)
+        log.error('[LLM built-in error]', err)
         pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
       })
 
+      log.info('[LLM_MODEL_START] calling llmProcessManager.start()...')
       const started = await llmProcessManager.start(modelPath)
+      log.info('[LLM_MODEL_START] start() returned:', started, 'url:', llmProcessManager.getUrl())
       if (started) {
         return { success: true, url: llmProcessManager.getUrl() }
       } else {
@@ -205,6 +215,7 @@ export function setupIpcHandlers(
         return { success: false, error: 'Failed to load model' }
       }
     } catch (error) {
+      log.error('[LLM_MODEL_START] exception:', error)
       llmProcessManager = null
       return { success: false, error: (error as Error).message }
     }
@@ -572,7 +583,7 @@ export function setupIpcHandlers(
       const indexer = new VaultIndexer(abbey.vaultPath, dbManager)
       await indexer.indexFile(filePath)
     } catch (error) {
-      console.error(`Failed to index file ${filePath}:`, error)
+      log.error(`Failed to index file ${filePath}:`, error)
     }
     
     return { success: true }
@@ -710,6 +721,17 @@ export function setupIpcHandlers(
   // App: Get version
   ipcMain.handle(IPC_CHANNELS.APP_GET_VERSION, async () => {
     return app.getVersion()
+  })
+
+  // App: Get logs
+  ipcMain.handle(IPC_CHANNELS.APP_GET_LOGS, async () => {
+    try {
+      const logPath = log.transports.file.getFile().path
+      const content = await fs.readFile(logPath, 'utf-8')
+      return { success: true, content, path: logPath }
+    } catch (err) {
+      return { success: false, error: (err as Error).message }
+    }
   })
 
   // User: Select image for avatar
@@ -1025,9 +1047,9 @@ export function setupIpcHandlers(
           },
         ])
         const raw = response.content?.trim() ?? '{}'
-        console.log('[assessThought] raw LLM response:', raw)
+        log.info('[assessThought] raw LLM response:', raw)
         const parsed = extractJSON(raw)
-        console.log('[assessThought] parsed result:', parsed)
+        log.info('[assessThought] parsed result:', parsed)
         if (!parsed || typeof parsed !== 'object') {
           return { success: false, error: 'Invalid JSON response from LLM' }
         }

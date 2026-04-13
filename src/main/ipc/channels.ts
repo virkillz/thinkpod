@@ -94,6 +94,7 @@ export const IPC_CHANNELS = {
 
   // App
   APP_GET_VERSION: 'app:get-version',
+  APP_GET_LOGS: 'app:get-logs',
   USER_SELECT_IMAGE: 'user:select-image',
 
   // Built-in LLM model management

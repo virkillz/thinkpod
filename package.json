@@ -1,6 +1,6 @@
 {
   "name": "thinkpod",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "A local-first, AI-powered personal knowledge operating system",
   "main": "dist/main/index.js",
   "author": "ThinkPod",
@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "npm run build:electron && concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "npm run build:electron && vite build",
-    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:electron": "tsc -p tsconfig.electron.json && tsc -p tsconfig.preload.json",
     "preview": "vite preview",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",
@@ -43,6 +43,7 @@
     "better-sqlite3": "^12.9.0",
     "chokidar": "^4.0.3",
     "codemirror": "^6.0.1",
+    "electron-log": "^5.3.4",
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.487.0",
     "node-cron": "^4.2.1",

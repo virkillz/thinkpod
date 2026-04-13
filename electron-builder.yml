@@ -16,10 +16,8 @@ extraResources:
 mac:
   category: public.app-category.productivity
   icon: build/icon.icns
-  hardenedRuntime: true
+  hardenedRuntime: false
   gatekeeperAssess: false
-  entitlements: build/entitlements.mac.plist
-  entitlementsInherit: build/entitlements.mac.plist
   target:
     - target: dmg
       arch:
