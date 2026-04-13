@@ -127,10 +127,43 @@ const THEMES: {
 // ─── Appearance Tab ───────────────────────────────────────────────────────────
 
 function AppearanceTab() {
-  const { theme, setTheme } = useAppStore()
+  const { theme, setTheme, showStatusBar, setShowStatusBar } = useAppStore()
+
+  const handleToggleStatusBar = (value: boolean) => {
+    setShowStatusBar(value)
+    window.electronAPI.setSetting('showStatusBar', value)
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
+      <section>
+        <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Interface</h3>
+        <div className="bg-parchment-card rounded-xl p-6 border border-parchment-dark">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <span className="font-medium text-ink-primary text-sm">Show status bar</span>
+              <p className="text-xs text-ink-muted mt-0.5">
+                Display vault name, LLM status, and version at the bottom of the window
+              </p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={showStatusBar}
+              onClick={() => handleToggleStatusBar(!showStatusBar)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                showStatusBar ? 'bg-accent' : 'bg-ink-light'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200 ${
+                  showStatusBar ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </label>
+        </div>
+      </section>
+
       <section>
         <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Theme</h3>
         <div className="grid grid-cols-1 gap-3">
@@ -466,6 +499,13 @@ function InferenceTab() {
     setTimeout(() => setSaveStatus('idle'), 2000)
   }
 
+  const handleStopServer = async () => {
+    setServerStatus('loading')
+    setServerError(null)
+    await window.electronAPI.stopLLMServer()
+    setServerStatus('stopped')
+  }
+
   const isConfigChanged = testedConfig ? testedConfig.baseUrl !== baseUrl || testedConfig.model !== model : true
   const canTestExternal = testStatus === 'idle' || testStatus === 'success' || testStatus === 'error'
 
@@ -488,7 +528,9 @@ function InferenceTab() {
             <div className="flex items-center gap-2 mb-1">
               <Cpu className={`w-4 h-4 ${mode === 'builtin' ? 'text-accent' : 'text-ink-muted'}`} />
               <span className={`font-medium text-sm ${mode === 'builtin' ? 'text-ink-primary' : 'text-ink-muted'}`}>Built-in</span>
-              {mode === 'builtin' && <span className="ml-auto text-xs bg-accent text-white px-2 py-0.5 rounded-full">Selected</span>}
+              <span className="ml-auto flex items-center gap-1">
+                {llmConfig.mode === 'builtin' && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">Active</span>}
+              </span>
             </div>
             <p className="text-xs text-ink-muted">Run locally with no internet needed.</p>
           </button>
@@ -499,7 +541,9 @@ function InferenceTab() {
             <div className="flex items-center gap-2 mb-1">
               <Globe className={`w-4 h-4 ${mode === 'external' ? 'text-accent' : 'text-ink-muted'}`} />
               <span className={`font-medium text-sm ${mode === 'external' ? 'text-ink-primary' : 'text-ink-muted'}`}>External API</span>
-              {mode === 'external' && <span className="ml-auto text-xs bg-accent text-white px-2 py-0.5 rounded-full">Selected</span>}
+              <span className="ml-auto flex items-center gap-1">
+                {llmConfig.mode !== 'builtin' && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">Active</span>}
+              </span>
             </div>
             <p className="text-xs text-ink-muted">Ollama, LM Studio, OpenAI, Groq, etc.</p>
           </button>
@@ -584,6 +628,12 @@ function InferenceTab() {
                       <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                         <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                         Server running at {serverUrl}
+                        <button
+                          onClick={handleStopServer}
+                          className="ml-auto text-xs font-medium text-green-700 hover:text-red-700 underline"
+                        >
+                          Stop
+                        </button>
                       </div>
                     )}
                     {serverStatus === 'stopped' && (
@@ -1359,7 +1409,17 @@ function AdvancedTab() {
 // ─── SettingsView ─────────────────────────────────────────────────────────────
 
 export function SettingsView() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
+  const { pendingSettingsTab, setPendingSettingsTab } = useAppStore()
+  const [activeTab, setActiveTab] = useState<SettingsTab>(
+    (pendingSettingsTab as SettingsTab) || 'general'
+  )
+
+  useEffect(() => {
+    if (pendingSettingsTab) {
+      setActiveTab(pendingSettingsTab as SettingsTab)
+      setPendingSettingsTab(null)
+    }
+  }, [])
 
   return (
     <div className="flex-1 flex flex-col h-full">

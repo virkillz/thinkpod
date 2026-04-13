@@ -1,4 +1,5 @@
 import { ipcMain, dialog, app, BrowserWindow, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import fs from 'fs/promises'
 import log from 'electron-log/main.js'
@@ -721,6 +722,56 @@ export function setupIpcHandlers(
   // App: Get version
   ipcMain.handle(IPC_CHANNELS.APP_GET_VERSION, async () => {
     return app.getVersion()
+  })
+
+  // Updater: wire autoUpdater events → renderer push
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.logger = log
+
+  const pushUpdateStatus = (status: object) => {
+    const win = getMainWindow()
+    win?.webContents.send(IPC_CHANNELS.PUSH_UPDATE_STATUS, status)
+  }
+
+  autoUpdater.on('checking-for-update', () =>
+    pushUpdateStatus({ state: 'checking' }))
+
+  autoUpdater.on('update-available', (info) =>
+    pushUpdateStatus({ state: 'available', version: info.version, releaseNotes: info.releaseNotes }))
+
+  autoUpdater.on('update-not-available', () =>
+    pushUpdateStatus({ state: 'up-to-date' }))
+
+  autoUpdater.on('download-progress', (progress) =>
+    pushUpdateStatus({ state: 'downloading', percent: Math.round(progress.percent) }))
+
+  autoUpdater.on('update-downloaded', (info) =>
+    pushUpdateStatus({ state: 'downloaded', version: info.version }))
+
+  autoUpdater.on('error', (err) =>
+    pushUpdateStatus({ state: 'error', message: err.message }))
+
+  ipcMain.handle(IPC_CHANNELS.UPDATER_CHECK, async () => {
+    try {
+      await autoUpdater.checkForUpdates()
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: (err as Error).message }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.UPDATER_DOWNLOAD, async () => {
+    try {
+      await autoUpdater.downloadUpdate()
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: (err as Error).message }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.UPDATER_INSTALL, async () => {
+    autoUpdater.quitAndInstall()
   })
 
   // App: Get logs

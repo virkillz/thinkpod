@@ -14,9 +14,10 @@ import { SearchView } from '../views/SearchView.js'
 import { GraphView } from '../views/GraphView.js'
 import { AgentFAB } from './AgentFAB.js'
 import { ThoughtFAB } from './ThoughtFAB.js'
+import { StatusBar } from './StatusBar.js'
 
 export function MainShell() {
-  const { currentView, refreshFileTree, refreshThoughtCount, setTheme, setCurrentView, setAgentProfile, toggleSidebar, toggleAgentChat } = useAppStore()
+  const { currentView, refreshFileTree, refreshThoughtCount, setTheme, setCurrentView, setAgentProfile, toggleSidebar, toggleAgentChat, showStatusBar, setShowStatusBar, setLLMConfig } = useAppStore()
 
   useEffect(() => {
     refreshFileTree()
@@ -34,6 +35,12 @@ export function MainShell() {
         const p = saved as { name?: string; avatar?: string }
         setAgentProfile(p.name || 'Wilfred', p.avatar || '✦')
       }
+    })
+    window.electronAPI.getSetting('showStatusBar').then((saved) => {
+      if (typeof saved === 'boolean') setShowStatusBar(saved)
+    })
+    window.electronAPI.getSetting('llmConfig').then((saved) => {
+      if (saved && typeof saved === 'object') setLLMConfig(saved as Parameters<typeof setLLMConfig>[0])
     })
   }, [])
 
@@ -101,13 +108,16 @@ export function MainShell() {
   }
 
   return (
-    <div className="w-full h-screen flex bg-parchment-base overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 relative overflow-hidden">
-        {renderView()}
-        <ThoughtFAB />
-        <AgentFAB />
-      </main>
+    <div className="w-full h-screen flex flex-col bg-parchment-base overflow-hidden">
+      <div className="flex flex-1 min-h-0">
+        <Sidebar />
+        <main className="flex-1 relative overflow-hidden">
+          {renderView()}
+          <ThoughtFAB />
+          <AgentFAB />
+        </main>
+      </div>
+      {showStatusBar && <StatusBar />}
     </div>
   )
 }

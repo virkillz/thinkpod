@@ -1,5 +1,14 @@
-import { useState, useEffect } from 'react'
-import { Info, HelpCircle, Server, Github, ExternalLink, BookOpen, MessageCircle, Brain, Shield, Zap, Cloud, Laptop, Copy, Check, Keyboard, BarChart2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Info, HelpCircle, Server, Github, ExternalLink, BookOpen, MessageCircle, Brain, Shield, Zap, Cloud, Laptop, Copy, Check, Keyboard, BarChart2, RefreshCw, Download, Rocket, AlertCircle, CheckCircle } from 'lucide-react'
+
+type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'up-to-date' }
+  | { state: 'available'; version: string }
+  | { state: 'downloading'; percent: number }
+  | { state: 'downloaded'; version: string }
+  | { state: 'error'; message: string }
 
 type AboutTab = 'about' | 'faq' | 'providers' | 'shortcuts' | 'stats'
 
@@ -11,7 +20,108 @@ const TABS: { id: AboutTab; label: string; icon: React.ElementType }[] = [
   { id: 'stats', label: 'Stats', icon: BarChart2 },
 ]
 
-function AboutTab() {
+interface UpdatePanelProps {
+  status: UpdateStatus
+  onCheck: () => void
+  onDownload: () => void
+  onInstall: () => void
+}
+
+function UpdatePanel({ status, onCheck, onDownload, onInstall }: UpdatePanelProps) {
+  return (
+    <div className="p-4 rounded-xl border border-parchment-dark bg-parchment-card space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium text-ink-primary text-sm">Software Update</h3>
+        {status.state === 'idle' || status.state === 'up-to-date' || status.state === 'error' ? (
+          <button
+            onClick={onCheck}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Check for updates
+          </button>
+        ) : null}
+      </div>
+
+      {status.state === 'idle' && (
+        <p className="text-xs text-ink-faint">Click to check for the latest version.</p>
+      )}
+
+      {status.state === 'checking' && (
+        <p className="text-xs text-ink-muted animate-pulse">Checking for updates…</p>
+      )}
+
+      {status.state === 'up-to-date' && (
+        <div className="flex items-center gap-2 text-xs text-green-600">
+          <CheckCircle className="w-4 h-4" />
+          You're on the latest version.
+        </div>
+      )}
+
+      {status.state === 'available' && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-ink-secondary">
+            <Download className="w-4 h-4 text-accent" />
+            Version <span className="font-semibold text-accent">{status.version}</span> is available.
+          </div>
+          <button
+            onClick={onDownload}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors"
+          >
+            Download
+          </button>
+        </div>
+      )}
+
+      {status.state === 'downloading' && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs text-ink-muted">
+            <span>Downloading update…</span>
+            <span>{status.percent}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-parchment-dark overflow-hidden">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-300"
+              style={{ width: `${status.percent}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {status.state === 'downloaded' && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-ink-secondary">
+            <Rocket className="w-4 h-4 text-accent" />
+            Version <span className="font-semibold text-accent">{status.version}</span> ready to install.
+          </div>
+          <button
+            onClick={onInstall}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors"
+          >
+            Restart &amp; Install
+          </button>
+        </div>
+      )}
+
+      {status.state === 'error' && (
+        <div className="flex items-center gap-2 text-xs text-red-500">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{status.message}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface AboutTabProps {
+  updateStatus: UpdateStatus
+  onCheck: () => void
+  onDownload: () => void
+  onInstall: () => void
+  currentVersion: string
+}
+
+function AboutTab({ updateStatus, onCheck, onDownload, onInstall, currentVersion }: AboutTabProps) {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <div className="text-center space-y-4">
@@ -26,8 +136,10 @@ function AboutTab() {
           <h1 className="text-4xl font-serif font-bold text-ink-primary">ThinkPod</h1>
         </div>
         <p className="text-lg text-ink-muted">An IDE for your thoughts, not your code. 100% Local.</p>
-        <p className="text-sm text-ink-faint">Version 0.1.0 • by <span className="text-accent">virkillz</span></p>
+        <p className="text-sm text-ink-faint">Version {currentVersion} • by <span className="text-accent">virkillz</span></p>
       </div>
+
+      <UpdatePanel status={updateStatus} onCheck={onCheck} onDownload={onDownload} onInstall={onInstall} />
 
       <a href="https://github.com/virkillz/thinkpod" target="_blank" rel="noopener noreferrer"
         className="flex items-center justify-center gap-2 p-4 rounded-xl border border-parchment-dark bg-parchment-card hover:border-accent transition-colors group">
@@ -403,6 +515,30 @@ function StatsTab() {
 
 export function AboutView() {
   const [activeTab, setActiveTab] = useState<AboutTab>('about')
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
+  const [currentVersion, setCurrentVersion] = useState('…')
+
+  useEffect(() => {
+    window.electronAPI.getAppVersion().then(setCurrentVersion)
+    const unsub = window.electronAPI.onUpdateStatus((raw: unknown) => {
+      setUpdateStatus(raw as UpdateStatus)
+    })
+    return unsub
+  }, [])
+
+  const handleCheck = useCallback(() => {
+    setUpdateStatus({ state: 'checking' })
+    window.electronAPI.checkForUpdates()
+  }, [])
+
+  const handleDownload = useCallback(() => {
+    setUpdateStatus({ state: 'downloading', percent: 0 })
+    window.electronAPI.downloadUpdate()
+  }, [])
+
+  const handleInstall = useCallback(() => {
+    window.electronAPI.installUpdate()
+  }, [])
 
   return (
     <div className="h-full flex flex-col bg-parchment-base">
@@ -426,7 +562,15 @@ export function AboutView() {
           </div>
 
           <div className="p-6">
-            {activeTab === 'about' && <AboutTab />}
+            {activeTab === 'about' && (
+              <AboutTab
+                updateStatus={updateStatus}
+                onCheck={handleCheck}
+                onDownload={handleDownload}
+                onInstall={handleInstall}
+                currentVersion={currentVersion}
+              />
+            )}
             {activeTab === 'faq' && <FAQTab />}
             {activeTab === 'providers' && <ProvidersTab />}
             {activeTab === 'shortcuts' && <ShortcutsTab />}

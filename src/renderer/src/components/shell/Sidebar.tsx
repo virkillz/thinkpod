@@ -32,7 +32,6 @@ export function Sidebar() {
     toggleFileTree,
     unreadInbox,
     thoughtCount,
-    vault
   } = useAppStore()
 
   return (
@@ -173,11 +172,6 @@ export function Sidebar() {
           )}
         </button>
 
-        {isSidebarOpen && vault && (
-          <div className="mt-4 px-3 text-xs text-ink-muted truncate">
-            {vault.name}
-          </div>
-        )}
       </div>
     </aside>
   )

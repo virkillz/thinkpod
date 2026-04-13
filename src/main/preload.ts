@@ -83,6 +83,10 @@ const IPC_CHANNELS = {
   LLM_MODEL_STOP: 'llm-model:stop',
   PUSH_LLM_DOWNLOAD_PROGRESS: 'push:llm-download-progress',
   PUSH_LLM_STATUS: 'push:llm-status',
+  UPDATER_CHECK: 'updater:check',
+  UPDATER_DOWNLOAD: 'updater:download',
+  UPDATER_INSTALL: 'updater:install',
+  PUSH_UPDATE_STATUS: 'push:update-status',
   GRAPH_GET_DATA: 'graph:get-data',
   STATS_GET_OVERVIEW: 'stats:get-overview',
   PERSONALIZATION_GET_TOPIC: 'personalization:get-topic',
@@ -244,6 +248,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onLLMStatus: (callback: (status: string) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PUSH_LLM_STATUS, (_, status) => callback(status))
     return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_LLM_STATUS)
+  },
+
+  // Updater
+  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_CHECK),
+  downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_DOWNLOAD),
+  installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_INSTALL),
+  onUpdateStatus: (callback: (status: unknown) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_UPDATE_STATUS, (_, status) => callback(status))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_UPDATE_STATUS)
   },
 
   // Graph & Stats

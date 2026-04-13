@@ -1,5 +1,9 @@
 appId: com.thinkpod.app
 productName: ThinkPod
+publish:
+  provider: github
+  owner: virkillz
+  repo: thinkpod
 directories:
   output: release
   buildResources: build

@@ -115,8 +115,14 @@ export const IPC_CHANNELS = {
   WHISPER_STOP_CAPTURE: 'whisper:stop-capture',
   WHISPER_AUDIO_CHUNK: 'whisper:audio-chunk',
 
+  // Updater
+  UPDATER_CHECK: 'updater:check',
+  UPDATER_DOWNLOAD: 'updater:download',
+  UPDATER_INSTALL: 'updater:install',
+
   // Push (main → renderer)
   PUSH_TASK_UPDATE: 'push:task-update',
+  PUSH_UPDATE_STATUS: 'push:update-status',
   PUSH_TASK_END: 'push:task-end',
   PUSH_CHAT_TOOL_USE: 'push:chat-tool-use',
   PUSH_VOICE_DOWNLOAD_PROGRESS: 'push:voice-download-progress',

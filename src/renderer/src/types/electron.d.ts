@@ -204,6 +204,12 @@ export interface ElectronAPI {
   getAppVersion: () => Promise<string>
   selectUserImage: () => Promise<string | null>
 
+  // Updater
+  checkForUpdates: () => Promise<{ success: boolean; error?: string }>
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>
+  installUpdate: () => void
+  onUpdateStatus: (callback: (status: unknown) => void) => () => void
+
   // Built-in LLM model management
   getLLMModelInfo: () => Promise<{
     models: GGUFModelInfo[]

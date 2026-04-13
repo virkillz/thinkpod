@@ -44,6 +44,7 @@
     "chokidar": "^4.0.3",
     "codemirror": "^6.0.1",
     "electron-log": "^5.3.4",
+    "electron-updater": "^6.8.3",
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.487.0",
     "node-cron": "^4.2.1",

@@ -67,6 +67,10 @@ interface AppState {
   setAgentChatOpen: (open: boolean) => void
   initialAgentMessage: string | null
   setInitialAgentMessage: (message: string | null) => void
+  showStatusBar: boolean
+  setShowStatusBar: (show: boolean) => void
+  pendingSettingsTab: string | null
+  setPendingSettingsTab: (tab: string | null) => void
 
   // User Profile
   userProfile: UserProfile
@@ -151,6 +155,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAgentChatOpen: (open) => set({ isAgentChatOpen: open }),
   initialAgentMessage: null,
   setInitialAgentMessage: (message) => set({ initialAgentMessage: message }),
+  showStatusBar: true,
+  setShowStatusBar: (show) => set({ showStatusBar: show }),
+  pendingSettingsTab: null,
+  setPendingSettingsTab: (tab) => set({ pendingSettingsTab: tab }),
 
   // User Profile
   userProfile: { name: 'Chief', bio: '', avatarDataUrl: null },
