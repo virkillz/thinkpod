@@ -1,6 +1,6 @@
-const { notarize } = require('@electron/notarize');
+import { notarize } from '@electron/notarize';
 
-exports.default = async function notarizing(context) {
+export default async function notarizing(context) {
   const { electronPlatformName, appOutDir } = context;
   
   if (electronPlatformName !== 'darwin') {
@@ -33,4 +33,4 @@ exports.default = async function notarizing(context) {
     console.error('Notarization failed:', error);
     throw error;
   }
-};
+}
