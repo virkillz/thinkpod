@@ -40,6 +40,13 @@ export function InboxView() {
 
   useEffect(() => {
     loadMessages()
+    
+    // Listen for inbox updates from the agent
+    const unsubscribe = window.electronAPI.onInboxUpdated(() => {
+      loadMessages()
+    })
+    
+    return unsubscribe
   }, [])
 
   const loadMessages = async () => {

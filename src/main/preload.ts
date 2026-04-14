@@ -87,6 +87,7 @@ const IPC_CHANNELS = {
   PUSH_LLM_DOWNLOAD_PROGRESS: 'push:llm-download-progress',
   PUSH_LLM_STATUS: 'push:llm-status',
   PUSH_FILE_CHANGED: 'push:file-changed',
+  PUSH_INBOX_UPDATED: 'push:inbox-updated',
   UPDATER_CHECK: 'updater:check',
   UPDATER_DOWNLOAD: 'updater:download',
   UPDATER_INSTALL: 'updater:install',
@@ -261,6 +262,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFileChanged: (callback: (data: { type: string; path: string }) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PUSH_FILE_CHANGED, (_, data) => callback(data))
     return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_FILE_CHANGED)
+  },
+  onInboxUpdated: (callback: () => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_INBOX_UPDATED, () => callback())
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_INBOX_UPDATED)
   },
 
   // Updater

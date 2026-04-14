@@ -271,6 +271,7 @@ export interface ElectronAPI {
   onLLMDownloadProgress: (callback: (data: { quant: string; progress: number }) => void) => () => void
   onLLMStatus: (callback: (status: string) => void) => () => void
   onFileChanged: (callback: (data: { type: string; path: string }) => void) => () => void
+  onInboxUpdated: (callback: () => void) => () => void
 
   // Personalization
   getPersonalizationTopic: (topic: string) => Promise<{ success: boolean; content: string | null; error?: string }>
