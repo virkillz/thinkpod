@@ -20,13 +20,18 @@ extraResources:
 mac:
   category: public.app-category.productivity
   icon: build/icon.icns
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  identity: "Developer ID Application: Arif Yuliannur (2QW696JV44)"
   target:
     - target: dmg
       arch:
         - arm64
         - x64
+
+afterSign: scripts/notarize.js
 
 win:
   icon: build/icon.ico

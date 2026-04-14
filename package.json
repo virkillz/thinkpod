@@ -1,9 +1,13 @@
 {
   "name": "thinkpod",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A local-first, AI-powered personal knowledge operating system",
   "main": "dist/main/index.js",
-  "author": "ThinkPod",
+  "type": "module",
+  "author": {
+    "name": "Arif Yuliannur",
+    "email": "virkill@gmail.com"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -19,6 +23,7 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.14.0",
     "@types/node-cron": "^3.0.11",

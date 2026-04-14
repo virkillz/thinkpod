@@ -19,6 +19,7 @@ import type {
 
 type LlamaInstance = import('node-llama-cpp').Llama
 type LlamaModelType = import('node-llama-cpp').LlamaModel
+type LlamaContextType = import('node-llama-cpp').LlamaContext
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -28,9 +29,11 @@ interface ChatMessage {
 export class LLMProcessManager extends EventEmitter {
   private llama: LlamaInstance | null = null
   private model: LlamaModelType | null = null
+  private context: LlamaContextType | null = null
   private server: http.Server | null = null
   private serverUrl: string | null = null
   private isLoading = false
+  private gpuLayers: number = -1
 
   constructor() {
     super()
@@ -55,8 +58,18 @@ export class LLMProcessManager extends EventEmitter {
       console.log('[LLMProcessManager.start] llama instance created, loading model from:', modelPath)
 
       console.log('[LLMProcessManager.start] calling llama.loadModel()...')
-      this.model = await this.llama.loadModel({ modelPath })
-      console.log('[LLMProcessManager.start] model loaded, starting HTTP server...')
+      this.model = await this.llama.loadModel({ 
+        modelPath,
+        gpuLayers: this.gpuLayers
+      })
+      console.log('[LLMProcessManager.start] model loaded with GPU layers:', this.gpuLayers)
+
+      console.log('[LLMProcessManager.start] creating persistent context...')
+      this.context = await this.model.createContext({ 
+        contextSize: 4096,
+        batchSize: 512
+      })
+      console.log('[LLMProcessManager.start] context created, starting HTTP server...')
 
       this.serverUrl = await this.startHttpServer()
       console.log('[LLMProcessManager.start] server started at:', this.serverUrl)
@@ -81,6 +94,8 @@ export class LLMProcessManager extends EventEmitter {
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(this.context as any)?.dispose?.()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(this.model as any)?.dispose?.()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(this.llama as any)?.dispose?.()
@@ -88,10 +103,15 @@ export class LLMProcessManager extends EventEmitter {
       // ignore
     }
 
+    this.context = null
     this.model = null
     this.llama = null
     this.isLoading = false
     this.emit('status', 'stopped')
+  }
+
+  setGpuLayers(layers: number): void {
+    this.gpuLayers = layers
   }
 
   isRunning(): boolean {
@@ -180,52 +200,44 @@ export class LLMProcessManager extends EventEmitter {
   }
 
   private async runInference(messages: ChatMessage[]): Promise<string> {
-    if (!this.model) throw new Error('Model not loaded')
+    if (!this.model || !this.context) throw new Error('Model not loaded')
 
     const { LlamaChatSession } = await import('node-llama-cpp')
 
-    const context = await this.model.createContext({ contextSize: 4096 })
-    try {
-      const session = new LlamaChatSession({
-        contextSequence: context.getSequence(),
-      }) as LlamaChatSession
+    const sequence = this.context.getSequence()
+    const session = new LlamaChatSession({
+      contextSequence: sequence,
+    }) as LlamaChatSession
 
-      // Build chat history from all messages except the last user message.
-      // setChatHistory() loads it into context without running inference.
-      const history: ChatHistoryItem[] = []
-      const turns = messages.filter((m) => m.role !== 'system')
-      const systemMsg = messages.find((m) => m.role === 'system')?.content
+    const history: ChatHistoryItem[] = []
+    const turns = messages.filter((m) => m.role !== 'system')
+    const systemMsg = messages.find((m) => m.role === 'system')?.content
 
-      if (systemMsg) {
-        history.push({ type: 'system', text: systemMsg })
-      }
-
-      // All turns except the final user message go into history
-      for (let i = 0; i < turns.length - 1; i++) {
-        const msg = turns[i]
-        if (msg.role === 'user') {
-          history.push({ type: 'user', text: msg.content })
-        } else if (msg.role === 'assistant') {
-          const modelResponse: ChatModelResponse = {
-            type: 'model',
-            response: [msg.content],
-          }
-          history.push(modelResponse)
-        }
-      }
-
-      session.setChatHistory(history)
-
-      const lastUser = turns[turns.length - 1]
-      if (!lastUser || lastUser.role !== 'user') {
-        throw new Error('Last message must be from user')
-      }
-
-      return await session.prompt(lastUser.content)
-    } finally {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (context as any).dispose?.()
+    if (systemMsg) {
+      history.push({ type: 'system', text: systemMsg })
     }
+
+    for (let i = 0; i < turns.length - 1; i++) {
+      const msg = turns[i]
+      if (msg.role === 'user') {
+        history.push({ type: 'user', text: msg.content })
+      } else if (msg.role === 'assistant') {
+        const modelResponse: ChatModelResponse = {
+          type: 'model',
+          response: [msg.content],
+        }
+        history.push(modelResponse)
+      }
+    }
+
+    session.setChatHistory(history)
+
+    const lastUser = turns[turns.length - 1]
+    if (!lastUser || lastUser.role !== 'user') {
+      throw new Error('Last message must be from user')
+    }
+
+    return await session.prompt(lastUser.content)
   }
 
   private readBody(req: IncomingMessage): Promise<string> {
