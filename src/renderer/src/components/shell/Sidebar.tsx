@@ -32,6 +32,7 @@ export function Sidebar() {
     toggleFileTree,
     unreadInbox,
     thoughtCount,
+    triggerInboxReset,
   } = useAppStore()
 
   return (
@@ -79,6 +80,9 @@ export function Sidebar() {
                 onClick={() => {
                   if (item.id === 'notes') {
                     toggleFileTree()
+                  }
+                  if (item.id === 'inbox') {
+                    triggerInboxReset()
                   }
                   setCurrentView(item.id)
                 }}

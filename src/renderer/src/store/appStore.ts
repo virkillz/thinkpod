@@ -84,6 +84,8 @@ interface AppState {
   // Inbox
   unreadInbox: number
   setUnreadInbox: (count: number) => void
+  inboxResetTrigger: number
+  triggerInboxReset: () => void
 
   // Thoughts
   thoughtCount: number
@@ -166,6 +168,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Inbox
   unreadInbox: 0,
   setUnreadInbox: (count) => set({ unreadInbox: count }),
+  inboxResetTrigger: 0,
+  triggerInboxReset: () => set((state) => ({ inboxResetTrigger: state.inboxResetTrigger + 1 })),
 
   // Thoughts
   thoughtCount: 0,

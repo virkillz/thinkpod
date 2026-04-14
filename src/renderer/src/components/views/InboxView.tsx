@@ -36,7 +36,7 @@ export function InboxView() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
-  const { setUnreadInbox, agentName } = useAppStore()
+  const { setUnreadInbox, agentName, inboxResetTrigger } = useAppStore()
 
   useEffect(() => {
     loadMessages()
@@ -48,6 +48,10 @@ export function InboxView() {
     
     return unsubscribe
   }, [])
+
+  useEffect(() => {
+    setSelected(null)
+  }, [inboxResetTrigger])
 
   const loadMessages = async () => {
     const result = await window.electronAPI.listInbox()
