@@ -53,6 +53,7 @@ export const IPC_CHANNELS = {
   INBOX_READ: 'inbox:read',
   INBOX_MARK_READ: 'inbox:mark-read',
   INBOX_DELETE: 'inbox:delete',
+  INBOX_ARCHIVE: 'inbox:archive',
   INBOX_REPLY: 'inbox:reply',
 
   // Schedule

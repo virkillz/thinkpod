@@ -1373,6 +1373,28 @@ export function setupIpcHandlers(
     return { success: true }
   })
 
+  // Inbox: Archive
+  ipcMain.handle(IPC_CHANNELS.INBOX_ARCHIVE, async (_, filename: string) => {
+    const abbey = getVaultManager()
+    if (!abbey) {
+      throw new Error('No vault initialized')
+    }
+
+    const inboxPath = path.join(abbey.vaultPath, '_inbox')
+    const archivePath = path.join(abbey.vaultPath, '_inbox_archive')
+    
+    // Ensure archive folder exists
+    await fs.mkdir(archivePath, { recursive: true })
+    
+    const sourcePath = path.join(inboxPath, filename)
+    const destPath = path.join(archivePath, filename)
+    
+    // Move file to archive
+    await fs.rename(sourcePath, destPath)
+    
+    return { success: true }
+  })
+
   // Inbox: Reply to thread and get agent response
   ipcMain.handle(IPC_CHANNELS.INBOX_REPLY, async (_, threadId: string, replyText: string) => {
     const abbey = getVaultManager()
