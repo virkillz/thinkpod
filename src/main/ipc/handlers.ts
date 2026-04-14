@@ -36,6 +36,7 @@ import {
   THREAD_CONTINUATION_SUFFIX,
   SYSTEM_PROMPT,
   PERSONALIZATION_QUICK_FACTS_PROMPT,
+  buildAgentTaskPrompt,
 } from '../agent/prompts.js'
 
 // ── JSON extraction helper ────────────────────────────────────────────────────
@@ -1488,6 +1489,27 @@ export function setupIpcHandlers(
     }
   })
 
+  // Schedule: Get system prompt
+  ipcMain.handle(IPC_CHANNELS.SCHEDULE_GET_SYSTEM_PROMPT, async (_, name: string, prompt: string) => {
+    try {
+      const vaultManager = getVaultManager()
+      if (!vaultManager) {
+        return { success: false, error: 'No vault initialized' }
+      }
+
+      const persona = (dbManager.getSetting('agentProfile') as string) ?? DEFAULT_AGENT_SYSTEM_PROMPT
+      const registry = new SkillRegistry(vaultManager.vaultPath)
+      const skills = await registry.discover()
+      const skillsBlock = SkillRegistry.buildMetadataBlock(skills)
+      const agentPrompt = buildAgentTaskPrompt(persona, name, prompt, vaultManager.vaultPath, skillsBlock)
+      const systemPrompt = `${SYSTEM_PROMPT}\n\n${agentPrompt}`
+
+      return { success: true, systemPrompt }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Task: List pending/future
   ipcMain.handle(IPC_CHANNELS.TASK_LIST, async () => {
     return dbManager.listPendingAndFutureTasks()
@@ -1522,6 +1544,27 @@ export function setupIpcHandlers(
     try {
       dbManager.deleteTask(id)
       return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Task: Get system prompt
+  ipcMain.handle(IPC_CHANNELS.TASK_GET_SYSTEM_PROMPT, async (_, taskName: string, prompt: string) => {
+    try {
+      const vaultManager = getVaultManager()
+      if (!vaultManager) {
+        return { success: false, error: 'No vault initialized' }
+      }
+
+      const persona = (dbManager.getSetting('agentProfile') as string) ?? DEFAULT_AGENT_SYSTEM_PROMPT
+      const registry = new SkillRegistry(vaultManager.vaultPath)
+      const skills = await registry.discover()
+      const skillsBlock = SkillRegistry.buildMetadataBlock(skills)
+      const agentPrompt = buildAgentTaskPrompt(persona, taskName, prompt, vaultManager.vaultPath, skillsBlock)
+      const systemPrompt = `${SYSTEM_PROMPT}\n\n${agentPrompt}`
+
+      return { success: true, systemPrompt }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }

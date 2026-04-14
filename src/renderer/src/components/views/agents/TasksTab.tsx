@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '../../../store/appStore.js'
 import {
   Clock, Play, Archive, CheckCircle, XCircle, AlertCircle,
-  Plus, Pencil, Trash2, CalendarClock, Loader2,
+  Plus, Pencil, Trash2, CalendarClock, Loader2, ScrollText, X,
 } from 'lucide-react'
 
 interface TaskRecord {
@@ -59,6 +59,8 @@ export function TasksTab() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [systemPrompt, setSystemPrompt] = useState<string | null>(null)
+  const [systemPromptLoading, setSystemPromptLoading] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -137,13 +139,63 @@ export function TasksTab() {
 
   const activeSchedules = schedules.filter(s => s.is_active)
 
+  const handleViewSystemPrompt = async (name: string, prompt: string) => {
+    setSystemPromptLoading(true)
+    try {
+      const result = await window.electronAPI.getTaskSystemPrompt(name, prompt)
+      if (result.success && result.systemPrompt) {
+        setSystemPrompt(result.systemPrompt)
+      }
+    } finally {
+      setSystemPromptLoading(false)
+    }
+  }
+
+  const handleViewScheduleSystemPrompt = async (name: string, prompt: string) => {
+    setSystemPromptLoading(true)
+    try {
+      const result = await window.electronAPI.getScheduleSystemPrompt(name, prompt)
+      if (result.success && result.systemPrompt) {
+        setSystemPrompt(result.systemPrompt)
+      }
+    } finally {
+      setSystemPromptLoading(false)
+    }
+  }
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex justify-end">
-        <button onClick={openNew} disabled={showForm} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors">
-          <Plus className="w-4 h-4" /> New Task
-        </button>
-      </div>
+    <>
+      {systemPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSystemPrompt(null)} />
+          <div className="relative bg-parchment-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[70vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-parchment-dark">
+              <div>
+                <p className="font-medium text-ink-primary text-sm">System Prompt</p>
+                <p className="text-xs text-ink-muted mt-0.5">Task Configuration</p>
+              </div>
+              <button
+                onClick={() => setSystemPrompt(null)}
+                className="p-1.5 hover:bg-parchment-sidebar rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-ink-muted" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <pre className="text-xs font-mono text-ink-primary whitespace-pre-wrap leading-relaxed">
+                {systemPrompt}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="flex justify-end">
+          <button onClick={openNew} disabled={showForm} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors">
+            <Plus className="w-4 h-4" /> New Task
+          </button>
+        </div>
 
       {showForm && (
         <section>
@@ -206,6 +258,7 @@ export function TasksTab() {
                       <p className="text-xs text-ink-muted mt-1">{formatRunAt(t.run_at)}</p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      <button onClick={() => handleViewSystemPrompt(t.name, t.prompt)} disabled={systemPromptLoading} title="View system prompt" className="p-1.5 text-ink-muted hover:text-ink-primary disabled:opacity-40 transition-colors"><ScrollText className="w-3.5 h-3.5" /></button>
                       <button onClick={() => openEdit(t)} disabled={showForm} className="p-1.5 text-ink-muted hover:text-ink-primary disabled:opacity-40 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
                       <button onClick={() => setDeletingId(t.id)} disabled={showForm} className="p-1.5 text-ink-muted hover:text-red-500 disabled:opacity-40 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
@@ -223,14 +276,19 @@ export function TasksTab() {
           <div className="space-y-3">
             {activeSchedules.map(s => (
               <div key={s.id} className="bg-parchment-card rounded-xl p-5 border border-parchment-dark flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <h4 className="font-medium text-ink-primary">{s.name}</h4>
                   <p className="text-sm text-ink-muted mt-0.5">{s.schedule}</p>
                 </div>
-                <button onClick={() => handleTrigger(s.id)} disabled={!!liveTask || triggering !== null} className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors">
-                  {triggering === s.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                  Run now
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handleViewScheduleSystemPrompt(s.name, s.prompt)} disabled={systemPromptLoading} title="View system prompt" className="p-2 text-ink-muted hover:text-ink-primary disabled:opacity-40 transition-colors">
+                    <ScrollText className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleTrigger(s.id)} disabled={!!liveTask || triggering !== null} className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors">
+                    {triggering === s.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                    Run now
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -288,7 +346,8 @@ export function TasksTab() {
           </div>
         )}
       </section>
-    </div>
+      </div>
+    </>
   )
 }
 

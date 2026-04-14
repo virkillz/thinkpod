@@ -55,10 +55,12 @@ const IPC_CHANNELS = {
   SCHEDULE_CREATE: 'schedule:create',
   SCHEDULE_UPDATE: 'schedule:update',
   SCHEDULE_DELETE: 'schedule:delete',
+  SCHEDULE_GET_SYSTEM_PROMPT: 'schedule:get-system-prompt',
   TASK_CREATE: 'task:create',
   TASK_UPDATE: 'task:update',
   TASK_DELETE: 'task:delete',
   TASK_LIST: 'task:list',
+  TASK_GET_SYSTEM_PROMPT: 'task:get-system-prompt',
   APP_GET_VERSION: 'app:get-version',
   APP_GET_LOGS: 'app:get-logs',
   USER_SELECT_IMAGE: 'user:select-image',
@@ -181,6 +183,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateSchedule: (id: number, name: string, schedule: string, prompt: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_UPDATE, id, name, schedule, prompt),
   deleteSchedule: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_DELETE, id),
+  getScheduleSystemPrompt: (name: string, prompt: string) => 
+    ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_GET_SYSTEM_PROMPT, name, prompt),
 
   // Tasks (one-time)
   listTasks: () => ipcRenderer.invoke(IPC_CHANNELS.TASK_LIST),
@@ -189,6 +193,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateTask: (id: number, name: string, prompt: string, runAt: number | null) =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_UPDATE, id, name, prompt, runAt),
   deleteTask: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
+  getTaskSystemPrompt: (taskName: string, prompt: string) => 
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_GET_SYSTEM_PROMPT, taskName, prompt),
 
   // App
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
