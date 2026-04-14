@@ -46,6 +46,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const handleFinalizeSetup = async () => {
     // Inject default templates before completing setup
     await window.electronAPI.setSetting('noteTemplates', DEFAULT_TEMPLATES)
+    // Create welcome message from Wilfred in the inbox
+    await window.electronAPI.createWelcomeMessage()
     onComplete()
   }
 

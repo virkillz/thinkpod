@@ -33,6 +33,7 @@ import {
   buildReformatThoughtPrompt,
   ASSESS_THOUGHT,
   THREAD_CONTINUATION_SUFFIX,
+  INBOX_USER_MESSAGE_PROMPT,
   SYSTEM_PROMPT,
   PERSONALIZATION_QUICK_FACTS_PROMPT,
   buildAgentTaskPrompt,
@@ -1404,6 +1405,130 @@ export function setupIpcHandlers(
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }
+  })
+
+  // Inbox: Compose — user initiates a new thread, agent responds
+  ipcMain.handle(IPC_CHANNELS.INBOX_COMPOSE, async (_, subject: string, body: string) => {
+    const llmConfig = getEffectiveLLMConfig(dbManager)
+    if (!llmConfig) {
+      return { success: false, error: 'LLM not configured' }
+    }
+
+    const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; systemPrompt?: string } | null
+    const userProfile = dbManager.getSetting('userProfile') as { name?: string } | null
+    const userName = userProfile?.name?.trim() ?? 'You'
+    const agentName = agentProfile?.name ?? 'Wilfred'
+
+    // 1. Create the thread with the user's message as the body
+    const messageId = dbManager.createInboxMessage({
+      subject,
+      body,
+      type: 'outgoing',
+      sourceJob: undefined,
+      fromAddr: userName,
+    })
+
+    // Mark as read immediately — the user wrote it
+    dbManager.markInboxRead(messageId)
+
+    const persona = (agentProfile?.systemPrompt ?? DEFAULT_THREAD_PERSONA).replace(/{agentName}/g, agentName)
+
+    // 2. Call LLM for agent response
+    try {
+      const abbey = getVaultManager()
+      if (!abbey) {
+        return { success: false, error: 'No vault initialized' }
+      }
+
+      const client = new LLMClient(llmConfig)
+
+      const toolsConfig = dbManager.getSetting('toolsConfig') as import('../agent/tools/types.js').ToolsConfig | null
+      const { getEnabledToolDefinitions } = await import('../agent/tools/index.js')
+      const { ToolExecutor } = await import('../agent/ToolExecutor.js')
+
+      const toolDefs = getEnabledToolDefinitions(toolsConfig ?? DEFAULT_TOOLS_CONFIG, { includeFinishTask: false })
+
+      const toolContext = {
+        vaultPath: abbey.vaultPath,
+        dbManager,
+        toolsConfig: toolsConfig ?? DEFAULT_TOOLS_CONFIG,
+      }
+      const executor = new ToolExecutor(toolContext)
+
+      const messages: import('../agent/LLMClient.js').LLMMessage[] = [
+        { role: 'system', content: `${SYSTEM_PROMPT}\n\n${persona}\n\n${INBOX_USER_MESSAGE_PROMPT}` },
+        { role: 'user', content: `Subject: ${subject}\n\n${body}` },
+      ]
+
+      let agentResponse = ''
+      const maxIterations = 5
+
+      for (let i = 0; i < maxIterations; i++) {
+        const response = await client.chatWithTools(messages, toolDefs as unknown[])
+
+        messages.push({ role: 'assistant', content: response.content || '' })
+
+        if (response.toolCalls && response.toolCalls.length > 0) {
+          for (const toolCall of response.toolCalls) {
+            const result = await executor.execute(toolCall)
+            messages.push({
+              role: 'user',
+              content: `Tool result for ${toolCall.function.name}:\n${JSON.stringify(result, null, 2)}`,
+            })
+          }
+        } else {
+          agentResponse = response.content?.trim() ?? ''
+          break
+        }
+      }
+
+      if (!agentResponse) return { success: false, error: 'No response from agent' }
+
+      // 3. Persist agent response as first reply
+      dbManager.appendInboxReply(messageId, 'agent', agentResponse)
+
+      return { success: true, messageId }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Inbox: Create Welcome Message — inject greeting from Wilfred after setup
+  ipcMain.handle(IPC_CHANNELS.INBOX_CREATE_WELCOME, async () => {
+    const agentProfile = dbManager.getSetting('agentProfile') as { name?: string } | null
+    const userProfile = dbManager.getSetting('userProfile') as { name?: string } | null
+    const agentName = agentProfile?.name ?? 'Wilfred'
+    const userName = userProfile?.name?.trim() ?? 'there'
+
+    const subject = `Welcome to ThinkPod, ${userName}!`
+    const body = `Hey ${userName}! 👋
+
+I'm ${agentName}, your personal knowledge companion. I'm really excited to work with you!
+
+**What's this Inbox for?**
+Think of this as our direct line of communication. I'll drop messages here when I notice interesting patterns in your notes, have suggestions, or questions that might help you think deeper. You can also reach out to me anytime—just hit "Compose" and start a conversation.
+
+**Two ways we can chat:**
+- **Inbox** (right here): For async conversations. Send me a message, and I'll get back to you with thoughtful responses.
+- **Chat**: For real-time back-and-forth discussions about your notes or anything on your mind.
+
+**Want me to work on a schedule?**
+I can also run tasks automatically for you—like reviewing your notes, finding connections, or organizing ideas. Head over to **Agent Settings** in the menu to set up scheduled tasks. You decide when and how often I should check in!
+
+Feel free to explore, and don't hesitate to reach out if you need anything. I'm here to help you think better and capture what matters.
+
+Let's build something great together! 🚀
+
+— ${agentName}`
+
+    const messageId = dbManager.createInboxMessage({
+      subject,
+      body,
+      type: 'insight',
+      fromAddr: `${agentName.toLowerCase()}@thinkpod.dev`,
+    })
+
+    return { success: true, messageId }
   })
 
   // Schedule: List

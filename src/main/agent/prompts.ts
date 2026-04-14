@@ -94,6 +94,16 @@ Always pick the closest matching templateId — use your best judgement even for
 export const THREAD_CONTINUATION_SUFFIX =
   'You are continuing a conversation thread. Respond warmly and concisely to the user\'s last message.'
 
+/**
+ * Suffix used when the user composes a new inbox message to the agent.
+ * Unlike THREAD_CONTINUATION_SUFFIX (mid-thread replies), this is for fresh user-initiated messages.
+ * Usage: `${persona}\n\n${INBOX_USER_MESSAGE_PROMPT}`
+ */
+export const INBOX_USER_MESSAGE_PROMPT =
+  'The user has reached out to you directly with a question or thought. ' +
+  'Read their message carefully and respond warmly and helpfully — as if they just walked in to ask you something. ' +
+  'Be thoughtful, concise, and direct.'
+
 // ---------------------------------------------------------------------------
 // ChatAgent.ts — invocation prompt templates
 // Placeholders: {file_path}, {file_content}

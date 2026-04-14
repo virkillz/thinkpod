@@ -160,6 +160,8 @@ export interface ElectronAPI {
   deleteInboxItem: (id: number) => Promise<{ success: boolean }>
   archiveInboxItem: (id: number) => Promise<{ success: boolean }>
   replyToThread: (messageId: number, replyText: string) => Promise<{ success: boolean; response?: string; error?: string }>
+  composeInboxMessage: (subject: string, body: string) => Promise<{ success: boolean; messageId?: number; error?: string }>
+  createWelcomeMessage: () => Promise<{ success: boolean; messageId?: number }>
 
   // Schedule
   listSchedules: () => Promise<Array<{

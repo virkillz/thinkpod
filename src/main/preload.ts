@@ -50,6 +50,8 @@ const IPC_CHANNELS = {
   INBOX_DELETE: 'inbox:delete',
   INBOX_ARCHIVE: 'inbox:archive',
   INBOX_REPLY: 'inbox:reply',
+  INBOX_COMPOSE: 'inbox:compose',
+  INBOX_CREATE_WELCOME: 'inbox:create-welcome',
   SCHEDULE_LIST: 'schedule:list',
   SCHEDULE_TOGGLE: 'schedule:toggle',
   SCHEDULE_TRIGGER: 'schedule:trigger',
@@ -171,6 +173,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteInboxItem: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_DELETE, id),
   archiveInboxItem: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_ARCHIVE, id),
   replyToThread: (messageId: number, replyText: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_REPLY, messageId, replyText),
+  composeInboxMessage: (subject: string, body: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_COMPOSE, subject, body),
+  createWelcomeMessage: () => ipcRenderer.invoke(IPC_CHANNELS.INBOX_CREATE_WELCOME),
 
   // Schedule
   listSchedules: () => ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_LIST),

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Mail, Trash2, Send, Loader2, Archive, Search, X, CheckSquare, Square, Inbox, Clock } from 'lucide-react'
+import { Mail, Trash2, Send, Loader2, Archive, Search, X, CheckSquare, Square, Inbox, Clock, Pencil } from 'lucide-react'
 import { useAppStore } from '../../store/appStore.js'
 
 interface InboxReply {
@@ -36,6 +36,10 @@ export function InboxView() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
+  const [isComposing, setIsComposing] = useState(false)
+  const [composeSubject, setComposeSubject] = useState('')
+  const [composeBody, setComposeBody] = useState('')
+  const [isSendingCompose, setIsSendingCompose] = useState(false)
   const { setUnreadInbox, agentName, inboxResetTrigger } = useAppStore()
 
   useEffect(() => {
@@ -113,6 +117,27 @@ export function InboxView() {
     setSelectedIds((prev) => { const s = new Set(prev); s.delete(id); return s })
   }
 
+  const handleCompose = async () => {
+    if (!composeSubject.trim() || !composeBody.trim()) return
+    setIsSendingCompose(true)
+    try {
+      const result = await window.electronAPI.composeInboxMessage(composeSubject.trim(), composeBody.trim())
+      if (result.success) {
+        setIsComposing(false)
+        setComposeSubject('')
+        setComposeBody('')
+        await loadMessages()
+        // Open the newly created thread
+        const detail = await window.electronAPI.readInboxItem(result.messageId)
+        setSelected(detail)
+      } else {
+        alert('Failed to send message: ' + result.error)
+      }
+    } finally {
+      setIsSendingCompose(false)
+    }
+  }
+
   const handleToggleSelect = (id: number) => {
     setSelectedIds((prev) => {
       const s = new Set(prev)
@@ -158,8 +183,9 @@ export function InboxView() {
 
   // ── Detail view ────────────────────────────────────────────────────────────
   if (selected) {
+    const isUserComposed = selected.type === 'outgoing'
     const allMessages = [
-      { role: 'agent', body: selected.body, created_at: selected.created_at },
+      { role: isUserComposed ? 'human' : 'agent', body: selected.body, created_at: selected.created_at },
       ...selected.replies,
     ]
 
@@ -283,7 +309,17 @@ export function InboxView() {
               </span>
             )}
           </div>
-          <span className="text-sm text-ink-muted">Messages from {agentName}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-ink-muted">Messages from {agentName}</span>
+            <button
+              onClick={() => setIsComposing(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-accent/90 transition-colors"
+              title="Compose new message"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Compose
+            </button>
+          </div>
         </div>
 
         {/* Search and filters */}
@@ -344,6 +380,78 @@ export function InboxView() {
           </div>
         )}
       </div>
+
+      {/* Compose modal */}
+      {isComposing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-parchment-card border border-parchment-dark rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-parchment-dark">
+              <h3 className="font-serif font-medium text-ink-primary">New Message to {agentName}</h3>
+              <button
+                onClick={() => { setIsComposing(false); setComposeSubject(''); setComposeBody('') }}
+                className="text-ink-muted hover:text-ink-primary transition-colors"
+                disabled={isSendingCompose}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Fields */}
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="text-xs text-ink-muted mb-1 block">Subject</label>
+                <input
+                  type="text"
+                  value={composeSubject}
+                  onChange={(e) => setComposeSubject(e.target.value)}
+                  placeholder="What's on your mind?"
+                  className="w-full bg-parchment-sidebar border border-parchment-dark rounded-lg px-4 py-2.5 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent"
+                  disabled={isSendingCompose}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs text-ink-muted mb-1 block">Message</label>
+                <textarea
+                  value={composeBody}
+                  onChange={(e) => setComposeBody(e.target.value)}
+                  placeholder={`Write your message to ${agentName}...`}
+                  className="w-full bg-parchment-sidebar border border-parchment-dark rounded-lg px-4 py-3 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent resize-none"
+                  rows={6}
+                  disabled={isSendingCompose}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) handleCompose() }}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-parchment-dark">
+              <p className="text-xs text-ink-muted">Cmd+Enter to send</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setIsComposing(false); setComposeSubject(''); setComposeBody('') }}
+                  className="px-4 py-2 text-sm text-ink-muted hover:text-ink-primary transition-colors"
+                  disabled={isSendingCompose}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCompose}
+                  disabled={!composeSubject.trim() || !composeBody.trim() || isSendingCompose}
+                  className="flex items-center gap-2 px-4 py-2 bg-accent text-white text-sm rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSendingCompose ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
+                  ) : (
+                    <><Send className="w-4 h-4" />Send</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Message list */}
       <div className="flex-1 overflow-y-auto p-6">

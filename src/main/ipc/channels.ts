@@ -55,6 +55,8 @@ export const IPC_CHANNELS = {
   INBOX_DELETE: 'inbox:delete',
   INBOX_ARCHIVE: 'inbox:archive',
   INBOX_REPLY: 'inbox:reply',
+  INBOX_COMPOSE: 'inbox:compose',
+  INBOX_CREATE_WELCOME: 'inbox:create-welcome',
 
   // Schedule
   SCHEDULE_LIST: 'schedule:list',
