@@ -1,15 +1,14 @@
 /**
  * LLM Process Manager
- * Spawns node-llama-cpp in an isolated Electron utility process to prevent
- * UI freezes during inference and survive crashes without taking down the app.
+ * Spawns node-llama-cpp (GGUF) or mlx_lm.server (MLX) in an isolated Electron
+ * utility process to prevent UI freezes during inference and survive crashes
+ * without taking down the app.
  *
- * The utility process (llm-server.ts) loads the model and runs a local
- * OpenAI-compatible HTTP server. The existing LLMClient connects to the URL
- * returned by getUrl() — no other code needs to change.
+ * Both backends post `{ type: 'ready', url }` on startup, so LLMClient and all
+ * upstream code stay unchanged — only the launched script differs.
  *
- * Main ↔ utility communication goes through utilityProcess.postMessage()
- * and process.parentPort (Electron IPC), keeping inference fully off the
- * main process event loop.
+ * Main ↔ utility communication goes through utilityProcess.postMessage() and
+ * process.parentPort (Electron IPC), keeping inference fully off the main event loop.
  */
 
 import { EventEmitter } from 'events'
@@ -23,11 +22,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MAX_RESTART_ATTEMPTS = 3
 const RESTART_BACKOFF_MS = [1000, 3000, 10_000]
 
+// ── Start options ─────────────────────────────────────────────────────────────
+
+export type LLMStartOpts =
+  | { backend?: 'gguf'; modelPath: string }
+  | { backend: 'mlx'; hfRepo: string; port?: number }
+
+// ── Manager ───────────────────────────────────────────────────────────────────
+
 export class LLMProcessManager extends EventEmitter {
   private proc: UtilityProcess | null = null
   private serverUrl: string | null = null
   private gpuLayers = -1
-  private pendingModelPath: string | null = null
+  private pendingOpts: LLMStartOpts | null = null
   private restartAttempts = 0
   private startupTimer: ReturnType<typeof setTimeout> | null = null
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
@@ -37,39 +44,91 @@ export class LLMProcessManager extends EventEmitter {
     super()
   }
 
+  // ── Script path resolution ────────────────────────────────────────────────
+
   /** Resolve path to the compiled llm-server script — differs in dev vs packaged. */
   private getServerScriptPath(): string {
     if (app.isPackaged) {
       return path.join(process.resourcesPath, 'llm-server.js')
     }
-    // In dev, tsc outputs src/main/agent/llm-server.ts → dist/main/agent/llm-server.js
     return path.join(__dirname, 'llm-server.js')
   }
 
-  async start(modelPath: string): Promise<boolean> {
-    if (this.proc) return false
-    this.pendingModelPath = modelPath
-    this.restartAttempts = 0
-    return this.spawnAndStart(modelPath)
+  /** Resolve path to the compiled mlx-launcher script — differs in dev vs packaged. */
+  private getMLXLauncherScriptPath(): string {
+    if (app.isPackaged) {
+      return path.join(process.resourcesPath, 'mlx-launcher.js')
+    }
+    return path.join(__dirname, 'mlx-launcher.js')
   }
 
-  private spawnAndStart(modelPath: string): Promise<boolean> {
+  /** Resolve the bundled Python 3.11 runtime directory. */
+  private getPythonRuntimePath(): string {
+    if (app.isPackaged) {
+      return path.join(process.resourcesPath, 'python-runtime')
+    }
+    // Dev: resources/python-runtime relative to the project root
+    return path.join(app.getAppPath(), 'resources', 'python-runtime')
+  }
+
+  // ── Public API ────────────────────────────────────────────────────────────
+
+  async start(opts: LLMStartOpts): Promise<boolean> {
+    if (this.proc) return false
+    this.pendingOpts = opts
+    this.restartAttempts = 0
+    return this.spawnAndStart(opts)
+  }
+
+  stop(): void {
+    clearTimeout(this.startupTimer!)
+    this.stopHeartbeat()
+    if (this.proc) {
+      this.proc.postMessage({ type: 'stop' })
+      // Kill if it doesn't exit cleanly within 5s
+      setTimeout(() => this.proc?.kill(), 5000)
+    }
+    this.proc = null
+    this.serverUrl = null
+    this.pendingOpts = null
+  }
+
+  ping(): void {
+    this.proc?.postMessage({ type: 'ping' })
+  }
+
+  setGpuLayers(layers: number): void {
+    this.gpuLayers = layers
+  }
+
+  isRunning(): boolean {
+    return this.proc !== null && this.serverUrl !== null
+  }
+
+  getUrl(): string | null {
+    return this.serverUrl
+  }
+
+  // ── Internal ──────────────────────────────────────────────────────────────
+
+  private spawnAndStart(opts: LLMStartOpts): Promise<boolean> {
     return new Promise((resolve) => {
-      const scriptPath = this.getServerScriptPath()
+      const isMLX = opts.backend === 'mlx'
+      const scriptPath = isMLX ? this.getMLXLauncherScriptPath() : this.getServerScriptPath()
 
       this.proc = utilityProcess.fork(scriptPath, [], {
-        serviceName: 'LLM Server',
+        serviceName: isMLX ? 'MLX Server' : 'LLM Server',
         stdio: 'pipe',
       })
 
       this.proc.stdout?.on('data', (d: Buffer) =>
-        console.log('[llm-server]', d.toString().trim())
+        console.log(isMLX ? '[mlx-launcher]' : '[llm-server]', d.toString().trim())
       )
       this.proc.stderr?.on('data', (d: Buffer) =>
-        console.error('[llm-server]', d.toString().trim())
+        console.error(isMLX ? '[mlx-launcher]' : '[llm-server]', d.toString().trim())
       )
 
-      // 120s startup timeout
+      // 120s startup timeout (MLX may need to download model on first run)
       this.startupTimer = setTimeout(() => {
         console.error('[LLMProcessManager] Startup timeout')
         resolve(false)
@@ -115,12 +174,22 @@ export class LLMProcessManager extends EventEmitter {
         }
       })
 
-      this.proc.postMessage({ type: 'start', modelPath, gpuLayers: this.gpuLayers })
+      // Send the start message — payload differs by backend
+      if (isMLX) {
+        this.proc.postMessage({
+          type: 'start',
+          hfRepo: opts.hfRepo,
+          port: opts.port ?? 8765,
+          pythonRuntimePath: this.getPythonRuntimePath(),
+        })
+      } else {
+        this.proc.postMessage({ type: 'start', modelPath: opts.modelPath, gpuLayers: this.gpuLayers })
+      }
     })
   }
 
   private attemptRestart(): void {
-    if (!this.pendingModelPath) return
+    if (!this.pendingOpts) return
     if (this.restartAttempts >= MAX_RESTART_ATTEMPTS) {
       console.error('[LLMProcessManager] Max restart attempts reached — giving up')
       this.emit('error', 'Max restart attempts reached')
@@ -131,20 +200,7 @@ export class LLMProcessManager extends EventEmitter {
     console.log(
       `[LLMProcessManager] Restarting in ${delay}ms (attempt ${this.restartAttempts})`
     )
-    setTimeout(() => this.spawnAndStart(this.pendingModelPath!), delay)
-  }
-
-  stop(): void {
-    clearTimeout(this.startupTimer!)
-    this.stopHeartbeat()
-    if (this.proc) {
-      this.proc.postMessage({ type: 'stop' })
-      // Kill if it doesn't exit cleanly within 5s
-      setTimeout(() => this.proc?.kill(), 5000)
-    }
-    this.proc = null
-    this.serverUrl = null
-    this.pendingModelPath = null
+    setTimeout(() => this.spawnAndStart(this.pendingOpts!), delay)
   }
 
   // ── Heartbeat ────────────────────────────────────────────────────────────────
@@ -168,21 +224,5 @@ export class LLMProcessManager extends EventEmitter {
       clearInterval(this.heartbeatInterval)
       this.heartbeatInterval = null
     }
-  }
-
-  ping(): void {
-    this.proc?.postMessage({ type: 'ping' })
-  }
-
-  setGpuLayers(layers: number): void {
-    this.gpuLayers = layers
-  }
-
-  isRunning(): boolean {
-    return this.proc !== null && this.serverUrl !== null
-  }
-
-  getUrl(): string | null {
-    return this.serverUrl
   }
 }

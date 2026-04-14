@@ -12,6 +12,7 @@ import { SkillRegistry } from '../agent/SkillRegistry.js'
 import type { VaultManager } from '../vault/VaultManager.js'
 import { getMainWindow, getVaultManager, initVaultManager } from '../index.js'
 import { LLMProcessManager } from '../agent/LLMProcessManager.js'
+import type { LLMStartOpts } from '../agent/LLMProcessManager.js'
 import { LLMModelManager, GEMMA_MODELS, type GGUFModelInfo, type LLMBuiltinConfig } from '../agent/LLMModelManager.js'
 import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
 import { LLMClient } from '../agent/LLMClient.js'
@@ -88,6 +89,8 @@ interface LLMProfileRaw {
   model: string
   apiKey?: string
   builtinQuant?: string
+  builtinBackend?: 'gguf' | 'mlx'
+  builtinHfRepo?: string
 }
 
 interface LLMStorage {
@@ -138,31 +141,52 @@ export function setupIpcHandlers(
   // Auto-start built-in model if it was configured and downloaded
   const storedLLM = dbManager.getSetting('llmConfig') as LLMStorage | null
   const autoStartProfile = storedLLM?.profiles?.find(p => p.id === storedLLM?.activeId) ?? null
-  if (autoStartProfile?.provider === 'builtin' && autoStartProfile.builtinQuant) {
-    llmModelManager.isModelDownloaded(autoStartProfile.builtinQuant).then(async (downloaded) => {
-      if (downloaded && !llmProcessManager) {
-        const modelPath = llmModelManager!.getModelPath(autoStartProfile.builtinQuant!)
-        llmProcessManager = new LLMProcessManager()
-        llmProcessManager.on('status', (status: string) => {
-          pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, status)
-        })
-        llmProcessManager.on('error', (err: string) => {
-          log.error('[LLM built-in]', err)
-          pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
-        })
-        llmProcessManager.on('crashed', (code: number) => {
-          log.warn('[LLM built-in] process crashed with code', code, '— auto-restarting')
-          pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'crashed')
-        })
-        const started = await llmProcessManager.start(modelPath)
-        if (started) {
-          const url = llmProcessManager.getUrl()
-          if (url) dbManager.setSetting('llmBuiltinUrl', url)
-        } else {
-          llmProcessManager = null
+  if (autoStartProfile?.provider === 'builtin') {
+    const initManager = () => {
+      llmProcessManager = new LLMProcessManager()
+      llmProcessManager.on('status', (status: string) => {
+        pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, status)
+      })
+      llmProcessManager.on('error', (err: string) => {
+        log.error('[LLM built-in]', err)
+        pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
+      })
+      llmProcessManager.on('crashed', (code: number) => {
+        log.warn('[LLM built-in] process crashed with code', code, '— auto-restarting')
+        pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'crashed')
+      })
+    }
+
+    if (autoStartProfile.builtinBackend === 'mlx' && autoStartProfile.builtinHfRepo) {
+      // MLX: auto-start (model is downloaded by mlx_lm itself)
+      ;(async () => {
+        try {
+          initManager()
+          const started = await llmProcessManager!.start({ backend: 'mlx', hfRepo: autoStartProfile.builtinHfRepo! })
+          if (started) {
+            const url = llmProcessManager!.getUrl()
+            if (url) dbManager.setSetting('llmBuiltinUrl', url)
+          } else {
+            llmProcessManager = null
+          }
+        } catch (err) { log.error('[LLM auto-start MLX]', err); llmProcessManager = null }
+      })()
+    } else if (autoStartProfile.builtinQuant) {
+      // GGUF: only auto-start if model file is present
+      llmModelManager.isModelDownloaded(autoStartProfile.builtinQuant).then(async (downloaded) => {
+        if (downloaded && !llmProcessManager) {
+          const modelPath = llmModelManager!.getModelPath(autoStartProfile.builtinQuant!)
+          initManager()
+          const started = await llmProcessManager!.start({ backend: 'gguf', modelPath })
+          if (started) {
+            const url = llmProcessManager!.getUrl()
+            if (url) dbManager.setSetting('llmBuiltinUrl', url)
+          } else {
+            llmProcessManager = null
+          }
         }
-      }
-    }).catch((err) => log.error('[LLM auto-start]', err))
+      }).catch((err) => log.error('[LLM auto-start GGUF]', err))
+    }
   }
 
   // ── Built-in LLM model management ──────────────────────────────────────────
@@ -176,6 +200,7 @@ export function setupIpcHandlers(
       config,
       serverRunning: llmProcessManager?.isRunning() ?? false,
       serverUrl: llmProcessManager?.getUrl() ?? null,
+      isAppleSilicon: process.platform === 'darwin' && process.arch === 'arm64',
     }
   })
 
@@ -213,47 +238,97 @@ export function setupIpcHandlers(
     }
   })
 
-  ipcMain.handle(IPC_CHANNELS.LLM_MODEL_START, async (_, quant: string) => {
-    log.info('[LLM_MODEL_START] called with quant:', quant)
-    if (llmProcessManager?.isRunning()) {
-      log.info('[LLM_MODEL_START] already running, returning existing URL')
-      return { success: true, url: llmProcessManager.getUrl() }
-    }
-
-    try {
-      log.info('[LLM_MODEL_START] getting model path for:', quant)
-      const modelPath = llmModelManager!.getModelPath(quant)
-      log.info('[LLM_MODEL_START] model path:', modelPath)
-      llmProcessManager = new LLMProcessManager()
-      llmProcessManager.on('status', (status: string) => {
-        log.info('[LLM built-in status]', status)
-        pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, status)
-      })
-      llmProcessManager.on('error', (err: string) => {
-        log.error('[LLM built-in error]', err)
-        pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
-      })
-      llmProcessManager.on('crashed', (code: number) => {
-        log.warn('[LLM built-in] process crashed with code', code, '— auto-restarting')
-        pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'crashed')
-      })
-
-      log.info('[LLM_MODEL_START] calling llmProcessManager.start()...')
-      const started = await llmProcessManager.start(modelPath)
-      log.info('[LLM_MODEL_START] start() returned:', started, 'url:', llmProcessManager.getUrl())
-      if (started) {
-        const url = llmProcessManager.getUrl()
-        if (url) dbManager.setSetting('llmBuiltinUrl', url)
-        return { success: true, url }
-      } else {
-        llmProcessManager = null
-        return { success: false, error: 'Failed to load model' }
+  ipcMain.handle(
+    IPC_CHANNELS.LLM_MODEL_START,
+    async (_, opts: { backend?: 'gguf' | 'mlx'; quant?: string; hfRepo?: string }) => {
+      log.info('[LLM_MODEL_START] called with opts:', opts)
+      if (llmProcessManager?.isRunning()) {
+        log.info('[LLM_MODEL_START] already running, returning existing URL')
+        return { success: true, url: llmProcessManager.getUrl() }
       }
-    } catch (error) {
-      log.error('[LLM_MODEL_START] exception:', error)
-      llmProcessManager = null
-      return { success: false, error: (error as Error).message }
+
+      try {
+        let startOpts: LLMStartOpts
+        if (opts.backend === 'mlx') {
+          if (!opts.hfRepo) return { success: false, error: 'hfRepo is required for MLX backend' }
+          startOpts = { backend: 'mlx', hfRepo: opts.hfRepo }
+          log.info('[LLM_MODEL_START] using MLX backend, hfRepo:', opts.hfRepo)
+        } else {
+          const quant = opts.quant ?? 'Q4_K_M'
+          log.info('[LLM_MODEL_START] using GGUF backend, quant:', quant)
+          const modelPath = llmModelManager!.getModelPath(quant)
+          log.info('[LLM_MODEL_START] model path:', modelPath)
+          startOpts = { backend: 'gguf', modelPath }
+        }
+
+        llmProcessManager = new LLMProcessManager()
+        llmProcessManager.on('status', (status: string) => {
+          log.info('[LLM built-in status]', status)
+          pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, status)
+        })
+        llmProcessManager.on('error', (err: string) => {
+          log.error('[LLM built-in error]', err)
+          pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
+        })
+        llmProcessManager.on('crashed', (code: number) => {
+          log.warn('[LLM built-in] process crashed with code', code, '— auto-restarting')
+          pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'crashed')
+        })
+
+        log.info('[LLM_MODEL_START] calling llmProcessManager.start()...')
+        const started = await llmProcessManager.start(startOpts)
+        log.info('[LLM_MODEL_START] start() returned:', started, 'url:', llmProcessManager.getUrl())
+        if (started) {
+          const url = llmProcessManager.getUrl()
+          if (url) dbManager.setSetting('llmBuiltinUrl', url)
+          return { success: true, url }
+        } else {
+          llmProcessManager = null
+          return { success: false, error: 'Failed to load model' }
+        }
+      } catch (error) {
+        log.error('[LLM_MODEL_START] exception:', error)
+        llmProcessManager = null
+        return { success: false, error: (error as Error).message }
+      }
     }
+  )
+
+  ipcMain.handle(IPC_CHANNELS.LLM_MLX_DOWNLOAD, async (_, hfRepo: string) => {
+    const { spawn } = await import('child_process')
+    const { app } = await import('electron')
+    const pythonRuntimePath = app.isPackaged
+      ? path.join(process.resourcesPath, 'python-runtime')
+      : path.join(app.getAppPath(), 'resources', 'python-runtime')
+    const python = path.join(pythonRuntimePath, 'bin', 'python3.11')
+    const sitePackages = path.join(pythonRuntimePath, 'lib', 'python3.11', 'site-packages')
+
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      const proc = spawn(
+        python,
+        ['-c', `from mlx_lm import load; load(${JSON.stringify(hfRepo)})`],
+        { env: { ...process.env, PYTHONPATH: sitePackages } }
+      )
+
+      pushToRenderer(IPC_CHANNELS.PUSH_LLM_MLX_DOWNLOAD_PROGRESS, { hfRepo, status: 'downloading' })
+
+      proc.stdout?.on('data', (d: Buffer) => log.info('[mlx-download]', d.toString().trim()))
+      proc.stderr?.on('data', (d: Buffer) => log.info('[mlx-download]', d.toString().trim()))
+
+      proc.on('exit', (code) => {
+        if (code === 0) {
+          pushToRenderer(IPC_CHANNELS.PUSH_LLM_MLX_DOWNLOAD_PROGRESS, { hfRepo, status: 'done' })
+          resolve({ success: true })
+        } else {
+          pushToRenderer(IPC_CHANNELS.PUSH_LLM_MLX_DOWNLOAD_PROGRESS, { hfRepo, status: 'error' })
+          resolve({ success: false, error: `Download exited with code ${code}` })
+        }
+      })
+
+      proc.on('error', (err) => {
+        resolve({ success: false, error: err.message })
+      })
+    })
   })
 
   ipcMain.handle(IPC_CHANNELS.LLM_MODEL_STOP, async () => {

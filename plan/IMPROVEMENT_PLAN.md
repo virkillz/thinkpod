@@ -2,7 +2,7 @@
 
 **Goal**: Transform ThinkPod's built-in LLM into a production-grade inference engine matching LM Studio's architecture and performance.
 
-**Status**: Phase 1 (Critical Fixes) ✅ Complete | Phase 2-5 Pending
+**Status**: Phase 1 ✅ Complete | Phase 2 ✅ Complete | Phase 3 ✅ Complete | Phase 4-5 Pending
 
 ---
 
@@ -544,119 +544,206 @@ Call `startHeartbeat()` when `ready` is received. Clear the interval in `stop()`
 ### 3.1 Why MLX?
 - **2-3x faster** than llama.cpp on Apple Silicon
 - Native Apple framework, optimized for Metal
-- Better memory efficiency on M1/M2/M3
+- Better memory efficiency on M1/M2/M3/M4
+- Same approach as LM Studio: bundle Python 3.11 + mlx-lm inside the app — no user-facing Python dependency
 
 ### 3.2 Architecture
+
 ```
-Platform Detection
-  ├── macOS + ARM64 → MLX Backend
-  ├── macOS + x86_64 → llama.cpp Backend
-  ├── Windows → llama.cpp Backend (CUDA)
-  └── Linux → llama.cpp Backend (CUDA/ROCm)
-```
-
-### 3.3 Implementation Steps
-
-#### Step 1: Add MLX Dependencies
-**File**: `package.json`
-
-```json
-{
-  "optionalDependencies": {
-    "@mlx-community/mlx-node": "^0.1.0"
-  }
-}
+Platform Detection (darwin + arm64 only)
+  ├── macOS + ARM64 → MLX Backend (recommended, bundled Python runtime)
+  │     └── Utility Process: spawns bundled python3.11 -m mlx_lm.server
+  ├── macOS + x86_64 → GGUF/llama.cpp (Phase 2 utility process)
+  ├── Windows        → GGUF/llama.cpp (Phase 2 utility process)
+  └── Linux          → GGUF/llama.cpp (Phase 2 utility process)
 ```
 
-**Note**: MLX requires Python bridge. Consider using child process with Python MLX server.
+MLX runs as an **OpenAI-compatible HTTP server** (same interface as the Phase 2 llama.cpp utility process), so `LLMClient` and all upstream code stays unchanged. The only difference is which server script is launched.
 
-#### Step 2: Create MLX Backend
-**File**: `src/main/agent/backends/MLXBackend.ts` (new)
+### 3.3 Preset Models
+
+All three are `gemma-3n` (text-only / `lm` variant — no audio processing, smaller and faster for a chat app):
+
+| Tier | HF Repo | Effective Params | Approx. Size | Notes |
+|------|---------|-----------------|--------------|-------|
+| Fast | `mlx-community/gemma-3n-E2B-it-lm-4bit` | ~2B | ~1 GB | Entry-level Macs |
+| Balanced | `mlx-community/gemma-3n-E4B-it-lm-4bit` | ~4B | ~2 GB | **Recommended default** |
+| Quality | `mlx-community/gemma-3n-E4B-it-lm-bf16` | ~4B | ~8 GB | 16 GB+ RAM only |
+
+A **Custom** option below the presets lets power users type any `mlx-community/<repo>` (or any public HF repo ID) to download and use an arbitrary MLX model.
+
+### 3.4 UI Changes
+
+Both `StepLLM` (setup wizard) and `SettingsView` (inference tab) gain a backend selector, shown **only on `darwin/arm64`**:
+
+```
+Backend
+  ● MLX  [Recommended for Apple Silicon]     ← shown only on arm64 Mac
+  ○ GGUF (llama.cpp)
+  ○ External API …
+
+── If MLX selected ────────────────────────────────
+  ○ Fast     gemma-3n E2B lm 4bit  ~1 GB
+  ● Balanced gemma-3n E4B lm 4bit  ~2 GB  ← default
+  ○ Quality  gemma-3n E4B lm bf16  ~8 GB
+  ─────────────────────────────────────────────────
+  Custom model (advanced)
+  [ mlx-community/_________________ ]  [Download]
+
+── If GGUF selected ───────────────────────────────
+  Existing Q3_K_M / Q4_K_M / Q5_K_M options (unchanged)
+```
+
+`LLMProfile` gains two new optional fields:
+```typescript
+builtinBackend?: 'gguf' | 'mlx'   // defaults to 'gguf' if absent (backwards compat)
+builtinHfRepo?: string             // custom HF repo ID for MLX; undefined = use preset
+```
+
+### 3.5 Bundling the Python Runtime (LM Studio approach)
+
+LM Studio ships `lmstudio-ai/mlx-engine` (100% Python) pre-bundled with Python 3.11 inside the Electron app so users need nothing installed.
+
+#### Step 1: Embed a minimal Python 3.11 distribution
+
+Use `python-build-standalone` (Gregory Szorc's relocatable CPython builds) — the same technique LM Studio uses. Download the `arm64-apple-darwin` build and include it as an `extraResource` for Mac arm64 only.
+
+**`electron-builder.yml`** (arm64 Mac target only):
+```yaml
+mac:
+  extraResources:
+    - from: resources/python-runtime/
+      to: python-runtime/
+      filter:
+        - "**/*"
+```
+
+The runtime directory structure:
+```
+resources/python-runtime/
+  bin/
+    python3.11          ← the embedded interpreter
+  lib/
+    python3.11/
+      site-packages/
+        mlx/            ← mlx framework
+        mlx_lm/         ← mlx-lm (text generation + server)
+        ...
+```
+
+Build script (`scripts/build-python-runtime.sh`) runs on CI (arm64 Mac runner only):
+1. Downloads `python-build-standalone` CPython 3.11 for `aarch64-apple-darwin`
+2. Runs `bin/pip install mlx-lm` into the embedded env
+3. Strips `.pyc` cache and test files to keep size down
+4. Output lands in `resources/python-runtime/`
+
+Approximate added size: **~120–180 MB** (arm64 Mac `.dmg` only; Windows/Linux unaffected).
+
+#### Step 2: Create the MLX utility process entry point
+
+**File**: `src/main/agent/mlx-launcher.ts` (new)
+
+This is a **thin Node.js utility process** (not Python). Its only job is to resolve the bundled Python path and `exec` the mlx_lm server:
 
 ```typescript
-import { spawn } from 'child_process'
+/**
+ * MLX Launcher — Electron utility process.
+ * Resolves the bundled Python 3.11 runtime and spawns mlx_lm.server.
+ * Communicates with main process via process.parentPort.
+ */
+import { spawn, ChildProcess } from 'child_process'
+import path from 'path'
+import { app } from 'electron'
 
-export class MLXBackend {
-  private pythonProcess: ChildProcess | null = null
-  
-  async start(modelPath: string): Promise<string> {
-    // Start Python MLX server
-    this.pythonProcess = spawn('python3', [
-      '-m', 'mlx_lm.server',
-      '--model', modelPath,
-      '--port', '8766'
-    ])
-    
-    // Wait for server ready
-    return 'http://127.0.0.1:8766/v1'
+let mlxProc: ChildProcess | null = null
+
+process.parentPort.on('message', async ({ data: msg }) => {
+  switch (msg.type) {
+    case 'start':
+      await startMLX(msg.hfRepo, msg.port)
+      break
+    case 'stop':
+      mlxProc?.kill()
+      process.parentPort.postMessage({ type: 'stopped' })
+      process.exit(0)
+      break
   }
+})
+
+function getPythonPath(): string {
+  const base = app.isPackaged
+    ? path.join(process.resourcesPath, 'python-runtime')
+    : path.join(__dirname, '../../resources/python-runtime')
+  return path.join(base, 'bin', 'python3.11')
 }
-```
 
-#### Step 3: Create Backend Selector
-**File**: `src/main/agent/backends/BackendSelector.ts` (new)
+async function startMLX(hfRepo: string, port: number): Promise<void> {
+  const python = getPythonPath()
+  process.parentPort.postMessage({ type: 'status', status: 'loading' })
 
-```typescript
-import os from 'os'
-import { MLXBackend } from './MLXBackend.js'
-import { LlamaCppBackend } from './LlamaCppBackend.js'
+  mlxProc = spawn(python, ['-m', 'mlx_lm.server', '--model', hfRepo, '--port', String(port)], {
+    env: { ...process.env, PYTHONPATH: path.dirname(path.dirname(python)) + '/lib/python3.11/site-packages' },
+  })
 
-export class BackendSelector {
-  static selectOptimal(): 'mlx' | 'llama.cpp' {
-    const platform = os.platform()
-    const arch = os.arch()
-    
-    // Use MLX on Apple Silicon
-    if (platform === 'darwin' && arch === 'arm64') {
-      return 'mlx'
+  mlxProc.stdout?.on('data', (d: Buffer) => {
+    if (d.toString().includes('Running on')) {
+      process.parentPort.postMessage({ type: 'ready', url: `http://127.0.0.1:${port}/v1` })
     }
-    
-    // Use llama.cpp everywhere else
-    return 'llama.cpp'
-  }
-  
-  static createBackend(type: 'mlx' | 'llama.cpp') {
-    return type === 'mlx' ? new MLXBackend() : new LlamaCppBackend()
-  }
+  })
+
+  mlxProc.on('exit', (code) => {
+    if (code !== 0) process.parentPort.postMessage({ type: 'error', message: `mlx_lm exited with code ${code}` })
+  })
 }
 ```
 
-#### Step 4: Bundle Python MLX Server
-**File**: `resources/mlx-server/server.py` (new)
-
-```python
-#!/usr/bin/env python3
-"""
-Standalone MLX inference server.
-Bundles: mlx-lm, mlx-vlm, outlines
-"""
-from mlx_lm import load, generate
-from flask import Flask, request, jsonify
-
-app = Flask(__name__)
-model = None
-
-@app.route('/v1/chat/completions', methods=['POST'])
-def chat_completions():
-    data = request.json
-    messages = data['messages']
-    
-    # Convert to MLX format and generate
-    response = generate(model, messages)
-    
-    return jsonify({
-        'choices': [{'message': {'content': response}}]
-    })
-
-if __name__ == '__main__':
-    import sys
-    model_path = sys.argv[1]
-    model = load(model_path)
-    app.run(port=8766)
+Add this as a second entry point in `electron.vite.config.ts` alongside `llm-server`:
+```typescript
+input: {
+  index:        resolve(__dirname, 'src/main/index.ts'),
+  'llm-server': resolve(__dirname, 'src/main/agent/llm-server.ts'),
+  'mlx-launcher': resolve(__dirname, 'src/main/agent/mlx-launcher.ts'), // new
+},
 ```
 
-**Estimated Time**: 5-7 days  
-**Testing**: Benchmark llama.cpp vs MLX on M1/M2/M3
+And in `electron-builder.yml`:
+```yaml
+extraResources:
+  - from: out/main/llm-server.js
+    to: llm-server.js
+  - from: out/main/mlx-launcher.js   # new
+    to: mlx-launcher.js
+```
+
+#### Step 3: Extend `LLMProcessManager` to dispatch on backend
+
+`LLMProcessManager.start()` checks `profile.builtinBackend`:
+- `'gguf'` (or absent) → spawn `llm-server.js` utility process (Phase 2, unchanged)
+- `'mlx'` → spawn `mlx-launcher.js` utility process, pass `hfRepo` and `port`
+
+Both utility processes post `{ type: 'ready', url }` on success, so the rest of the manager (URL routing to `LLMClient`, restart logic, etc.) is identical.
+
+#### Step 4: HF model download for MLX
+
+MLX models are entire HF repos (multiple `.safetensors` + `config.json` + tokenizer files), not a single `.gguf`. `mlx_lm.server` can accept a HF repo ID directly and will auto-download via the HF Hub cache — so **no custom download logic is needed for preset models**.
+
+For the UI download button (to pre-cache before first use), call:
+```python
+# mlx_lm handles this natively
+python3.11 -c "from mlx_lm import load; load('<hf-repo>')"
+```
+
+Expose via a new IPC channel `downloadMLXModel(hfRepo: string)` → streams progress from stdout.
+
+### 3.6 CI / Build Notes
+
+- The Python runtime build script (`scripts/build-python-runtime.sh`) must run on a **macOS arm64 GitHub Actions runner** and commit/cache its output
+- The `resources/python-runtime/` directory is `.gitignore`d — it is built as part of `npm run dist` on Mac
+- Windows and Linux builds are unaffected: `electron-builder` only includes `python-runtime/` for the `mac` target
+
+**Estimated Size Impact**: +~150 MB to Mac arm64 `.dmg` only  
+**Estimated Performance**: 40–60 tokens/sec on M2 Pro (vs ~15–20 with llama.cpp)  
+**Testing**: Benchmark GGUF vs MLX on M1/M2/M3/M4 for same model family
 
 ---
 

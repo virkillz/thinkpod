@@ -18,8 +18,15 @@ extraResources:
       - "**/*"
   - from: dist/main/agent/llm-server.js
     to: llm-server.js
+  - from: dist/main/agent/mlx-launcher.js
+    to: mlx-launcher.js
 
 mac:
+  extraResources:
+    - from: resources/python-runtime
+      to: python-runtime
+      filter:
+        - "**/*"
   category: public.app-category.productivity
   icon: build/icon.icns
   hardenedRuntime: true

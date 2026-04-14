@@ -379,10 +379,10 @@ function ProviderBadge({ provider }: { provider: LLMProvider }) {
 
 type ServerStatus = 'loading' | 'ready' | 'stopped' | 'error' | 'crashed'
 
-function BuiltinServerStatus({ status, url, quant, onStatusChange }: {
+function BuiltinServerStatus({ status, url, startOpts, onStatusChange }: {
   status: ServerStatus
   url: string | null
-  quant: string
+  startOpts: { backend?: 'gguf' | 'mlx'; quant?: string; hfRepo?: string }
   onStatusChange: (s: ServerStatus) => void
 }) {
   if (status === 'loading') return (
@@ -408,7 +408,7 @@ function BuiltinServerStatus({ status, url, quant, onStatusChange }: {
     <div className="flex items-center gap-2 text-sm bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 text-amber-400">
       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
       Server not running
-      <button onClick={async () => { onStatusChange('loading'); await window.electronAPI.startBuiltinLLM(quant) }}
+      <button onClick={async () => { onStatusChange('loading'); await window.electronAPI.startBuiltinLLM(startOpts) }}
         className="ml-auto text-xs underline opacity-70 hover:opacity-100 shrink-0">Start</button>
     </div>
   )
@@ -416,13 +416,19 @@ function BuiltinServerStatus({ status, url, quant, onStatusChange }: {
     <div className="flex items-center gap-2 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-1.5 text-red-400">
       <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
       Server error
-      <button onClick={async () => { onStatusChange('loading'); await window.electronAPI.startBuiltinLLM(quant) }}
+      <button onClick={async () => { onStatusChange('loading'); await window.electronAPI.startBuiltinLLM(startOpts) }}
         className="ml-auto text-xs underline opacity-70 hover:opacity-100 shrink-0">Retry</button>
     </div>
   )
 }
 
 // ─── Profile edit/create form ─────────────────────────────────────────────────
+
+const MLX_PRESETS = [
+  { hfRepo: 'mlx-community/gemma-3n-E2B-it-lm-4bit', label: 'Fast',     description: 'Gemma 3n E2B — ~1 GB', detail: 'Entry-level Macs' },
+  { hfRepo: 'mlx-community/gemma-3n-E4B-it-lm-4bit', label: 'Balanced', description: 'Gemma 3n E4B — ~2 GB', detail: 'Recommended default', recommended: true },
+  { hfRepo: 'mlx-community/gemma-3n-E4B-it-lm-bf16', label: 'Quality',  description: 'Gemma 3n E4B bf16 — ~8 GB', detail: '16 GB+ unified memory' },
+]
 
 function ProfileForm({ initialProfile, onSave, onCancel }: {
   initialProfile?: LLMProfile
@@ -434,23 +440,40 @@ function ProfileForm({ initialProfile, onSave, onCancel }: {
   const [baseUrl, setBaseUrl]         = useState(initialProfile?.baseUrl ?? PROVIDER_META.ollama.baseUrl)
   const [model, setModel]             = useState(initialProfile?.model ?? '')
   const [apiKey, setApiKey]           = useState(initialProfile?.apiKey ?? '')
+  const [builtinBackend, setBuiltinBackend] = useState<'gguf' | 'mlx'>(initialProfile?.builtinBackend ?? 'gguf')
   const [builtinQuant, setBuiltinQuant] = useState(initialProfile?.builtinQuant ?? 'Q4_K_M')
+  const [selectedMlxRepo, setSelectedMlxRepo] = useState(initialProfile?.builtinHfRepo ?? MLX_PRESETS[1].hfRepo)
+  const [customMlxRepo, setCustomMlxRepo] = useState('')
   const [testStatus, setTestStatus]   = useState<TestStatus>('idle')
   const [testError, setTestError]     = useState<string | null>(null)
   const [dlStatus, setDlStatus]       = useState<DownloadStatus>('idle')
   const [dlProgress, setDlProgress]   = useState(0)
   const [dlError, setDlError]         = useState<string | null>(null)
+  const [mlxDlStatus, setMlxDlStatus] = useState<DownloadStatus>('idle')
+  const [mlxDlError, setMlxDlError]   = useState<string | null>(null)
   const [downloadedModels, setDownloadedModels] = useState<string[]>([])
+  const [isAppleSilicon, setIsAppleSilicon] = useState(false)
   const [loadingModels, setLoadingModels] = useState(false)
   const unsubRef = useRef<(() => void) | null>(null)
+  const mlxUnsubRef = useRef<(() => void) | null>(null)
+
+  const effectiveMlxRepo = customMlxRepo.trim() || selectedMlxRepo
 
   useEffect(() => {
     if (provider !== 'builtin') return
     setLoadingModels(true)
     window.electronAPI.getLLMModelInfo().then((info) => {
       setDownloadedModels(info.downloaded)
+      setIsAppleSilicon(info.isAppleSilicon)
       setLoadingModels(false)
     })
+
+    const mlxUnsub = window.electronAPI.onLLMMlxDownloadProgress(({ status }) => {
+      if (status === 'done') setMlxDlStatus('done')
+      else if (status === 'error') { setMlxDlStatus('error'); setMlxDlError('Download failed') }
+    })
+    mlxUnsubRef.current = mlxUnsub
+    return () => { mlxUnsubRef.current?.() }
   }, [provider])
 
   useEffect(() => {
@@ -496,19 +519,50 @@ function ProfileForm({ initialProfile, onSave, onCancel }: {
     }
   }
 
-  const handleSave = () => {
-    onSave({
-      id: initialProfile?.id ?? crypto.randomUUID(),
-      name: name.trim() || PROVIDER_META[provider].label,
-      provider,
-      baseUrl: provider === 'builtin' ? '' : baseUrl,
-      model: provider === 'builtin' ? 'gemma-4-e4b-builtin' : model,
-      apiKey,
-      builtinQuant: provider === 'builtin' ? builtinQuant : undefined,
-    })
+  const handleMlxDownload = async () => {
+    setMlxDlStatus('downloading'); setMlxDlError(null)
+    const result = await window.electronAPI.downloadMLXModel(effectiveMlxRepo)
+    if (!result.success) { setMlxDlStatus('error'); setMlxDlError(result.error ?? 'Download failed') }
   }
 
-  const isDownloaded = downloadedModels.includes(builtinQuant) || dlStatus === 'done'
+  const handleSave = () => {
+    if (provider === 'builtin') {
+      if (builtinBackend === 'mlx') {
+        onSave({
+          id: initialProfile?.id ?? crypto.randomUUID(),
+          name: name.trim() || 'Built-in (MLX)',
+          provider: 'builtin',
+          builtinBackend: 'mlx',
+          builtinHfRepo: effectiveMlxRepo,
+          baseUrl: '',
+          model: effectiveMlxRepo.split('/').pop() ?? 'gemma-3n-mlx',
+          apiKey: '',
+        })
+      } else {
+        onSave({
+          id: initialProfile?.id ?? crypto.randomUUID(),
+          name: name.trim() || 'Built-in',
+          provider: 'builtin',
+          builtinBackend: 'gguf',
+          builtinQuant,
+          baseUrl: '',
+          model: 'gemma-4-e4b-builtin',
+          apiKey: '',
+        })
+      }
+    } else {
+      onSave({
+        id: initialProfile?.id ?? crypto.randomUUID(),
+        name: name.trim() || PROVIDER_META[provider].label,
+        provider,
+        baseUrl,
+        model,
+        apiKey,
+      })
+    }
+  }
+
+  const isGgufDownloaded = downloadedModels.includes(builtinQuant) || dlStatus === 'done'
   const quantSizeMb = QUANT_OPTIONS.find(o => o.quant === builtinQuant)?.sizeMb ?? 0
 
   return (
@@ -566,54 +620,126 @@ function ProfileForm({ initialProfile, onSave, onCancel }: {
           {loadingModels ? (
             <div className="flex items-center gap-2 text-sm text-ink-muted"><Loader2 className="w-4 h-4 animate-spin" /> Checking downloads…</div>
           ) : (<>
-            <div className="space-y-1.5">
-              {QUANT_OPTIONS.map(opt => {
-                const downloaded = downloadedModels.includes(opt.quant)
-                return (
-                  <button key={opt.quant}
-                    onClick={() => { setBuiltinQuant(opt.quant); setDlStatus('idle'); setDlError(null) }}
-                    disabled={dlStatus === 'downloading'}
-                    className={`w-full p-3 rounded-lg border text-left transition-all ${builtinQuant === opt.quant ? 'border-accent bg-accent/5' : 'border-parchment-dark hover:border-ink-muted'} disabled:opacity-50`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${builtinQuant === opt.quant ? 'border-accent bg-accent' : 'border-ink-muted'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-ink-primary">{opt.label}</span>
-                          <span className="text-xs text-ink-muted">— {opt.description}</span>
-                          {downloaded && <span className="ml-auto flex items-center gap-1 text-xs text-success"><Check className="w-3 h-3" /> Downloaded</span>}
-                        </div>
-                        <div className="text-xs text-ink-muted mt-0.5">{opt.detail} · {opt.sizeMb >= 1000 ? `${(opt.sizeMb/1000).toFixed(1)} GB` : `${opt.sizeMb} MB`}</div>
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-            {!isDownloaded ? (
-              <div className="space-y-2">
-                {dlStatus === 'downloading' ? (<>
-                  <div className="flex items-center justify-between text-sm text-ink-muted">
-                    <span>Downloading…</span><span>{dlProgress}%</span>
-                  </div>
-                  <div className="h-1.5 bg-parchment-dark rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${dlProgress}%` }} />
-                  </div>
-                  <button onClick={async () => { await window.electronAPI.cancelLLMModelDownload(); setDlStatus('idle'); setDlProgress(0) }}
-                    className="text-sm text-ink-muted hover:text-error transition-colors">Cancel</button>
-                </>) : (<>
-                  <button onClick={handleDownload}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors">
-                    <Download className="w-3.5 h-3.5" />
-                    Download {quantSizeMb >= 1000 ? `${(quantSizeMb/1000).toFixed(1)} GB` : `${quantSizeMb} MB`}
-                  </button>
-                  {dlStatus === 'error' && dlError && (
-                    <span className="text-sm text-red-500 flex items-center gap-1"><X className="w-3 h-3" />{dlError}</span>
-                  )}
-                </>)}
+            {/* Backend selector — shown only on Apple Silicon */}
+            {isAppleSilicon && (
+              <div>
+                <label className="block text-xs font-medium text-ink-muted mb-1.5">Inference backend</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(['mlx', 'gguf'] as const).map(b => (
+                    <button key={b} onClick={() => setBuiltinBackend(b)}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                        builtinBackend === b ? 'border-accent bg-accent/10 text-ink-primary' : 'border-parchment-dark text-ink-muted hover:border-ink-muted'
+                      }`}>
+                      {b === 'mlx' ? <Zap className="w-3 h-3" /> : <Cpu className="w-3 h-3" />}
+                      {b === 'mlx' ? 'MLX' : 'GGUF'}
+                      {b === 'mlx' && <span className="ml-auto text-[10px] bg-green-500/15 text-green-600 px-1 rounded">Faster</span>}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-sm text-success"><Check className="w-4 h-4" /> Model ready</div>
             )}
+
+            {/* MLX model picker */}
+            {builtinBackend === 'mlx' && (
+              <div className="space-y-2">
+                {MLX_PRESETS.map(preset => {
+                  const isSelected = selectedMlxRepo === preset.hfRepo && !customMlxRepo.trim()
+                  return (
+                    <button key={preset.hfRepo}
+                      onClick={() => { setSelectedMlxRepo(preset.hfRepo); setCustomMlxRepo('') }}
+                      className={`w-full p-2.5 rounded-lg border text-left transition-all ${isSelected ? 'border-accent bg-accent/5' : 'border-parchment-dark hover:border-ink-muted'}`}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full border-2 shrink-0 ${isSelected ? 'border-accent bg-accent' : 'border-ink-muted'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-ink-primary">{preset.label}</span>
+                            <span className="text-xs text-ink-muted truncate">{preset.description}</span>
+                            {'recommended' in preset && preset.recommended && (
+                              <span className="ml-auto text-[10px] bg-accent/15 text-accent px-1.5 rounded shrink-0">Default</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-ink-muted">{preset.detail}</div>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+                <div>
+                  <label className="block text-xs text-ink-muted mb-1">Custom model (advanced)</label>
+                  <input type="text" value={customMlxRepo} onChange={e => setCustomMlxRepo(e.target.value)}
+                    placeholder="mlx-community/your-model"
+                    className="w-full px-3 py-2 bg-parchment-base border border-parchment-dark rounded-lg focus:outline-none focus:border-accent text-sm text-ink-primary" />
+                </div>
+                {mlxDlStatus === 'done' ? (
+                  <div className="flex items-center gap-1.5 text-sm text-success"><Check className="w-4 h-4" /> Model cached</div>
+                ) : mlxDlStatus === 'downloading' ? (
+                  <div className="flex items-center gap-2 text-sm text-ink-muted"><Loader2 className="w-4 h-4 animate-spin" /> Downloading from Hugging Face…</div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleMlxDownload}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors">
+                      <Download className="w-3.5 h-3.5" /> Pre-download
+                    </button>
+                    <span className="text-xs text-ink-muted">or skip — downloads on first use</span>
+                    {mlxDlStatus === 'error' && mlxDlError && (
+                      <span className="text-xs text-error flex items-center gap-1"><X className="w-3 h-3" />{mlxDlError}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* GGUF quant picker */}
+            {builtinBackend === 'gguf' && (<>
+              <div className="space-y-1.5">
+                {QUANT_OPTIONS.map(opt => {
+                  const downloaded = downloadedModels.includes(opt.quant)
+                  return (
+                    <button key={opt.quant}
+                      onClick={() => { setBuiltinQuant(opt.quant); setDlStatus('idle'); setDlError(null) }}
+                      disabled={dlStatus === 'downloading'}
+                      className={`w-full p-3 rounded-lg border text-left transition-all ${builtinQuant === opt.quant ? 'border-accent bg-accent/5' : 'border-parchment-dark hover:border-ink-muted'} disabled:opacity-50`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${builtinQuant === opt.quant ? 'border-accent bg-accent' : 'border-ink-muted'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-ink-primary">{opt.label}</span>
+                            <span className="text-xs text-ink-muted">— {opt.description}</span>
+                            {downloaded && <span className="ml-auto flex items-center gap-1 text-xs text-success"><Check className="w-3 h-3" /> Downloaded</span>}
+                          </div>
+                          <div className="text-xs text-ink-muted mt-0.5">{opt.detail} · {opt.sizeMb >= 1000 ? `${(opt.sizeMb/1000).toFixed(1)} GB` : `${opt.sizeMb} MB`}</div>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              {!isGgufDownloaded ? (
+                <div className="space-y-2">
+                  {dlStatus === 'downloading' ? (<>
+                    <div className="flex items-center justify-between text-sm text-ink-muted">
+                      <span>Downloading…</span><span>{dlProgress}%</span>
+                    </div>
+                    <div className="h-1.5 bg-parchment-dark rounded-full overflow-hidden">
+                      <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${dlProgress}%` }} />
+                    </div>
+                    <button onClick={async () => { await window.electronAPI.cancelLLMModelDownload(); setDlStatus('idle'); setDlProgress(0) }}
+                      className="text-sm text-ink-muted hover:text-error transition-colors">Cancel</button>
+                  </>) : (<>
+                    <button onClick={handleDownload}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-sm font-medium transition-colors">
+                      <Download className="w-3.5 h-3.5" />
+                      Download {quantSizeMb >= 1000 ? `${(quantSizeMb/1000).toFixed(1)} GB` : `${quantSizeMb} MB`}
+                    </button>
+                    {dlStatus === 'error' && dlError && (
+                      <span className="text-sm text-red-500 flex items-center gap-1"><X className="w-3 h-3" />{dlError}</span>
+                    )}
+                  </>)}
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-sm text-success"><Check className="w-4 h-4" /> Model ready</div>
+              )}
+            </>)}
           </>)}
         </div>
       )}
@@ -696,7 +822,11 @@ function InferenceTab() {
     setActivateError(null)
     if (profile.provider === 'builtin') {
       setServerStatus('loading')
-      const result = await window.electronAPI.startBuiltinLLM(profile.builtinQuant ?? 'Q4_K_M')
+      const result = await window.electronAPI.startBuiltinLLM({
+        backend: profile.builtinBackend ?? 'gguf',
+        quant: profile.builtinQuant,
+        hfRepo: profile.builtinHfRepo,
+      })
       if (result.success) {
         setServerStatus('ready')
         setServerUrl(result.url ?? null)
@@ -777,7 +907,8 @@ function InferenceTab() {
               {isActive && profile.provider === 'builtin' && (
                 <div className="px-4 pb-3">
                   <BuiltinServerStatus status={serverStatus} url={serverUrl}
-                    quant={profile.builtinQuant ?? 'Q4_K_M'} onStatusChange={setServerStatus} />
+                    startOpts={{ backend: profile.builtinBackend ?? 'gguf', quant: profile.builtinQuant, hfRepo: profile.builtinHfRepo }}
+                    onStatusChange={setServerStatus} />
                 </div>
               )}
 

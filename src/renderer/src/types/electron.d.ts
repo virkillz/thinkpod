@@ -222,12 +222,14 @@ export interface ElectronAPI {
     config: LLMBuiltinConfig | null
     serverRunning: boolean
     serverUrl: string | null
+    isAppleSilicon: boolean
   }>
   downloadLLMModel: (quant: string) => Promise<{ success: boolean; alreadyExists?: boolean; cancelled?: boolean; error?: string }>
   cancelLLMModelDownload: () => Promise<{ success: boolean }>
   deleteLLMModel: (quant: string) => Promise<{ success: boolean; error?: string }>
-  startBuiltinLLM: (quant: string) => Promise<{ success: boolean; url?: string; error?: string }>
+  startBuiltinLLM: (opts: { backend?: 'gguf' | 'mlx'; quant?: string; hfRepo?: string }) => Promise<{ success: boolean; url?: string; error?: string }>
   stopBuiltinLLM: () => Promise<{ success: boolean }>
+  downloadMLXModel: (hfRepo: string) => Promise<{ success: boolean; error?: string }>
 
   // Whisper / Voice
   getWhisperConfig: () => Promise<{
@@ -259,6 +261,7 @@ export interface ElectronAPI {
   onChatToolUse: (callback: (data: { sessionId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onLLMDownloadProgress: (callback: (data: { quant: string; progress: number }) => void) => () => void
   onLLMStatus: (callback: (status: string) => void) => () => void
+  onLLMMlxDownloadProgress: (callback: (data: { hfRepo: string; status: 'downloading' | 'done' | 'error' }) => void) => () => void
   onFileChanged: (callback: (data: { type: string; path: string }) => void) => () => void
   onInboxUpdated: (callback: () => void) => () => void
 

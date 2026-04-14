@@ -25,6 +25,8 @@ export interface LLMProfile {
   model: string
   apiKey: string
   builtinQuant?: string
+  builtinBackend?: 'gguf' | 'mlx'
+  builtinHfRepo?: string
 }
 
 export interface UserProfile {

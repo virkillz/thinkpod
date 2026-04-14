@@ -102,6 +102,7 @@ export const IPC_CHANNELS = {
   LLM_MODEL_DELETE: 'llm-model:delete',
   LLM_MODEL_START: 'llm-model:start',
   LLM_MODEL_STOP: 'llm-model:stop',
+  LLM_MLX_DOWNLOAD: 'llm-model:mlx-download',
 
   // Whisper / Voice
   WHISPER_GET_CONFIG: 'whisper:get-config',
@@ -127,6 +128,7 @@ export const IPC_CHANNELS = {
   PUSH_VOICE_TRANSCRIPT: 'push:voice-transcript',
   PUSH_LLM_DOWNLOAD_PROGRESS: 'push:llm-download-progress',
   PUSH_LLM_STATUS: 'push:llm-status',
+  PUSH_LLM_MLX_DOWNLOAD_PROGRESS: 'push:llm-mlx-download-progress',
   PUSH_FILE_CHANGED: 'push:file-changed',
   PUSH_INBOX_UPDATED: 'push:inbox-updated',
 } as const

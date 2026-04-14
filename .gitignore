@@ -56,6 +56,9 @@ Thumbs.db
 # Electron
 electron-dist/
 release/
+
+# MLX Python runtime — built by scripts/build-python-runtime.sh, not committed
+resources/python-runtime/
 MyIcon.iconset/
 brain-icon.html
 icongen.sh

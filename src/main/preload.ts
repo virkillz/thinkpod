@@ -81,8 +81,10 @@ const IPC_CHANNELS = {
   LLM_MODEL_DELETE: 'llm-model:delete',
   LLM_MODEL_START: 'llm-model:start',
   LLM_MODEL_STOP: 'llm-model:stop',
+  LLM_MLX_DOWNLOAD: 'llm-model:mlx-download',
   PUSH_LLM_DOWNLOAD_PROGRESS: 'push:llm-download-progress',
   PUSH_LLM_STATUS: 'push:llm-status',
+  PUSH_LLM_MLX_DOWNLOAD_PROGRESS: 'push:llm-mlx-download-progress',
   PUSH_FILE_CHANGED: 'push:file-changed',
   PUSH_INBOX_UPDATED: 'push:inbox-updated',
   UPDATER_CHECK: 'updater:check',
@@ -216,8 +218,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadLLMModel: (quant: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_DOWNLOAD, quant),
   cancelLLMModelDownload: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_CANCEL_DOWNLOAD),
   deleteLLMModel: (quant: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_DELETE, quant),
-  startBuiltinLLM: (quant: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_START, quant),
+  startBuiltinLLM: (opts: { backend?: 'gguf' | 'mlx'; quant?: string; hfRepo?: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_START, opts),
   stopBuiltinLLM: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_MODEL_STOP),
+  downloadMLXModel: (hfRepo: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_MLX_DOWNLOAD, hfRepo),
 
   // Push events (main → renderer)
   onTaskUpdate: (callback: (run: unknown) => void) => {
@@ -247,6 +251,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onLLMStatus: (callback: (status: string) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PUSH_LLM_STATUS, (_, status) => callback(status))
     return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_LLM_STATUS)
+  },
+  onLLMMlxDownloadProgress: (callback: (data: { hfRepo: string; status: 'downloading' | 'done' | 'error' }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PUSH_LLM_MLX_DOWNLOAD_PROGRESS, (_, data) => callback(data))
+    return () => ipcRenderer.removeAllListeners(IPC_CHANNELS.PUSH_LLM_MLX_DOWNLOAD_PROGRESS)
   },
   onFileChanged: (callback: (data: { type: string; path: string }) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PUSH_FILE_CHANGED, (_, data) => callback(data))
