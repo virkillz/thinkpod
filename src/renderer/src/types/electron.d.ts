@@ -135,18 +135,31 @@ export interface ElectronAPI {
 
   // Inbox
   listInbox: () => Promise<Array<{
-    id: string
-    path: string
-    title: string
+    id: number
+    subject: string
+    body: string
     type: string
-    created: string
     status: string
+    from_addr: string
+    source_job: string | null
+    created_at: number
+    reply_count: number
   }>>
-  readInboxItem: (filename: string) => Promise<{ content: string; path: string }>
-  markInboxRead: (filename: string) => Promise<{ success: boolean }>
-  deleteInboxItem: (filename: string) => Promise<{ success: boolean }>
-  archiveInboxItem: (filename: string) => Promise<{ success: boolean }>
-  replyToThread: (threadId: string, replyText: string) => Promise<{ success: boolean; response?: string; error?: string }>
+  readInboxItem: (id: number) => Promise<{
+    id: number
+    subject: string
+    body: string
+    type: string
+    status: string
+    from_addr: string
+    source_job: string | null
+    created_at: number
+    replies: Array<{ id: number; role: string; body: string; created_at: number }>
+  }>
+  markInboxRead: (id: number) => Promise<{ success: boolean }>
+  deleteInboxItem: (id: number) => Promise<{ success: boolean }>
+  archiveInboxItem: (id: number) => Promise<{ success: boolean }>
+  replyToThread: (messageId: number, replyText: string) => Promise<{ success: boolean; response?: string; error?: string }>
 
   // Schedule
   listSchedules: () => Promise<Array<{

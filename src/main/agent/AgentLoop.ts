@@ -228,12 +228,11 @@ export class AgentLoop {
       id: 'inbox-from-response',
       type: 'function',
       function: {
-        name: 'write_inbox',
+        name: 'send_message',
         arguments: JSON.stringify({
-          title: 'Response from Agent',
-          content,
+          subject: 'Response from Agent',
+          body: content,
           type: 'insight',
-          source_files: [],
         }),
       },
     })

@@ -133,6 +133,7 @@ export const IPC_CHANNELS = {
   PUSH_LLM_DOWNLOAD_PROGRESS: 'push:llm-download-progress',
   PUSH_LLM_STATUS: 'push:llm-status',
   PUSH_FILE_CHANGED: 'push:file-changed',
+  PUSH_INBOX_UPDATED: 'push:inbox-updated',
 } as const
 
 export type IpcChannels = typeof IPC_CHANNELS

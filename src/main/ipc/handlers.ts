@@ -20,7 +20,6 @@ import { Scheduler } from '../scheduler/Scheduler.js'
 import { WhisperManager, WHISPER_MODELS, type VoiceConfig } from '../whisper/WhisperManager.js'
 import { getToolMetas, DEFAULT_TOOLS_CONFIG } from '../agent/tools/index.js'
 import { VoiceCaptureService } from '../whisper/VoiceCaptureService.js'
-import { InboxThreadManager } from '../agent_vault/InboxThreadManager.js'
 import { PersonalizationManager, type PersonalizationTopic } from '../personalization/PersonalizationManager.js'
 import { PERSONALIZATION_OPENING_TRIGGERS } from '../agent/prompts.js'
 import {
@@ -126,6 +125,11 @@ function pushToRenderer(channel: string, data: unknown): void {
 export function setupIpcHandlers(
   dbManager: DatabaseManager
 ): void {
+  // Set up inbox update callback
+  dbManager.setInboxUpdateCallback(() => {
+    pushToRenderer(IPC_CHANNELS.PUSH_INBOX_UPDATED, {})
+  })
+
   // Initialise managers (lazy — no heavy work until needed)
   whisperManager = new WhisperManager(dbManager)
   llmModelManager = new LLMModelManager(dbManager)
@@ -353,7 +357,6 @@ export function setupIpcHandlers(
     try {
       // Create abbey structure
       await fs.mkdir(path.join(abbeyPath, '_thoughts'), { recursive: true })
-      await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '.thinkpod'), { recursive: true })
 
       // Create default folders (align with template defaultFolder values)
@@ -408,7 +411,6 @@ export function setupIpcHandlers(
 
       // Ensure required directories exist
       await fs.mkdir(path.join(abbeyPath, '_thoughts'), { recursive: true })
-      await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
 
       // Save abbey path to database and initialize manager
       dbManager.setSetting('vaultPath', abbeyPath)
@@ -420,12 +422,11 @@ export function setupIpcHandlers(
     }
   })
 
-  // Abbey: Initialise an existing folder as an abbey (creates .thinkpod, _thoughts, _inbox)
+  // Abbey: Initialise an existing folder as an abbey (creates .thinkpod, _thoughts)
   ipcMain.handle(IPC_CHANNELS.VAULT_INIT, async (_, abbeyPath: string) => {
     try {
       await fs.mkdir(path.join(abbeyPath, '.thinkpod'), { recursive: true })
       await fs.mkdir(path.join(abbeyPath, '_thoughts'), { recursive: true })
-      await fs.mkdir(path.join(abbeyPath, '_inbox'), { recursive: true })
 
       // Seed default agent profile in DB
       if (!dbManager.getSetting('agentProfile')) {
@@ -496,7 +497,7 @@ export function setupIpcHandlers(
       }
 
       // Delete the system folders
-      for (const folder of ['_inbox', '_thoughts', '.thinkpod', '_agent_vault']) {
+      for (const folder of ['_thoughts', '.thinkpod', '_agent_vault']) {
         const folderPath = path.join(abbeyPath, folder)
         await fs.rm(folderPath, { recursive: true, force: true })
       }
@@ -1279,169 +1280,125 @@ export function setupIpcHandlers(
 
   // Inbox: List
   ipcMain.handle(IPC_CHANNELS.INBOX_LIST, async () => {
-    const abbey = getVaultManager()
-    if (!abbey) {
-      return []
-    }
-
-    try {
-      const inboxPath = path.join(abbey.vaultPath, '_inbox')
-      const entries = await fs.readdir(inboxPath, { withFileTypes: true })
-
-      const items = await Promise.all(
-        entries
-          .filter(e => e.isFile() && e.name.endsWith('.md'))
-          .map(async (e) => {
-            const filePath = path.join(inboxPath, e.name)
-            const content = await fs.readFile(filePath, 'utf-8')
-
-            // Parse frontmatter quickly
-            const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/)
-            const frontmatter: Record<string, unknown> = {}
-
-            if (frontmatterMatch) {
-              const lines = frontmatterMatch[1].split('\n')
-              for (const line of lines) {
-                const colonIndex = line.indexOf(':')
-                if (colonIndex > 0) {
-                  const key = line.slice(0, colonIndex).trim()
-                  const value = line.slice(colonIndex + 1).trim()
-                  try {
-                    frontmatter[key] = JSON.parse(value)
-                  } catch {
-                    frontmatter[key] = value
-                  }
-                }
-              }
-            }
-
-            return {
-              id: e.name,
-              path: `_inbox/${e.name}`,
-              title: content.match(/^# (.+)$/m)?.[1] ?? e.name,
-              type: frontmatter.type ?? 'insight',
-              created: frontmatter.created ?? new Date().toISOString(),
-              status: frontmatter.status ?? 'unread',
-            }
-          })
-      )
-
-      return items.sort((a, b) => new Date(b.created as string).getTime() - new Date(a.created as string).getTime())
-    } catch {
-      return []
-    }
+    return dbManager.listInboxMessages()
   })
 
-  // Inbox: Read
-  ipcMain.handle(IPC_CHANNELS.INBOX_READ, async (_, filename: string) => {
-    const abbey = getVaultManager()
-    if (!abbey) {
-      throw new Error('No vault initialized')
-    }
-
-    const filePath = path.join(abbey.vaultPath, '_inbox', filename)
-    const content = await fs.readFile(filePath, 'utf-8')
-    return { content, path: `_inbox/${filename}` }
+  // Inbox: Read (returns message + replies)
+  ipcMain.handle(IPC_CHANNELS.INBOX_READ, async (_, id: number) => {
+    const msg = dbManager.getInboxMessage(id)
+    if (!msg) throw new Error(`Inbox message ${id} not found`)
+    return msg
   })
 
   // Inbox: Mark read
-  ipcMain.handle(IPC_CHANNELS.INBOX_MARK_READ, async (_, filename: string) => {
-    const abbey = getVaultManager()
-    if (!abbey) {
-      throw new Error('No vault initialized')
-    }
-
-    const filePath = path.join(abbey.vaultPath, '_inbox', filename)
-    let content = await fs.readFile(filePath, 'utf-8')
-
-    // Replace status: unread with status: read
-    content = content.replace(/status: unread/, 'status: read')
-
-    await fs.writeFile(filePath, content, 'utf-8')
+  ipcMain.handle(IPC_CHANNELS.INBOX_MARK_READ, async (_, id: number) => {
+    dbManager.markInboxRead(id)
     return { success: true }
   })
 
   // Inbox: Delete
-  ipcMain.handle(IPC_CHANNELS.INBOX_DELETE, async (_, filename: string) => {
-    const abbey = getVaultManager()
-    if (!abbey) {
-      throw new Error('No vault initialized')
-    }
-
-    const filePath = path.join(abbey.vaultPath, '_inbox', filename)
-    await fs.unlink(filePath)
+  ipcMain.handle(IPC_CHANNELS.INBOX_DELETE, async (_, id: number) => {
+    dbManager.deleteInboxMessage(id)
     return { success: true }
   })
 
   // Inbox: Archive
-  ipcMain.handle(IPC_CHANNELS.INBOX_ARCHIVE, async (_, filename: string) => {
-    const abbey = getVaultManager()
-    if (!abbey) {
-      throw new Error('No vault initialized')
-    }
-
-    const inboxPath = path.join(abbey.vaultPath, '_inbox')
-    const archivePath = path.join(abbey.vaultPath, '_inbox_archive')
-    
-    // Ensure archive folder exists
-    await fs.mkdir(archivePath, { recursive: true })
-    
-    const sourcePath = path.join(inboxPath, filename)
-    const destPath = path.join(archivePath, filename)
-    
-    // Move file to archive
-    await fs.rename(sourcePath, destPath)
-    
+  ipcMain.handle(IPC_CHANNELS.INBOX_ARCHIVE, async (_, id: number) => {
+    dbManager.archiveInboxMessage(id)
     return { success: true }
   })
 
-  // Inbox: Reply to thread and get agent response
-  ipcMain.handle(IPC_CHANNELS.INBOX_REPLY, async (_, threadId: string, replyText: string) => {
-    const abbey = getVaultManager()
-    if (!abbey) {
-      return { success: false, error: 'No vault initialized' }
-    }
-
+  // Inbox: Reply — append human reply then get agent response
+  ipcMain.handle(IPC_CHANNELS.INBOX_REPLY, async (_, messageId: number, replyText: string) => {
     const llmConfig = getEffectiveLLMConfig(dbManager)
     if (!llmConfig) {
       return { success: false, error: 'LLM not configured' }
     }
 
+    const msg = dbManager.getInboxMessage(messageId)
+    if (!msg) return { success: false, error: 'Message not found' }
+
     const agentProfile = dbManager.getSetting('agentProfile') as { name?: string; systemPrompt?: string } | null
     const userProfile = dbManager.getSetting('userProfile') as { name?: string } | null
-    const userName = userProfile?.name?.trim()
+    const userName = userProfile?.name?.trim() ?? 'You'
     const agentName = agentProfile?.name ?? 'Wilfred'
 
-    const threadManager = new InboxThreadManager(path.join(abbey.vaultPath, '_inbox'))
-
     // 1. Append human reply
-    const thread = await threadManager.appendReply(threadId, replyText)
-    if (!thread) {
-      return { success: false, error: 'Thread not found' }
-    }
+    dbManager.appendInboxReply(messageId, 'human', replyText)
 
-    // 2. Build conversation context for LLM
-    const conversation = thread.messages
-      .map((m) => `${m.role === 'agent' ? agentProfile?.name ?? 'Agent' : userName ?? 'Human'}: ${m.content}`)
-      .join('\n\n')
+    // 2. Build conversation context — initial body + all replies
+    const lines: string[] = [`${agentName}: ${msg.body}`]
+    for (const r of msg.replies) {
+      lines.push(`${r.role === 'agent' ? agentName : userName}: ${r.body}`)
+    }
+    lines.push(`${userName}: ${replyText}`)
+    const conversation = lines.join('\n\n')
 
     const persona = (agentProfile?.systemPrompt ?? DEFAULT_THREAD_PERSONA).replace(/{agentName}/g, agentName)
 
-    // 3. Call LLM for response
+    // 3. Call LLM for response with tools support
     try {
-      const client = new LLMClient(llmConfig)
-      const response = await client.chat([
-        { role: 'system', content: `${SYSTEM_PROMPT}\n\n${persona}\n\n${THREAD_CONTINUATION_SUFFIX}` },
-        { role: 'user', content: `Conversation so far:\n${conversation}\n\nPlease respond to the user's last message.` },
-      ])
-
-      const agentResponse = response.content?.trim() ?? ''
-      if (!agentResponse) {
-        return { success: false, error: 'No response from agent' }
+      const abbey = getVaultManager()
+      if (!abbey) {
+        return { success: false, error: 'No vault initialized' }
       }
 
-      // 4. Append agent response to thread
-      await threadManager.appendAgentResponse(threadId, agentResponse)
+      const client = new LLMClient(llmConfig)
+      
+      // Load tools configuration
+      const toolsConfig = dbManager.getSetting('toolsConfig') as import('../agent/tools/types.js').ToolsConfig | null
+      const { getEnabledToolDefinitions } = await import('../agent/tools/index.js')
+      const { ToolExecutor } = await import('../agent/ToolExecutor.js')
+      
+      const toolDefs = getEnabledToolDefinitions(toolsConfig ?? DEFAULT_TOOLS_CONFIG, { includeFinishTask: false })
+      
+      const toolContext = {
+        vaultPath: abbey.vaultPath,
+        dbManager,
+        toolsConfig: toolsConfig ?? DEFAULT_TOOLS_CONFIG,
+      }
+      const executor = new ToolExecutor(toolContext)
+
+      const messages: import('../agent/LLMClient.js').LLMMessage[] = [
+        { role: 'system', content: `${SYSTEM_PROMPT}\n\n${persona}\n\n${THREAD_CONTINUATION_SUFFIX}` },
+        { role: 'user', content: `Conversation so far:\n${conversation}\n\nPlease respond to the user's last message.` },
+      ]
+
+      let agentResponse = ''
+      const maxIterations = 5 // Limit tool call iterations for inbox replies
+
+      for (let i = 0; i < maxIterations; i++) {
+        const response = await client.chatWithTools(messages, toolDefs as unknown[])
+
+        // Add assistant message
+        messages.push({
+          role: 'assistant',
+          content: response.content || '',
+        })
+
+        // If there are tool calls, execute them
+        if (response.toolCalls && response.toolCalls.length > 0) {
+          for (const toolCall of response.toolCalls) {
+            const result = await executor.execute(toolCall)
+            
+            // Add tool result to messages
+            messages.push({
+              role: 'user',
+              content: `Tool result for ${toolCall.function.name}:\n${JSON.stringify(result, null, 2)}`,
+            })
+          }
+          // Continue loop to get next response after tool execution
+        } else {
+          // No tool calls - we have the final response
+          agentResponse = response.content?.trim() ?? ''
+          break
+        }
+      }
+
+      if (!agentResponse) return { success: false, error: 'No response from agent' }
+
+      // 4. Persist agent response
+      dbManager.appendInboxReply(messageId, 'agent', agentResponse)
 
       return { success: true, response: agentResponse }
     } catch (error) {

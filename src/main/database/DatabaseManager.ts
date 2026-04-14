@@ -4,10 +4,15 @@ import path from 'path'
 export class DatabaseManager {
   private db: Database.Database
   private dbPath: string
+  private onInboxUpdated?: () => void
 
   constructor(appDataPath: string) {
     this.dbPath = path.join(appDataPath, 'thinkpod.db')
     this.db = new Database(this.dbPath)
+  }
+
+  setInboxUpdateCallback(callback: () => void): void {
+    this.onInboxUpdated = callback
   }
 
   async initialize(): Promise<void> {
@@ -126,6 +131,34 @@ export class DatabaseManager {
         updated_at INTEGER
       )
     `)
+
+    // Inbox messages (email-like)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS inbox_messages (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject     TEXT NOT NULL,
+        body        TEXT NOT NULL,
+        type        TEXT NOT NULL DEFAULT 'insight',
+        status      TEXT NOT NULL DEFAULT 'unread',
+        from_addr   TEXT NOT NULL DEFAULT 'wilfred@thinkpod.dev',
+        source_job  TEXT,
+        created_at  INTEGER NOT NULL
+      )
+    `)
+
+    // Inbox replies (threaded conversation per message)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS inbox_replies (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id  INTEGER NOT NULL REFERENCES inbox_messages(id) ON DELETE CASCADE,
+        role        TEXT NOT NULL,
+        body        TEXT NOT NULL,
+        created_at  INTEGER NOT NULL
+      )
+    `)
+
+    // Enable foreign keys for cascade deletes
+    this.db.pragma('foreign_keys = ON')
 
     // Create default schedules if none exist
     const count = this.db.prepare('SELECT COUNT(*) as count FROM schedules').get() as { count: number }
@@ -536,6 +569,110 @@ export class DatabaseManager {
       this.db.prepare('DELETE FROM files_fts WHERE path = ?').run(path)
       this.db.prepare('DELETE FROM files WHERE path = ?').run(path)
     })()
+  }
+
+  // ─── Inbox ────────────────────────────────────────────────────────────────
+
+  createInboxMessage(opts: {
+    subject: string
+    body: string
+    type: string
+    sourceJob?: string
+    fromAddr?: string
+  }): number {
+    const result = this.db.prepare(`
+      INSERT INTO inbox_messages (subject, body, type, status, from_addr, source_job, created_at)
+      VALUES (?, ?, ?, 'unread', ?, ?, ?)
+    `).run(
+      opts.subject,
+      opts.body,
+      opts.type,
+      opts.fromAddr ?? 'wilfred@thinkpod.dev',
+      opts.sourceJob ?? null,
+      Date.now()
+    )
+    
+    // Notify renderer of inbox update
+    if (this.onInboxUpdated) {
+      this.onInboxUpdated()
+    }
+    
+    return result.lastInsertRowid as number
+  }
+
+  listInboxMessages(): Array<{
+    id: number
+    subject: string
+    body: string
+    type: string
+    status: string
+    from_addr: string
+    source_job: string | null
+    created_at: number
+    reply_count: number
+  }> {
+    return this.db.prepare(`
+      SELECT
+        m.id, m.subject, m.body, m.type, m.status, m.from_addr, m.source_job, m.created_at,
+        COUNT(r.id) AS reply_count
+      FROM inbox_messages m
+      LEFT JOIN inbox_replies r ON r.message_id = m.id
+      GROUP BY m.id
+      ORDER BY m.created_at DESC
+    `).all() as Array<{
+      id: number; subject: string; body: string; type: string; status: string
+      from_addr: string; source_job: string | null; created_at: number; reply_count: number
+    }>
+  }
+
+  getInboxMessage(id: number): {
+    id: number
+    subject: string
+    body: string
+    type: string
+    status: string
+    from_addr: string
+    source_job: string | null
+    created_at: number
+    replies: Array<{ id: number; role: string; body: string; created_at: number }>
+  } | null {
+    const msg = this.db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(id) as {
+      id: number; subject: string; body: string; type: string; status: string
+      from_addr: string; source_job: string | null; created_at: number
+    } | undefined
+    if (!msg) return null
+
+    const replies = this.db.prepare(
+      'SELECT id, role, body, created_at FROM inbox_replies WHERE message_id = ? ORDER BY created_at ASC'
+    ).all(id) as Array<{ id: number; role: string; body: string; created_at: number }>
+
+    return { ...msg, replies }
+  }
+
+  markInboxRead(id: number): void {
+    this.db.prepare("UPDATE inbox_messages SET status = 'read' WHERE id = ? AND status = 'unread'").run(id)
+  }
+
+  archiveInboxMessage(id: number): void {
+    this.db.prepare("UPDATE inbox_messages SET status = 'archived' WHERE id = ?").run(id)
+  }
+
+  deleteInboxMessage(id: number): void {
+    this.db.prepare('DELETE FROM inbox_messages WHERE id = ?').run(id)
+  }
+
+  appendInboxReply(messageId: number, role: 'agent' | 'human', body: string): number {
+    const result = this.db.prepare(
+      'INSERT INTO inbox_replies (message_id, role, body, created_at) VALUES (?, ?, ?, ?)'
+    ).run(messageId, role, body, Date.now())
+    return result.lastInsertRowid as number
+  }
+
+  getInboxUnreadCount(): number {
+    const row = this.db.prepare(
+      "SELECT COUNT(*) as count FROM inbox_messages WHERE status = 'unread'"
+    ).get() as { count: number }
+    return row.count
   }
 
   close(): void {

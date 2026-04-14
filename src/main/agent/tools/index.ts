@@ -17,7 +17,7 @@ import { writeFileTool }  from './core/write_file.js'
 import { moveFileTool }   from './core/move_file.js'
 import { listFilesTool }  from './core/list_files.js'
 import { addCommentTool } from './core/add_comment.js'
-import { writeInboxTool } from './core/write_inbox.js'
+import { sendMessageTool } from './core/send_message.js'
 import { finishTaskTool } from './core/finish_task.js'
 import { readSkillTool }    from './core/read_skill.js'
 import { searchVaultTool }  from './core/search_vault.js'
@@ -36,7 +36,7 @@ export const TOOL_REGISTRY: ToolEntry[] = [
   moveFileTool,
   listFilesTool,
   addCommentTool,
-  writeInboxTool,
+  sendMessageTool,
   finishTaskTool,
   readSkillTool,
   searchVaultTool,

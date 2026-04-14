@@ -170,11 +170,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Inbox
   listInbox: () => ipcRenderer.invoke(IPC_CHANNELS.INBOX_LIST),
-  readInboxItem: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_READ, filename),
-  markInboxRead: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_MARK_READ, filename),
-  deleteInboxItem: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_DELETE, filename),
-  archiveInboxItem: (filename: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_ARCHIVE, filename),
-  replyToThread: (threadId: string, replyText: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_REPLY, threadId, replyText),
+  readInboxItem: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_READ, id),
+  markInboxRead: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_MARK_READ, id),
+  deleteInboxItem: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_DELETE, id),
+  archiveInboxItem: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_ARCHIVE, id),
+  replyToThread: (messageId: number, replyText: string) => ipcRenderer.invoke(IPC_CHANNELS.INBOX_REPLY, messageId, replyText),
 
   // Schedule
   listSchedules: () => ipcRenderer.invoke(IPC_CHANNELS.SCHEDULE_LIST),
