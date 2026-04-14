@@ -118,20 +118,6 @@ export class DatabaseManager {
       )
     `)
 
-    // One-time tasks (pending queue)
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        run_at INTEGER,
-        status TEXT DEFAULT 'pending',
-        summary TEXT,
-        created_at INTEGER,
-        updated_at INTEGER
-      )
-    `)
-
     // Inbox messages (email-like)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS inbox_messages (
@@ -356,66 +342,6 @@ export class DatabaseManager {
 
   deleteSchedule(id: number): void {
     this.db.prepare('DELETE FROM schedules WHERE id = ?').run(id)
-  }
-
-  // One-time tasks
-  createTask(name: string, prompt: string, runAt: number | null): number {
-    const now = Date.now()
-    const status = runAt === null ? 'immediate' : 'pending'
-    const result = this.db.prepare(`
-      INSERT INTO tasks (name, prompt, run_at, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(name, prompt, runAt, status, now, now)
-    return result.lastInsertRowid as number
-  }
-
-  updateTask(id: number, name: string, prompt: string, runAt: number | null): void {
-    const status = runAt === null ? 'immediate' : 'pending'
-    this.db.prepare(`
-      UPDATE tasks SET name = ?, prompt = ?, run_at = ?, status = ?, updated_at = ?
-      WHERE id = ? AND status IN ('pending', 'immediate')
-    `).run(name, prompt, runAt, status, Date.now(), id)
-  }
-
-  deleteTask(id: number): void {
-    this.db.prepare("DELETE FROM tasks WHERE id = ? AND status IN ('pending', 'immediate')").run(id)
-  }
-
-  getPendingTasks(): Array<{ id: number; name: string; prompt: string; run_at: number }> {
-    return this.db.prepare(`
-      SELECT id, name, prompt, run_at FROM tasks
-      WHERE status = 'pending' AND run_at IS NOT NULL AND run_at <= ?
-    `).all(Date.now()) as Array<{ id: number; name: string; prompt: string; run_at: number }>
-  }
-
-  getImmediateTasks(): Array<{ id: number; name: string; prompt: string }> {
-    return this.db.prepare(`
-      SELECT id, name, prompt FROM tasks WHERE status = 'immediate'
-    `).all() as Array<{ id: number; name: string; prompt: string }>
-  }
-
-  markTaskRunning(id: number): void {
-    this.db.prepare("UPDATE tasks SET status = 'running', updated_at = ? WHERE id = ?").run(Date.now(), id)
-  }
-
-  markTaskDone(id: number, status: string, summary: string): void {
-    this.db.prepare(`
-      UPDATE tasks SET status = ?, summary = ?, updated_at = ? WHERE id = ?
-    `).run(status, summary, Date.now(), id)
-  }
-
-  listPendingAndFutureTasks(): Array<{
-    id: number
-    name: string
-    prompt: string
-    run_at: number | null
-    status: string
-  }> {
-    return this.db.prepare(`
-      SELECT id, name, prompt, run_at, status FROM tasks
-      WHERE status IN ('pending', 'immediate')
-      ORDER BY run_at ASC NULLS LAST, created_at ASC
-    `).all() as Array<{ id: number; name: string; prompt: string; run_at: number | null; status: string }>
   }
 
   getRecentTaskRuns(limit: number = 10): Array<{

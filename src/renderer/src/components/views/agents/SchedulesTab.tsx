@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Calendar, Check, Loader2, Pencil, Plus, Trash2, X, ScrollText } from 'lucide-react'
+import { Archive, Calendar, Check, CheckCircle, AlertCircle, Loader2, Pencil, Plus, Trash2, X, XCircle, ScrollText } from 'lucide-react'
+import { useAppStore } from '../../../store/appStore.js'
 
 interface Schedule {
   id: number
@@ -7,6 +8,22 @@ interface Schedule {
   schedule: string
   prompt: string
   is_active: number
+}
+
+interface TaskRecord {
+  id: number
+  task_name: string
+  started_at: number
+  ended_at: number
+  status: string
+  summary: string
+}
+
+interface LiveTask {
+  taskName: string
+  status: string
+  iterations: number
+  toolCalls: number
 }
 
 interface ScheduleFormState {
@@ -36,7 +53,10 @@ function formatSchedule(cron: string): string {
 }
 
 export function SchedulesTab() {
+  const { agentName } = useAppStore()
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [taskHistory, setTaskHistory] = useState<TaskRecord[]>([])
+  const [liveTask, setLiveTask] = useState<LiveTask | null>(null)
   const [toggling, setToggling] = useState<number | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -48,12 +68,26 @@ export function SchedulesTab() {
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null)
   const [systemPromptLoading, setSystemPromptLoading] = useState(false)
 
-  useEffect(() => { loadSchedules() }, [])
+  useEffect(() => {
+    loadData()
+    const unsubUpdate = window.electronAPI.onTaskUpdate((run) => {
+      const r = run as LiveTask & { status: string }
+      if (r.status === 'running') { setLiveTask(r) } else { setLiveTask(null); loadData() }
+    })
+    const unsubEnd = window.electronAPI.onTaskEnd(() => { setLiveTask(null); loadData() })
+    return () => { unsubUpdate(); unsubEnd() }
+  }, [])
 
-  const loadSchedules = async () => {
-    const result = await window.electronAPI.listSchedules()
+  const loadData = async () => {
+    const [result, history] = await Promise.all([
+      window.electronAPI.listSchedules(),
+      window.electronAPI.getAgentTasks(),
+    ])
     setSchedules(result)
+    setTaskHistory(history)
   }
+
+  const loadSchedules = loadData
 
   const handleToggle = async (id: number, currentlyActive: boolean) => {
     setToggling(id)
@@ -223,6 +257,66 @@ export function SchedulesTab() {
           ))}
         </div>
       )}
+
+      <section>
+        <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">Active</h3>
+        {liveTask ? (
+          <div className="bg-accent/5 border border-accent/20 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <Loader2 className="w-5 h-5 text-accent animate-spin" />
+              <span className="font-medium text-ink-primary">{liveTask.taskName}</span>
+            </div>
+            <div className="flex gap-6 text-sm text-ink-muted">
+              <span>{liveTask.iterations} iterations</span>
+              <span>{liveTask.toolCalls} tool calls</span>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-parchment-sidebar rounded-xl p-6 text-center">
+            <p className="text-ink-muted">No tasks running</p>
+            <p className="text-sm text-ink-light mt-1">{agentName} rests when his work is done.</p>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-4">History</h3>
+        {taskHistory.length === 0 ? (
+          <div className="bg-parchment-sidebar rounded-xl p-6 text-center">
+            <Archive className="w-8 h-8 text-ink-light mx-auto mb-2" />
+            <p className="text-ink-muted">No completed tasks yet</p>
+            <p className="text-sm text-ink-light mt-1">Task history will appear here once {agentName} has run his scheduled tasks.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {taskHistory.map(task => (
+              <div key={task.id} className="bg-parchment-card rounded-xl p-5 border border-parchment-dark">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    {task.status === 'done' ? <CheckCircle className="w-4 h-4 text-success" /> :
+                     task.status === 'error' ? <XCircle className="w-4 h-4 text-red-500" /> :
+                     task.status === 'aborted' ? <XCircle className="w-4 h-4 text-ink-muted" /> :
+                     task.status === 'budget_exceeded' ? <AlertCircle className="w-4 h-4 text-warning" /> :
+                     <Loader2 className="w-4 h-4 text-accent animate-spin" />}
+                    <div>
+                      <p className="font-medium text-ink-primary">{task.task_name}</p>
+                      {task.summary && <p className="text-sm text-ink-muted mt-0.5">{task.summary}</p>}
+                    </div>
+                  </div>
+                  <div className="text-right text-sm text-ink-light shrink-0">
+                    <p>{new Date(task.started_at).toLocaleString()}</p>
+                    {task.ended_at && (
+                      <p className="text-xs mt-0.5">
+                        {(() => { const s = Math.round((task.ended_at - task.started_at) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s` })()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
       </div>
     </>
   )

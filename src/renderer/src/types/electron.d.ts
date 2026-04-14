@@ -177,19 +177,6 @@ export interface ElectronAPI {
   deleteSchedule: (id: number) => Promise<{ success: boolean; error?: string }>
   getScheduleSystemPrompt: (name: string, prompt: string) => Promise<{ success: boolean; systemPrompt?: string; error?: string }>
 
-  // Tasks (one-time)
-  listTasks: () => Promise<Array<{
-    id: number
-    name: string
-    prompt: string
-    run_at: number | null
-    status: string
-  }>>
-  createTask: (name: string, prompt: string, runAt: number | null) => Promise<{ success: boolean; id?: number; error?: string }>
-  updateTask: (id: number, name: string, prompt: string, runAt: number | null) => Promise<{ success: boolean; error?: string }>
-  deleteTask: (id: number) => Promise<{ success: boolean; error?: string }>
-  getTaskSystemPrompt: (taskName: string, prompt: string) => Promise<{ success: boolean; systemPrompt?: string; error?: string }>
-
   // Cognitive Jobs
   listCognitiveJobs: () => Promise<Array<{
     id: number

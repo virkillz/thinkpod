@@ -1489,66 +1489,6 @@ export function setupIpcHandlers(
     }
   })
 
-  // Task: List pending/future
-  ipcMain.handle(IPC_CHANNELS.TASK_LIST, async () => {
-    return dbManager.listPendingAndFutureTasks()
-  })
-
-  // Task: Create
-  ipcMain.handle(IPC_CHANNELS.TASK_CREATE, async (_, name: string, prompt: string, runAt: number | null) => {
-    try {
-      const id = dbManager.createTask(name, prompt, runAt)
-      if (runAt === null) {
-        // Fire immediately via scheduler (or inline if scheduler not ready)
-        scheduler?.runOneOffTask(id, name, prompt)
-      }
-      return { success: true, id }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Task: Update
-  ipcMain.handle(IPC_CHANNELS.TASK_UPDATE, async (_, id: number, name: string, prompt: string, runAt: number | null) => {
-    try {
-      dbManager.updateTask(id, name, prompt, runAt)
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Task: Delete
-  ipcMain.handle(IPC_CHANNELS.TASK_DELETE, async (_, id: number) => {
-    try {
-      dbManager.deleteTask(id)
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Task: Get system prompt
-  ipcMain.handle(IPC_CHANNELS.TASK_GET_SYSTEM_PROMPT, async (_, taskName: string, prompt: string) => {
-    try {
-      const vaultManager = getVaultManager()
-      if (!vaultManager) {
-        return { success: false, error: 'No vault initialized' }
-      }
-
-      const persona = (dbManager.getSetting('agentProfile') as string) ?? DEFAULT_AGENT_SYSTEM_PROMPT
-      const registry = new SkillRegistry(vaultManager.vaultPath)
-      const skills = await registry.discover()
-      const skillsBlock = SkillRegistry.buildMetadataBlock(skills)
-      const agentPrompt = buildAgentTaskPrompt(persona, taskName, prompt, vaultManager.vaultPath, skillsBlock)
-      const systemPrompt = `${SYSTEM_PROMPT}\n\n${agentPrompt}`
-
-      return { success: true, systemPrompt }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
   // ── Graph & Stats ──────────────────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_DATA, async () => {

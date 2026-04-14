@@ -65,13 +65,6 @@ export const IPC_CHANNELS = {
   SCHEDULE_DELETE: 'schedule:delete',
   SCHEDULE_GET_SYSTEM_PROMPT: 'schedule:get-system-prompt',
 
-  // Tasks (one-time)
-  TASK_CREATE: 'task:create',
-  TASK_UPDATE: 'task:update',
-  TASK_DELETE: 'task:delete',
-  TASK_LIST: 'task:list',
-  TASK_GET_SYSTEM_PROMPT: 'task:get-system-prompt',
-
   // Tools
   TOOLS_GET_CONFIG: 'tools:get-config',
   TOOLS_SET_CONFIG: 'tools:set-config',
