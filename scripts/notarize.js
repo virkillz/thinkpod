@@ -23,6 +23,7 @@ export default async function notarizing(context) {
 
   try {
     await notarize({
+      tool: 'notarytool',
       appPath,
       appleId,
       appleIdPassword,
