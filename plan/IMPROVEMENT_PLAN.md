@@ -29,128 +29,513 @@
 
 ## Phase 2: Process Isolation 🔴 HIGH PRIORITY
 
-### 2.1 Architecture Decision
-**Goal**: Move inference out of main Electron process to prevent UI freezes on crashes.
+### 2.1 Architecture
 
-**Options**:
+**Goal**: Move inference out of the main Electron process to prevent UI freezes and survive crashes without taking down the app.
 
-#### Option A: Node.js Worker Threads (Recommended)
 ```
 Main Process (Electron)
-  ├── Renderer (React UI)
-  └── Worker Thread (LLM Inference)
-       └── node-llama-cpp
+  ├── Renderer (React UI) ──────── IPC ──────┐
+  └── Utility Process (LLM Server)           │
+       ├── node-llama-cpp (model + context)  │
+       └── HTTP Server :8765 ◄───────────────┘
+            └── OpenAI-compatible /v1 API
 ```
 
-**Pros**:
-- Shared memory (faster than IPC)
-- Native Node.js, no external dependencies
-- Easier debugging
+**Why `utilityProcess` over `child_process.fork`**:
 
-**Cons**:
-- Still in same process (crash can affect main)
-- Limited by Node.js thread model
+Electron's `utilityProcess` API (added in Electron 22) is the official, recommended way to spawn a child process from the main process. Unlike `child_process.fork`, it:
 
-#### Option B: Child Process (LM Studio Approach)
-```
-Main Process (Electron)
-  ├── Renderer (React UI)
-  └── Child Process (LLM Server)
-       ├── HTTP Server (port 8765)
-       └── node-llama-cpp
-```
+- Runs under Chromium's Services API — properly sandboxed and managed by Electron's process lifecycle
+- Avoids `ELECTRON_RUN_AS_NODE` issues that plague `child_process.fork` on packaged apps
+- Can establish MessagePort channels directly with renderer processes (future capability)
+- Is correctly included in Electron's crash reporter and process supervision
 
-**Pros**:
-- Complete isolation (crash-proof)
-- Can restart independently
-- Matches LM Studio architecture
+The utility process loads `node-llama-cpp`, starts a local HTTP server on port 8765, and exposes an OpenAI-compatible `/v1` API. The existing `LLMClient` connects to this URL unchanged. Main process ↔ utility process communication (start/stop/status) goes through `utilityProcess.postMessage()` and `process.parentPort`.
 
-**Cons**:
-- IPC overhead
-- More complex lifecycle management
-
-**Recommendation**: **Option B (Child Process)** - matches LM Studio, provides true isolation.
+**Cons to plan for**:
+- The compiled utility process script path must be explicitly included in the app bundle (`extraResources` or `files` in electron-builder)
+- electron-vite needs a second entry point for the utility process script
+- IPC message roundtrip adds ~0.5ms overhead (negligible vs. inference latency)
 
 ### 2.2 Implementation Steps
 
-#### Step 1: Create LLM Worker Process
-**File**: `src/main/agent/llm-worker.ts` (new)
+#### Step 1: Add Utility Process Entry Point to Build System
+
+**File**: `electron.vite.config.ts`
 
 ```typescript
-/**
- * Standalone LLM inference server running in child process.
- * Communicates with main process via IPC.
- */
-import { parentPort } from 'worker_threads'
-import { LLMProcessManager } from './LLMProcessManager.js'
-
-const manager = new LLMProcessManager()
-
-parentPort?.on('message', async (msg) => {
-  switch (msg.type) {
-    case 'start':
-      const result = await manager.start(msg.modelPath)
-      parentPort?.postMessage({ type: 'started', url: manager.getUrl() })
-      break
-    case 'stop':
-      manager.stop()
-      parentPort?.postMessage({ type: 'stopped' })
-      break
-  }
+export default defineConfig({
+  main: {
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          'llm-server': resolve(__dirname, 'src/main/agent/llm-server.ts'), // new
+        },
+      },
+    },
+  },
+  // ...
 })
 ```
 
-#### Step 2: Update Main Process Manager
-**File**: `src/main/agent/LLMProcessManager.ts`
+**File**: `electron-builder.config.js` — ensure the compiled server script is bundled:
+
+```javascript
+extraResources: [
+  { from: 'out/main/llm-server.js', to: 'llm-server.js' },
+]
+```
+
+> In development, electron-vite outputs to `out/main/`. In production, the packaged path is `process.resourcesPath + '/llm-server.js'`. The manager must resolve the correct path at runtime.
+
+#### Step 2: Create the Utility Process Server Script
+
+**File**: `src/main/agent/llm-server.ts` (new)
+
+This script runs as the utility process. It owns the model, context, and HTTP server.
 
 ```typescript
-import { Worker } from 'worker_threads'
+/**
+ * LLM Utility Process — runs in an isolated Electron utility process.
+ * Owns node-llama-cpp lifecycle and exposes an OpenAI-compatible HTTP server.
+ * Communicates with the main process via process.parentPort (Electron IPC).
+ */
+
+import http from 'http'
+import type { IncomingMessage, ServerResponse } from 'http'
+import type { LlamaChatSession, ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
+
+type LlamaInstance = import('node-llama-cpp').Llama
+type LlamaModelType = import('node-llama-cpp').LlamaModel
+type LlamaContextType = import('node-llama-cpp').LlamaContext
+
+interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let llama: LlamaInstance | null = null
+let model: LlamaModelType | null = null
+let context: LlamaContextType | null = null
+let server: http.Server | null = null
+let gpuLayers = -1
+
+// ── IPC with main process ─────────────────────────────────────────────────────
+
+process.parentPort.on('message', async ({ data: msg }) => {
+  switch (msg.type) {
+    case 'start':
+      gpuLayers = msg.gpuLayers ?? -1
+      await handleStart(msg.modelPath)
+      break
+    case 'stop':
+      await handleStop()
+      process.parentPort.postMessage({ type: 'stopped' })
+      process.exit(0)
+      break
+    case 'ping':
+      process.parentPort.postMessage({ type: 'pong' })
+      break
+  }
+})
+
+async function handleStart(modelPath: string): Promise<void> {
+  try {
+    process.parentPort.postMessage({ type: 'status', status: 'loading' })
+
+    const { getLlama } = await import('node-llama-cpp')
+    llama = await getLlama('lastBuild')
+    model = await llama.loadModel({ modelPath, gpuLayers })
+    context = await model.createContext({ contextSize: 4096, batchSize: 512 })
+
+    const port = await findFreePort(8765)
+    await startHttpServer(port)
+
+    process.parentPort.postMessage({
+      type: 'ready',
+      url: `http://127.0.0.1:${port}/v1`,
+    })
+  } catch (err) {
+    process.parentPort.postMessage({ type: 'error', message: (err as Error).message })
+    process.exit(1)
+  }
+}
+
+async function handleStop(): Promise<void> {
+  server?.close()
+  try {
+    ;(context as any)?.dispose?.()
+    ;(model as any)?.dispose?.()
+    ;(llama as any)?.dispose?.()
+  } catch { /* ignore */ }
+  context = null; model = null; llama = null
+}
+
+// ── HTTP Server ───────────────────────────────────────────────────────────────
+
+async function startHttpServer(port: number): Promise<void> {
+  server = http.createServer(async (req, res) => {
+    try { await handleRequest(req, res) }
+    catch (err) {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: (err as Error).message } }))
+      }
+    }
+  })
+  await new Promise<void>((resolve, reject) => {
+    server!.listen(port, '127.0.0.1', resolve)
+    server!.on('error', reject)
+  })
+}
+
+async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = req.url ?? ''
+  const stream = url.includes('stream=true') // naive — replace with body parse
+
+  if (url === '/health' || url === '/v1/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ status: 'ok' }))
+    return
+  }
+
+  if (req.method === 'GET' && (url === '/v1/models' || url === '/models')) {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ object: 'list', data: [{ id: 'builtin', object: 'model' }] }))
+    return
+  }
+
+  if (req.method === 'POST' && (url === '/v1/chat/completions' || url === '/chat/completions')) {
+    const body = await readBody(req)
+    const data = JSON.parse(body) as { messages: ChatMessage[]; stream?: boolean; max_tokens?: number }
+
+    if (data.stream) {
+      // SSE streaming — see Step 3
+      await streamInference(data.messages, res)
+    } else {
+      const content = await runInference(data.messages)
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        id: `builtin-${Date.now()}`, object: 'chat.completion', model: 'builtin',
+        choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      }))
+    }
+    return
+  }
+
+  res.writeHead(404, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ error: { message: 'Not found' } }))
+}
+
+// ── Inference ─────────────────────────────────────────────────────────────────
+
+async function runInference(messages: ChatMessage[]): Promise<string> {
+  if (!model || !context) throw new Error('Model not loaded')
+  const { LlamaChatSession } = await import('node-llama-cpp')
+  const session = new LlamaChatSession({ contextSequence: context.getSequence() }) as LlamaChatSession
+  session.setChatHistory(buildHistory(messages))
+  const lastUser = messages.filter(m => m.role !== 'system').at(-1)
+  if (!lastUser || lastUser.role !== 'user') throw new Error('Last message must be from user')
+  return session.prompt(lastUser.content)
+}
+
+async function streamInference(messages: ChatMessage[], res: ServerResponse): Promise<void> {
+  if (!model || !context) throw new Error('Model not loaded')
+  const { LlamaChatSession } = await import('node-llama-cpp')
+  const session = new LlamaChatSession({ contextSequence: context.getSequence() }) as LlamaChatSession
+  session.setChatHistory(buildHistory(messages))
+  const lastUser = messages.filter(m => m.role !== 'system').at(-1)
+  if (!lastUser || lastUser.role !== 'user') throw new Error('Last message must be from user')
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  })
+
+  const id = `builtin-${Date.now()}`
+  await session.prompt(lastUser.content, {
+    onTextChunk(token) {
+      const chunk = JSON.stringify({
+        id, object: 'chat.completion.chunk', model: 'builtin',
+        choices: [{ index: 0, delta: { content: token }, finish_reason: null }],
+      })
+      res.write(`data: ${chunk}\n\n`)
+    },
+  })
+  res.write('data: [DONE]\n\n')
+  res.end()
+}
+
+function buildHistory(messages: ChatMessage[]): ChatHistoryItem[] {
+  const history: ChatHistoryItem[] = []
+  const systemText = messages.find(m => m.role === 'system')?.content
+  if (systemText) history.push({ type: 'system', text: systemText })
+  const turns = messages.filter(m => m.role !== 'system')
+  for (let i = 0; i < turns.length - 1; i++) {
+    const m = turns[i]
+    if (m.role === 'user') history.push({ type: 'user', text: m.content })
+    else history.push({ type: 'model', response: [m.content] } as ChatModelResponse)
+  }
+  return history
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = ''
+    req.on('data', chunk => (data += chunk))
+    req.on('end', () => resolve(data))
+    req.on('error', reject)
+  })
+}
+
+function findFreePort(start: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const try_ = (port: number) => {
+      const s = http.createServer()
+      s.listen(port, '127.0.0.1', () => s.close(() => resolve(port)))
+      s.on('error', () => port < start + 20 ? try_(port + 1) : reject(new Error('No free port')))
+    }
+    try_(start)
+  })
+}
+```
+
+#### Step 3: Rewrite `LLMProcessManager` to Drive the Utility Process
+
+**File**: `src/main/agent/LLMProcessManager.ts`
+
+Replace the current in-process implementation with a lifecycle manager for the utility process.
+
+```typescript
+import { EventEmitter } from 'events'
+import { utilityProcess, UtilityProcess } from 'electron'
+import path from 'path'
+import { app } from 'electron'
+
+const MAX_RESTART_ATTEMPTS = 3
+const RESTART_BACKOFF_MS = [1000, 3000, 10000] // exponential backoff
 
 export class LLMProcessManager extends EventEmitter {
-  private worker: Worker | null = null
-  
+  private proc: UtilityProcess | null = null
+  private serverUrl: string | null = null
+  private gpuLayers = -1
+  private pendingModelPath: string | null = null
+  private restartAttempts = 0
+  private startupTimer: NodeJS.Timeout | null = null
+
+  /** Resolve path to llm-server.js — differs in dev vs packaged */
+  private getServerScriptPath(): string {
+    if (app.isPackaged) {
+      return path.join(process.resourcesPath, 'llm-server.js')
+    }
+    return path.join(__dirname, 'llm-server.js') // out/main/llm-server.js in dev
+  }
+
   async start(modelPath: string): Promise<boolean> {
-    this.worker = new Worker('./llm-worker.js')
-    
+    if (this.proc) return false
+    this.pendingModelPath = modelPath
+    this.restartAttempts = 0
+    return this.spawnAndStart(modelPath)
+  }
+
+  private async spawnAndStart(modelPath: string): Promise<boolean> {
     return new Promise((resolve) => {
-      this.worker!.on('message', (msg) => {
-        if (msg.type === 'started') {
-          this.serverUrl = msg.url
-          resolve(true)
+      const scriptPath = this.getServerScriptPath()
+
+      this.proc = utilityProcess.fork(scriptPath, [], {
+        serviceName: 'LLM Server',
+        stdio: 'pipe', // capture stdout/stderr for logging
+      })
+
+      // Forward stdout/stderr to main process console
+      this.proc.stdout?.on('data', d => console.log('[llm-server]', d.toString().trim()))
+      this.proc.stderr?.on('data', d => console.error('[llm-server]', d.toString().trim()))
+
+      // Startup timeout — if no 'ready' within 120s, treat as failure
+      this.startupTimer = setTimeout(() => {
+        console.error('[LLMProcessManager] Startup timeout')
+        resolve(false)
+      }, 120_000)
+
+      this.proc.on('message', (msg: any) => {
+        switch (msg.type) {
+          case 'status':
+            this.emit('status', msg.status)
+            break
+          case 'ready':
+            clearTimeout(this.startupTimer!)
+            this.serverUrl = msg.url
+            this.restartAttempts = 0
+            this.emit('status', 'ready')
+            resolve(true)
+            break
+          case 'error':
+            clearTimeout(this.startupTimer!)
+            this.emit('error', msg.message)
+            resolve(false)
+            break
+          case 'stopped':
+            this.emit('status', 'stopped')
+            break
+          case 'pong':
+            // heartbeat response — process is alive
+            break
         }
       })
-      
-      this.worker!.postMessage({ type: 'start', modelPath })
+
+      this.proc.on('exit', (code) => {
+        clearTimeout(this.startupTimer!)
+        this.proc = null
+        this.serverUrl = null
+        if (code !== 0 && code !== null) {
+          console.error(`[LLMProcessManager] Utility process exited with code ${code}`)
+          this.emit('crashed', code)
+          this.attemptRestart()
+        }
+      })
+
+      // Kick off model loading inside the utility process
+      this.proc.postMessage({ type: 'start', modelPath, gpuLayers: this.gpuLayers })
     })
   }
-  
+
+  private attemptRestart(): void {
+    if (!this.pendingModelPath) return
+    if (this.restartAttempts >= MAX_RESTART_ATTEMPTS) {
+      console.error('[LLMProcessManager] Max restart attempts reached — giving up')
+      this.emit('error', 'Max restart attempts reached')
+      return
+    }
+    const delay = RESTART_BACKOFF_MS[this.restartAttempts] ?? 10_000
+    this.restartAttempts++
+    console.log(`[LLMProcessManager] Restarting in ${delay}ms (attempt ${this.restartAttempts})`)
+    setTimeout(() => this.spawnAndStart(this.pendingModelPath!), delay)
+  }
+
   stop(): void {
-    this.worker?.postMessage({ type: 'stop' })
-    this.worker?.terminate()
-    this.worker = null
+    clearTimeout(this.startupTimer!)
+    if (this.proc) {
+      this.proc.postMessage({ type: 'stop' })
+      // Kill if it doesn't exit cleanly within 5s
+      setTimeout(() => this.proc?.kill(), 5000)
+    }
+    this.proc = null
+    this.serverUrl = null
+    this.pendingModelPath = null
+  }
+
+  /** Send a heartbeat ping to verify the process is alive */
+  ping(): void {
+    this.proc?.postMessage({ type: 'ping' })
+  }
+
+  setGpuLayers(layers: number): void {
+    this.gpuLayers = layers
+  }
+
+  isRunning(): boolean {
+    return this.proc !== null && this.serverUrl !== null
+  }
+
+  getUrl(): string | null {
+    return this.serverUrl
   }
 }
 ```
 
-#### Step 3: Add Crash Recovery
-```typescript
-this.worker.on('error', (err) => {
-  console.error('[LLM Worker] Error:', err)
-  this.emit('error', err.message)
-  this.restart() // Auto-restart on crash
-})
+#### Step 4: SSE Streaming in `LLMClient`
 
-this.worker.on('exit', (code) => {
-  if (code !== 0) {
-    console.error('[LLM Worker] Crashed with code:', code)
-    this.emit('crashed', code)
-    this.restart()
+The utility process HTTP server already emits Server-Sent Events for streaming requests. Update `LLMClient` to consume them:
+
+**File**: `src/main/agent/LLMClient.ts` — add `chatStream()`:
+
+```typescript
+async *chatStream(messages: LLMMessage[]): AsyncGenerator<string> {
+  const url = `${this.config.baseUrl}/chat/completions`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: this.config.model, messages, stream: true }),
+  })
+
+  if (!response.ok || !response.body) throw new Error(`Stream failed: ${response.status}`)
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const payload = line.slice(6).trim()
+      if (payload === '[DONE]') return
+      const chunk = JSON.parse(payload)
+      const token = chunk.choices?.[0]?.delta?.content
+      if (token) yield token
+    }
   }
-})
+}
 ```
 
-**Estimated Time**: 2-3 days  
-**Testing**: Simulate crashes, verify UI remains responsive
+#### Step 5: Heartbeat Monitor
+
+Add a periodic health check so the main process knows if the utility process has silently hung (vs. crashed):
+
+**File**: `src/main/agent/LLMProcessManager.ts` — add to the `start` flow:
+
+```typescript
+private heartbeatInterval: NodeJS.Timeout | null = null
+private lastPong = 0
+
+private startHeartbeat(): void {
+  this.lastPong = Date.now()
+  this.heartbeatInterval = setInterval(() => {
+    if (!this.proc) return
+    const silentMs = Date.now() - this.lastPong
+    if (silentMs > 30_000) {
+      console.error('[LLMProcessManager] Heartbeat timeout — killing hung process')
+      this.proc.kill()
+      return
+    }
+    this.ping()
+  }, 10_000) // ping every 10s
+}
+
+// In the 'pong' message handler:
+case 'pong':
+  this.lastPong = Date.now()
+  break
+```
+
+Call `startHeartbeat()` when `ready` is received. Clear the interval in `stop()`.
+
+### 2.3 Build & Packaging Checklist
+
+- [ ] Add `llm-server` entry point to `electron.vite.config.ts`
+- [ ] Add compiled `llm-server.js` to `electron-builder` `extraResources`
+- [ ] Verify `node-llama-cpp` is in `externals` (not bundled by Vite — it ships native `.node` files)
+- [ ] Test `getServerScriptPath()` resolves correctly in both dev and packaged builds
+- [ ] Verify `utilityProcess` import is available (Electron 22+)
+
+### 2.4 Testing Plan
+
+- Simulate a crash in the utility process (`process.exit(1)`) — verify UI stays responsive and auto-restart fires
+- Send 50 concurrent requests to the HTTP server — verify queuing doesn't deadlock
+- Kill the utility process mid-inference — verify the in-flight request returns an error to the caller (not a hang)
+- Package the app and verify the `llm-server.js` resource path resolves correctly
+- Heartbeat: pause the event loop in the utility process with a `while(true){}` — verify the 30s timeout kills it
+
+**Estimated Time**: 3-4 days
 
 ---
 
@@ -551,10 +936,14 @@ async warmup(): Promise<void> {
 ## Implementation Timeline
 
 ### Sprint 1 (Week 1-2): Process Isolation
-- [ ] Create worker thread architecture
-- [ ] Implement IPC communication
-- [ ] Add crash recovery
-- [ ] Test isolation and stability
+- [ ] Add `llm-server` entry point to electron-vite build
+- [ ] Create `src/main/agent/llm-server.ts` utility process script
+- [ ] Rewrite `LLMProcessManager` to use `utilityProcess.fork()`
+- [ ] Add exponential backoff crash recovery
+- [ ] Add heartbeat monitor (10s ping / 30s timeout)
+- [ ] Add SSE streaming to `LLMClient.chatStream()`
+- [ ] Verify dev + packaged resource path resolution
+- [ ] Simulate crashes and concurrent load
 
 ### Sprint 2 (Week 3-4): MLX Backend
 - [ ] Platform detection logic
@@ -698,10 +1087,10 @@ npm run benchmark:llm -- \
 - **Detection**: Platform check before enabling MLX
 - **Recovery**: Auto-switch to llama.cpp on MLX failure
 
-### Risk 2: Worker Thread Overhead
-- **Mitigation**: Benchmark before/after
-- **Detection**: Performance regression tests
-- **Recovery**: Revert to in-process if slower
+### Risk 2: Utility Process Script Path in Packaged Build
+- **Mitigation**: `getServerScriptPath()` checks `app.isPackaged` and uses `process.resourcesPath`
+- **Detection**: Smoke test packaged `.dmg`/`.exe` before release
+- **Recovery**: Fallback log tells user exactly which path was resolved
 
 ### Risk 3: Context Pool Deadlocks
 - **Mitigation**: Timeout on acquire (30s max)

@@ -1,113 +1,177 @@
 /**
  * LLM Process Manager
- * Loads a GGUF model in-process via node-llama-cpp (with Metal on Apple Silicon,
- * CUDA on Linux/Windows with NVIDIA, CPU fallback everywhere) and exposes it as
- * a minimal OpenAI-compatible HTTP server on localhost.
+ * Spawns node-llama-cpp in an isolated Electron utility process to prevent
+ * UI freezes during inference and survive crashes without taking down the app.
  *
- * This means all existing LLMClient usage works unchanged — handlers just point
- * their baseUrl at the local server URL returned by getUrl().
+ * The utility process (llm-server.ts) loads the model and runs a local
+ * OpenAI-compatible HTTP server. The existing LLMClient connects to the URL
+ * returned by getUrl() — no other code needs to change.
+ *
+ * Main ↔ utility communication goes through utilityProcess.postMessage()
+ * and process.parentPort (Electron IPC), keeping inference fully off the
+ * main process event loop.
  */
 
 import { EventEmitter } from 'events'
-import http from 'http'
-import type { IncomingMessage, ServerResponse } from 'http'
-import type {
-  LlamaChatSession,
-  ChatHistoryItem,
-  ChatModelResponse,
-} from 'node-llama-cpp'
+import { utilityProcess, app } from 'electron'
+import type { UtilityProcess } from 'electron'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-type LlamaInstance = import('node-llama-cpp').Llama
-type LlamaModelType = import('node-llama-cpp').LlamaModel
-type LlamaContextType = import('node-llama-cpp').LlamaContext
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
+const MAX_RESTART_ATTEMPTS = 3
+const RESTART_BACKOFF_MS = [1000, 3000, 10_000]
 
 export class LLMProcessManager extends EventEmitter {
-  private llama: LlamaInstance | null = null
-  private model: LlamaModelType | null = null
-  private context: LlamaContextType | null = null
-  private server: http.Server | null = null
+  private proc: UtilityProcess | null = null
   private serverUrl: string | null = null
-  private isLoading = false
-  private gpuLayers: number = -1
+  private gpuLayers = -1
+  private pendingModelPath: string | null = null
+  private restartAttempts = 0
+  private startupTimer: ReturnType<typeof setTimeout> | null = null
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private lastPong = 0
 
   constructor() {
     super()
   }
 
-  /**
-   * Load the GGUF model into memory and start the local HTTP server.
-   */
-  async start(modelPath: string): Promise<boolean> {
-    if (this.model || this.isLoading) return false
-
-    this.isLoading = true
-    console.log('[LLMProcessManager.start] emitting loading status')
-    this.emit('status', 'loading')
-
-    try {
-      console.log('[LLMProcessManager.start] importing node-llama-cpp...')
-      const { getLlama } = await import('node-llama-cpp')
-
-      console.log('[LLMProcessManager.start] calling getLlama("lastBuild")...')
-      this.llama = await getLlama('lastBuild')
-      console.log('[LLMProcessManager.start] llama instance created, loading model from:', modelPath)
-
-      console.log('[LLMProcessManager.start] calling llama.loadModel()...')
-      this.model = await this.llama.loadModel({ 
-        modelPath,
-        gpuLayers: this.gpuLayers
-      })
-      console.log('[LLMProcessManager.start] model loaded with GPU layers:', this.gpuLayers)
-
-      console.log('[LLMProcessManager.start] creating persistent context...')
-      this.context = await this.model.createContext({ 
-        contextSize: 4096,
-        batchSize: 512
-      })
-      console.log('[LLMProcessManager.start] context created, starting HTTP server...')
-
-      this.serverUrl = await this.startHttpServer()
-      console.log('[LLMProcessManager.start] server started at:', this.serverUrl)
-
-      this.isLoading = false
-      this.emit('status', 'ready')
-      return true
-    } catch (error) {
-      console.error('[LLMProcessManager.start] error:', error)
-      this.isLoading = false
-      this.model = null
-      this.llama = null
-      this.emit('error', (error as Error).message)
-      return false
+  /** Resolve path to the compiled llm-server script — differs in dev vs packaged. */
+  private getServerScriptPath(): string {
+    if (app.isPackaged) {
+      return path.join(process.resourcesPath, 'llm-server.js')
     }
+    // In dev, tsc outputs src/main/agent/llm-server.ts → dist/main/agent/llm-server.js
+    return path.join(__dirname, 'llm-server.js')
+  }
+
+  async start(modelPath: string): Promise<boolean> {
+    if (this.proc) return false
+    this.pendingModelPath = modelPath
+    this.restartAttempts = 0
+    return this.spawnAndStart(modelPath)
+  }
+
+  private spawnAndStart(modelPath: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const scriptPath = this.getServerScriptPath()
+
+      this.proc = utilityProcess.fork(scriptPath, [], {
+        serviceName: 'LLM Server',
+        stdio: 'pipe',
+      })
+
+      this.proc.stdout?.on('data', (d: Buffer) =>
+        console.log('[llm-server]', d.toString().trim())
+      )
+      this.proc.stderr?.on('data', (d: Buffer) =>
+        console.error('[llm-server]', d.toString().trim())
+      )
+
+      // 120s startup timeout
+      this.startupTimer = setTimeout(() => {
+        console.error('[LLMProcessManager] Startup timeout')
+        resolve(false)
+      }, 120_000)
+
+      this.proc.on('message', (msg: unknown) => {
+        const message = msg as { type: string; status?: string; url?: string; message?: string }
+        switch (message.type) {
+          case 'status':
+            this.emit('status', message.status)
+            break
+          case 'ready':
+            clearTimeout(this.startupTimer!)
+            this.serverUrl = message.url!
+            this.restartAttempts = 0
+            this.startHeartbeat()
+            this.emit('status', 'ready')
+            resolve(true)
+            break
+          case 'error':
+            clearTimeout(this.startupTimer!)
+            this.emit('error', message.message)
+            resolve(false)
+            break
+          case 'stopped':
+            this.emit('status', 'stopped')
+            break
+          case 'pong':
+            this.lastPong = Date.now()
+            break
+        }
+      })
+
+      this.proc.on('exit', (code: number | null) => {
+        clearTimeout(this.startupTimer!)
+        this.stopHeartbeat()
+        this.proc = null
+        this.serverUrl = null
+        if (code !== 0 && code !== null) {
+          console.error(`[LLMProcessManager] Utility process exited with code ${code}`)
+          this.emit('crashed', code)
+          this.attemptRestart()
+        }
+      })
+
+      this.proc.postMessage({ type: 'start', modelPath, gpuLayers: this.gpuLayers })
+    })
+  }
+
+  private attemptRestart(): void {
+    if (!this.pendingModelPath) return
+    if (this.restartAttempts >= MAX_RESTART_ATTEMPTS) {
+      console.error('[LLMProcessManager] Max restart attempts reached — giving up')
+      this.emit('error', 'Max restart attempts reached')
+      return
+    }
+    const delay = RESTART_BACKOFF_MS[this.restartAttempts] ?? 10_000
+    this.restartAttempts++
+    console.log(
+      `[LLMProcessManager] Restarting in ${delay}ms (attempt ${this.restartAttempts})`
+    )
+    setTimeout(() => this.spawnAndStart(this.pendingModelPath!), delay)
   }
 
   stop(): void {
-    this.server?.close()
-    this.server = null
-    this.serverUrl = null
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(this.context as any)?.dispose?.()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(this.model as any)?.dispose?.()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(this.llama as any)?.dispose?.()
-    } catch {
-      // ignore
+    clearTimeout(this.startupTimer!)
+    this.stopHeartbeat()
+    if (this.proc) {
+      this.proc.postMessage({ type: 'stop' })
+      // Kill if it doesn't exit cleanly within 5s
+      setTimeout(() => this.proc?.kill(), 5000)
     }
+    this.proc = null
+    this.serverUrl = null
+    this.pendingModelPath = null
+  }
 
-    this.context = null
-    this.model = null
-    this.llama = null
-    this.isLoading = false
-    this.emit('status', 'stopped')
+  // ── Heartbeat ────────────────────────────────────────────────────────────────
+
+  private startHeartbeat(): void {
+    this.lastPong = Date.now()
+    this.heartbeatInterval = setInterval(() => {
+      if (!this.proc) return
+      const silentMs = Date.now() - this.lastPong
+      if (silentMs > 30_000) {
+        console.error('[LLMProcessManager] Heartbeat timeout — killing hung process')
+        this.proc.kill()
+        return
+      }
+      this.ping()
+    }, 10_000)
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
+    }
+  }
+
+  ping(): void {
+    this.proc?.postMessage({ type: 'ping' })
   }
 
   setGpuLayers(layers: number): void {
@@ -115,156 +179,10 @@ export class LLMProcessManager extends EventEmitter {
   }
 
   isRunning(): boolean {
-    return this.model !== null && this.server !== null
+    return this.proc !== null && this.serverUrl !== null
   }
 
   getUrl(): string | null {
     return this.serverUrl
-  }
-
-  // ── Local HTTP server ────────────────────────────────────────────────────────
-
-  private async startHttpServer(): Promise<string> {
-    const port = await this.findFreePort(8765)
-
-    this.server = http.createServer(async (req, res) => {
-      try {
-        await this.handleRequest(req, res)
-      } catch (err) {
-        if (!res.headersSent) {
-          res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: { message: (err as Error).message } }))
-        }
-      }
-    })
-
-    return new Promise((resolve, reject) => {
-      this.server!.listen(port, '127.0.0.1', () => {
-        resolve(`http://127.0.0.1:${port}/v1`)
-      })
-      this.server!.on('error', reject)
-    })
-  }
-
-  private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const url = req.url ?? ''
-
-    // Health check
-    if (url === '/health' || url === '/v1/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ status: 'ok' }))
-      return
-    }
-
-    // Models list — required for LLMClient.healthCheck()
-    if (req.method === 'GET' && (url === '/v1/models' || url === '/models')) {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          object: 'list',
-          data: [{ id: 'gemma-4-e4b-builtin', object: 'model', created: Date.now() }],
-        })
-      )
-      return
-    }
-
-    // Chat completions — main inference endpoint
-    if (
-      req.method === 'POST' &&
-      (url === '/v1/chat/completions' || url === '/chat/completions')
-    ) {
-      const body = await this.readBody(req)
-      const data = JSON.parse(body) as { messages: ChatMessage[]; max_tokens?: number }
-      const content = await this.runInference(data.messages)
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          id: `builtin-${Date.now()}`,
-          object: 'chat.completion',
-          model: 'gemma-4-e4b-builtin',
-          choices: [
-            {
-              index: 0,
-              message: { role: 'assistant', content },
-              finish_reason: 'stop',
-            },
-          ],
-          usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-        })
-      )
-      return
-    }
-
-    res.writeHead(404, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ error: { message: 'Not found' } }))
-  }
-
-  private async runInference(messages: ChatMessage[]): Promise<string> {
-    if (!this.model || !this.context) throw new Error('Model not loaded')
-
-    const { LlamaChatSession } = await import('node-llama-cpp')
-
-    const sequence = this.context.getSequence()
-    const session = new LlamaChatSession({
-      contextSequence: sequence,
-    }) as LlamaChatSession
-
-    const history: ChatHistoryItem[] = []
-    const turns = messages.filter((m) => m.role !== 'system')
-    const systemMsg = messages.find((m) => m.role === 'system')?.content
-
-    if (systemMsg) {
-      history.push({ type: 'system', text: systemMsg })
-    }
-
-    for (let i = 0; i < turns.length - 1; i++) {
-      const msg = turns[i]
-      if (msg.role === 'user') {
-        history.push({ type: 'user', text: msg.content })
-      } else if (msg.role === 'assistant') {
-        const modelResponse: ChatModelResponse = {
-          type: 'model',
-          response: [msg.content],
-        }
-        history.push(modelResponse)
-      }
-    }
-
-    session.setChatHistory(history)
-
-    const lastUser = turns[turns.length - 1]
-    if (!lastUser || lastUser.role !== 'user') {
-      throw new Error('Last message must be from user')
-    }
-
-    return await session.prompt(lastUser.content)
-  }
-
-  private readBody(req: IncomingMessage): Promise<string> {
-    return new Promise((resolve, reject) => {
-      let data = ''
-      req.on('data', (chunk) => (data += chunk))
-      req.on('end', () => resolve(data))
-      req.on('error', reject)
-    })
-  }
-
-  private findFreePort(startPort: number): Promise<number> {
-    return new Promise((resolve, reject) => {
-      const tryPort = (port: number) => {
-        const server = http.createServer()
-        server.listen(port, '127.0.0.1', () => {
-          server.close(() => resolve(port))
-        })
-        server.on('error', () => {
-          if (port < startPort + 20) {
-            tryPort(port + 1)
-          } else {
-            reject(new Error('No free port found'))
-          }
-        })
-      }
-      tryPort(startPort)
-    })
   }
 }

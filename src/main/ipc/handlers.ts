@@ -150,6 +150,10 @@ export function setupIpcHandlers(
           log.error('[LLM built-in]', err)
           pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
         })
+        llmProcessManager.on('crashed', (code: number) => {
+          log.warn('[LLM built-in] process crashed with code', code, '— auto-restarting')
+          pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'crashed')
+        })
         const started = await llmProcessManager.start(modelPath)
         if (started) {
           const url = llmProcessManager.getUrl()
@@ -228,6 +232,10 @@ export function setupIpcHandlers(
       llmProcessManager.on('error', (err: string) => {
         log.error('[LLM built-in error]', err)
         pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'error')
+      })
+      llmProcessManager.on('crashed', (code: number) => {
+        log.warn('[LLM built-in] process crashed with code', code, '— auto-restarting')
+        pushToRenderer(IPC_CHANNELS.PUSH_LLM_STATUS, 'crashed')
       })
 
       log.info('[LLM_MODEL_START] calling llmProcessManager.start()...')

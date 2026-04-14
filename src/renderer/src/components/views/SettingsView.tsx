@@ -377,7 +377,7 @@ function ProviderBadge({ provider }: { provider: LLMProvider }) {
 
 // ─── Builtin server status strip ─────────────────────────────────────────────
 
-type ServerStatus = 'loading' | 'ready' | 'stopped' | 'error'
+type ServerStatus = 'loading' | 'ready' | 'stopped' | 'error' | 'crashed'
 
 function BuiltinServerStatus({ status, url, quant, onStatusChange }: {
   status: ServerStatus
@@ -388,6 +388,12 @@ function BuiltinServerStatus({ status, url, quant, onStatusChange }: {
   if (status === 'loading') return (
     <div className="flex items-center gap-2 text-sm text-ink-muted">
       <Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting server…
+    </div>
+  )
+  if (status === 'crashed') return (
+    <div className="flex items-center gap-2 text-sm bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-1.5 text-orange-400">
+      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+      Server crashed — restarting…
     </div>
   )
   if (status === 'ready') return (
@@ -659,6 +665,7 @@ function InferenceTab() {
       else if (status === 'ready')   setServerStatus('ready')
       else if (status === 'stopped') setServerStatus('stopped')
       else if (status === 'error')   setServerStatus('error')
+      else if (status === 'crashed') setServerStatus('crashed')
     })
     return unsub
   }, [])

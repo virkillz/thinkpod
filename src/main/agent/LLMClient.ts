@@ -147,6 +147,52 @@ export class LLMClient {
     }
   }
 
+  async *chatStream(messages: LLMMessage[]): AsyncGenerator<string> {
+    const url = `${this.config.baseUrl}/chat/completions`
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (this.config.apiKey) {
+      headers['Authorization'] = `Bearer ${this.config.apiKey}`
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: this.config.model,
+        messages,
+        stream: true,
+        max_tokens: this.config.maxTokens,
+      }),
+    })
+
+    if (!response.ok || !response.body) {
+      throw new Error(`Stream request failed: ${response.status}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const payload = line.slice(6).trim()
+        if (payload === '[DONE]') return
+        const chunk = JSON.parse(payload)
+        const token = chunk.choices?.[0]?.delta?.content
+        if (token) yield token as string
+      }
+    }
+  }
+
   async healthCheck(): Promise<{ ok: boolean; models?: string[] }> {
     try {
       const url = `${this.config.baseUrl}/models`

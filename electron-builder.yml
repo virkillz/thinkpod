@@ -16,6 +16,8 @@ extraResources:
     to: skills
     filter:
       - "**/*"
+  - from: dist/main/agent/llm-server.js
+    to: llm-server.js
 
 mac:
   category: public.app-category.productivity
