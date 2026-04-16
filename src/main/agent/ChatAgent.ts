@@ -6,6 +6,7 @@ import { getEnabledToolDefinitions, DEFAULT_TOOLS_CONFIG } from './ToolDefinitio
 import { ToolExecutor } from './ToolExecutor.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
 import type { ToolsConfig } from './tools/types.js'
+import type { MCPManager } from '../mcp/MCPManager.js'
 import {
   INVOCATION_DOCS_REVIEW,
   INVOCATION_GENERAL_CHAT,
@@ -28,6 +29,7 @@ export interface ChatAgentConfig {
   }
   persona: string
   toolsConfig?: ToolsConfig
+  mcpManager?: MCPManager
 }
 
 export type OnToolUse = (toolName: string, args: Record<string, unknown>) => void
@@ -51,6 +53,7 @@ export class ChatAgent {
   private messages: LLMMessage[] = []
   private toolsConfig: ToolsConfig
   private dbManager: DatabaseManager
+  private mcpManager?: MCPManager
 
   private constructor(
     client: LLMClient,
@@ -60,7 +63,8 @@ export class ChatAgent {
     systemPrompt: string,
     history: ChatMessage[],
     toolsConfig: ToolsConfig,
-    dbManager: DatabaseManager
+    dbManager: DatabaseManager,
+    mcpManager?: MCPManager
   ) {
     this.client = client
     this.session = session
@@ -69,6 +73,7 @@ export class ChatAgent {
     this.systemPrompt = systemPrompt
     this.toolsConfig = toolsConfig
     this.dbManager = dbManager
+    this.mcpManager = mcpManager
 
     // Reconstruct in-memory message list from JSONL history (excluding system)
     this.messages = [
@@ -89,7 +94,7 @@ export class ChatAgent {
 
     const { id: sessionId, isNew } = config.dbManager.getOrCreateChatSession(contextType, contextKey)
     const session = new ChatSession(ChatSession.sessionsDir(config.vaultPath), sessionId)
-    const executor = new ToolExecutor({ vaultPath: config.vaultPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
+    const executor = new ToolExecutor({ vaultPath: config.vaultPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG, mcpManager: config.mcpManager })
 
     const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextKey, contextFilePath)
 
@@ -103,7 +108,8 @@ export class ChatAgent {
       systemPrompt,
       history,
       config.toolsConfig ?? DEFAULT_TOOLS_CONFIG,
-      config.dbManager
+      config.dbManager,
+      config.mcpManager
     )
 
     return { agent, sessionId, history }
@@ -121,7 +127,7 @@ export class ChatAgent {
     const session = new ChatSession(ChatSession.sessionsDir(config.vaultPath), sessionId)
     await session.clear()
 
-    const executor = new ToolExecutor({ vaultPath: config.vaultPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG })
+    const executor = new ToolExecutor({ vaultPath: config.vaultPath, dbManager: config.dbManager, toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG, mcpManager: config.mcpManager })
     const systemPrompt = await ChatAgent.buildSystemPrompt(config, contextType, contextKey, contextFilePath)
     const agent = new ChatAgent(
       new LLMClient(config.llmConfig),
@@ -131,7 +137,8 @@ export class ChatAgent {
       systemPrompt,
       [],
       config.toolsConfig ?? DEFAULT_TOOLS_CONFIG,
-      config.dbManager
+      config.dbManager,
+      config.mcpManager
     )
 
     return { agent, sessionId }
@@ -153,7 +160,9 @@ export class ChatAgent {
       // Fetch current tools config from database to pick up newly enabled tools
       const currentToolsConfig = this.dbManager.getSetting('toolsConfig') as ToolsConfig | null
       const chatTools = getEnabledToolDefinitions(currentToolsConfig ?? DEFAULT_TOOLS_CONFIG, { includeFinishTask: false })
-      const response = await this.client.chatWithTools(this.messages, chatTools as unknown[])
+      const mcpDefs = this.mcpManager?.getToolDefinitions() ?? []
+      const allTools = [...chatTools, ...mcpDefs]
+      const response = await this.client.chatWithTools(this.messages, allTools as unknown[])
 
       if (!response.toolCalls || response.toolCalls.length === 0) {
         // Natural text response — end of turn

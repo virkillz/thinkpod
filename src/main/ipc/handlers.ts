@@ -20,6 +20,7 @@ import { ChatAgent, InvocationType } from '../agent/ChatAgent.js'
 import { Scheduler } from '../scheduler/Scheduler.js'
 import { WhisperManager, WHISPER_MODELS, type VoiceConfig } from '../whisper/WhisperManager.js'
 import { getToolMetas, DEFAULT_TOOLS_CONFIG } from '../agent/tools/index.js'
+import { MCPManager } from '../mcp/MCPManager.js'
 import { VoiceCaptureService } from '../whisper/VoiceCaptureService.js'
 import { PersonalizationManager, type PersonalizationTopic } from '../personalization/PersonalizationManager.js'
 import { PERSONALIZATION_OPENING_TRIGGERS } from '../agent/prompts.js'
@@ -75,6 +76,9 @@ let scheduler: Scheduler | null = null
 // Chat sessions — keyed by sessionId so the renderer can hold the handle
 const activeChatAgents = new Map<string, ChatAgent>()
 
+// MCP
+let mcpManager: MCPManager
+
 // Whisper state
 let whisperManager: WhisperManager | null = null
 let voiceCaptureService: VoiceCaptureService | null = null
@@ -126,6 +130,10 @@ function pushToRenderer(channel: string, data: unknown): void {
   win?.webContents.send(channel, data)
 }
 
+export function getMCPManager(): MCPManager | null {
+  return mcpManager ?? null
+}
+
 export function setupIpcHandlers(
   dbManager: DatabaseManager
 ): void {
@@ -137,6 +145,12 @@ export function setupIpcHandlers(
   // Initialise managers (lazy — no heavy work until needed)
   whisperManager = new WhisperManager(dbManager)
   llmModelManager = new LLMModelManager(dbManager)
+  mcpManager = new MCPManager(dbManager)
+
+  // Auto-connect enabled MCP servers
+  mcpManager.connectAllEnabled().catch(err => {
+    log.warn('MCP auto-connect failed:', err)
+  })
 
   // Auto-start built-in model if it was configured and downloaded
   const storedLLM = dbManager.getSetting('llmConfig') as LLMStorage | null
@@ -551,6 +565,41 @@ export function setupIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.TOOLS_SET_CONFIG, (_, config: unknown) => {
     dbManager.setSetting('toolsConfig', config)
     return { success: true }
+  })
+
+  // ── MCP ──────────────────────────────────────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.MCP_GET_SERVERS, () => {
+    return mcpManager.getServerConfigs()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MCP_ADD_SERVER, (_, config: { name: string; command: string; args: string[]; env?: Record<string, string>; enabled: boolean }) => {
+    return mcpManager.addServer(config)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MCP_UPDATE_SERVER, (_, id: string, updates: Record<string, unknown>) => {
+    return mcpManager.updateServer(id, updates)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MCP_REMOVE_SERVER, async (_, id: string) => {
+    return mcpManager.removeServer(id)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MCP_CONNECT, async (_, id: string) => {
+    return mcpManager.connect(id)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MCP_DISCONNECT, async (_, id: string) => {
+    await mcpManager.disconnect(id)
+    return { success: true }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MCP_GET_STATUSES, () => {
+    return mcpManager.getAllStatuses()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MCP_GET_TOOLS, () => {
+    return mcpManager.getConnectedTools()
   })
 
   // Skills: List installed skills
@@ -968,6 +1017,7 @@ export function setupIpcHandlers(
         llmConfig,
         persona,
         toolsConfig: toolsConfig ?? DEFAULT_TOOLS_CONFIG,
+        mcpManager,
       },
       (run) => {
         // Task updates logged to database
@@ -1258,7 +1308,7 @@ export function setupIpcHandlers(
       try {
         const chatToolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
         const { agent, sessionId, history } = await ChatAgent.open(
-          { vaultPath: abbey.vaultPath, dbManager, llmConfig, persona, toolsConfig: chatToolsConfig ?? DEFAULT_TOOLS_CONFIG },
+          { vaultPath: abbey.vaultPath, dbManager, llmConfig, persona, toolsConfig: chatToolsConfig ?? DEFAULT_TOOLS_CONFIG, mcpManager },
           contextType,
           contextKey,
           filePath
@@ -1321,7 +1371,7 @@ export function setupIpcHandlers(
       try {
         const freshToolsConfig = dbManager.getSetting('toolsConfig') as Record<string, { enabled: boolean; config?: Record<string, string> }> | null
         const { agent, sessionId } = await ChatAgent.openFresh(
-          { vaultPath: abbey.vaultPath, dbManager, llmConfig, persona, toolsConfig: freshToolsConfig ?? DEFAULT_TOOLS_CONFIG },
+          { vaultPath: abbey.vaultPath, dbManager, llmConfig, persona, toolsConfig: freshToolsConfig ?? DEFAULT_TOOLS_CONFIG, mcpManager },
           contextType,
           contextKey,
           filePath
@@ -1797,7 +1847,7 @@ export function setupScheduler(dbManager: DatabaseManager): void {
   if (!abbey) {
     throw new Error('Cannot start scheduler without vault')
   }
-  scheduler = new Scheduler(dbManager, abbey)
+  scheduler = new Scheduler(dbManager, abbey, mcpManager)
 
   scheduler.on('taskUpdate', (run: TaskRun) => {
     pushToRenderer(IPC_CHANNELS.PUSH_TASK_UPDATE, run)

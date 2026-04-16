@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, User, ScrollText, Calendar, Wrench, Puzzle, MessageCircle, Fingerprint } from 'lucide-react'
+import { Bot, User, ScrollText, Calendar, Wrench, Puzzle, MessageCircle, Fingerprint, Cable } from 'lucide-react'
 import { ProfileTab } from './agents/ProfileTab.js'
 import { PromptsTab } from './agents/PromptsTab.js'
 import { SchedulesTab } from './agents/SchedulesTab.js'
@@ -7,8 +7,9 @@ import { ToolsTab } from './agents/ToolsTab.js'
 import { SkillsTab } from './agents/SkillsTab.js'
 import { SessionsTab } from './agents/SessionsTab.js'
 import { PersonalizationTab } from './agents/PersonalizationTab.js'
+import { MCPTab } from './agents/MCPTab.js'
 
-type Tab = 'profile' | 'prompts' | 'schedules' | 'tools' | 'skills' | 'sessions' | 'personalization'
+type Tab = 'profile' | 'prompts' | 'schedules' | 'tools' | 'mcp' | 'skills' | 'sessions' | 'personalization'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'profile', label: 'Profile', icon: User },
@@ -16,6 +17,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'prompts', label: 'Prompts', icon: ScrollText },
   { id: 'schedules', label: 'Schedules', icon: Calendar },
   { id: 'tools', label: 'Tools', icon: Wrench },
+  { id: 'mcp', label: 'MCP', icon: Cable },
   { id: 'skills', label: 'Skills', icon: Puzzle },
   { id: 'sessions', label: 'Sessions', icon: MessageCircle },
 ]
@@ -58,6 +60,7 @@ export function AgentsView() {
         {activeTab === 'prompts' && <PromptsTab />}
         {activeTab === 'schedules' && <SchedulesTab />}
         {activeTab === 'tools' && <ToolsTab />}
+        {activeTab === 'mcp' && <MCPTab />}
         {activeTab === 'skills' && <SkillsTab />}
         {activeTab === 'sessions' && <SessionsTab />}
       </div>

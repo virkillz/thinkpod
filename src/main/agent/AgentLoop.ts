@@ -11,6 +11,7 @@ import { getEnabledToolDefinitions, DEFAULT_TOOLS_CONFIG } from './ToolDefinitio
 import { ToolExecutor, ToolContext } from './ToolExecutor.js'
 import type { ToolsConfig } from './tools/types.js'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
+import type { MCPManager } from '../mcp/MCPManager.js'
 import { buildAgentTaskPrompt, SYSTEM_PROMPT } from './prompts.js'
 import { SkillRegistry } from './SkillRegistry.js'
 
@@ -31,6 +32,7 @@ export interface TaskConfig {
   }
   persona: string
   toolsConfig?: ToolsConfig
+  mcpManager?: MCPManager
 }
 
 export interface TaskRun {
@@ -67,6 +69,7 @@ export class AgentLoop {
       vaultPath: config.vaultPath,
       dbManager: config.dbManager,
       toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG,
+      mcpManager: config.mcpManager,
     }
     this.executor = new ToolExecutor(this.context)
     
@@ -111,7 +114,9 @@ export class AgentLoop {
 
         // Get LLM response
         const toolDefs = getEnabledToolDefinitions(this.config.toolsConfig ?? DEFAULT_TOOLS_CONFIG)
-        const response = await this.client.chatWithTools(this.messages, toolDefs as unknown[])
+        const mcpDefs = this.config.mcpManager?.getToolDefinitions() ?? []
+        const allToolDefs = [...toolDefs, ...mcpDefs]
+        const response = await this.client.chatWithTools(this.messages, allToolDefs as unknown[])
         
         // Add assistant message
         this.messages.push({

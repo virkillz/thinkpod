@@ -9,6 +9,14 @@ const IPC_CHANNELS = {
   VAULT_GET_INFO: 'vault:get-info',
   TOOLS_GET_CONFIG: 'tools:get-config',
   TOOLS_SET_CONFIG: 'tools:set-config',
+  MCP_GET_SERVERS: 'mcp:get-servers',
+  MCP_ADD_SERVER: 'mcp:add-server',
+  MCP_UPDATE_SERVER: 'mcp:update-server',
+  MCP_REMOVE_SERVER: 'mcp:remove-server',
+  MCP_CONNECT: 'mcp:connect',
+  MCP_DISCONNECT: 'mcp:disconnect',
+  MCP_GET_STATUSES: 'mcp:get-statuses',
+  MCP_GET_TOOLS: 'mcp:get-tools',
   SKILLS_LIST: 'skills:list',
   SKILLS_OPEN_FOLDER: 'skills:open-folder',
   VAULT_RESET: 'vault:reset',
@@ -198,6 +206,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Tools
   getToolsConfig: () => ipcRenderer.invoke(IPC_CHANNELS.TOOLS_GET_CONFIG),
   setToolsConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.TOOLS_SET_CONFIG, config),
+
+  // MCP
+  mcpGetServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_GET_SERVERS),
+  mcpAddServer: (config: { name: string; command: string; args: string[]; env?: Record<string, string>; enabled: boolean }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
+  mcpUpdateServer: (id: string, updates: Record<string, unknown>) =>
+    ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, id, updates),
+  mcpRemoveServer: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, id),
+  mcpConnect: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_CONNECT, id),
+  mcpDisconnect: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_DISCONNECT, id),
+  mcpGetStatuses: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_GET_STATUSES),
+  mcpGetTools: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_GET_TOOLS),
 
   // Skills
   listSkills: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),

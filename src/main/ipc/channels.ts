@@ -71,6 +71,16 @@ export const IPC_CHANNELS = {
   TOOLS_GET_CONFIG: 'tools:get-config',
   TOOLS_SET_CONFIG: 'tools:set-config',
 
+  // MCP
+  MCP_GET_SERVERS: 'mcp:get-servers',
+  MCP_ADD_SERVER: 'mcp:add-server',
+  MCP_UPDATE_SERVER: 'mcp:update-server',
+  MCP_REMOVE_SERVER: 'mcp:remove-server',
+  MCP_CONNECT: 'mcp:connect',
+  MCP_DISCONNECT: 'mcp:disconnect',
+  MCP_GET_STATUSES: 'mcp:get-statuses',
+  MCP_GET_TOOLS: 'mcp:get-tools',
+
   // Skills
   SKILLS_LIST: 'skills:list',
   SKILLS_OPEN_FOLDER: 'skills:open-folder',

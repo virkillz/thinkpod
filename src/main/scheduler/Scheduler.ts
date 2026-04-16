@@ -8,6 +8,7 @@ import { EventEmitter } from 'events'
 import type { DatabaseManager } from '../database/DatabaseManager.js'
 import type { VaultManager } from '../vault/VaultManager.js'
 import { AgentLoop, TaskRun } from '../agent/AgentLoop.js'
+import type { MCPManager } from '../mcp/MCPManager.js'
 import fs from 'fs/promises'
 import path from 'node:path'
 
@@ -31,7 +32,8 @@ export class Scheduler extends EventEmitter {
 
   constructor(
     private dbManager: DatabaseManager,
-    private vaultManager: VaultManager
+    private vaultManager: VaultManager,
+    private mcpManager?: MCPManager
   ) {
     super()
   }
@@ -184,6 +186,7 @@ export class Scheduler extends EventEmitter {
         llmConfig,
         persona,
         toolsConfig: toolsConfig ?? undefined,
+        mcpManager: this.mcpManager,
       },
       (run) => {
         this.emit('taskUpdate', run)
