@@ -19,6 +19,8 @@ export interface ToolContext {
   vaultPath: string
   dbManager: DatabaseManager
   toolsConfig: ToolsConfig
+  /** Called by schedule tools so the Scheduler can reload its cron jobs */
+  onScheduleChange?: () => void
 }
 
 // ─── UI metadata ──────────────────────────────────────────────────────────────

@@ -22,6 +22,9 @@ import { finishTaskTool } from './core/finish_task.js'
 import { readSkillTool }    from './core/read_skill.js'
 import { searchVaultTool }  from './core/search_vault.js'
 import { getTopicTool }     from './core/get_topic.js'
+import { createScheduleTool } from './core/create_schedule.js'
+import { deleteScheduleTool } from './core/delete_schedule.js'
+import { getSchedulesTool }   from './core/get_schedules.js'
 
 // ─── Extended tools ───────────────────────────────────────────────────────────
 import { fetchUrlTool }    from './extended/fetch_url.js'
@@ -41,6 +44,9 @@ export const TOOL_REGISTRY: ToolEntry[] = [
   readSkillTool,
   searchVaultTool,
   getTopicTool,
+  createScheduleTool,
+  deleteScheduleTool,
+  getSchedulesTool,
   fetchUrlTool,
   runBashTool,
   braveSearchTool,

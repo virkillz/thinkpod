@@ -20,6 +20,8 @@ export interface ToolContext {
   dbManager: DatabaseManager
   toolsConfig: ToolsConfig
   mcpManager?: MCPManager
+  /** Called by schedule tools so the Scheduler can reload its cron jobs */
+  onScheduleChange?: () => void
 }
 
 export class ToolExecutor {

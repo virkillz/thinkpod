@@ -187,6 +187,7 @@ export class Scheduler extends EventEmitter {
         persona,
         toolsConfig: toolsConfig ?? undefined,
         mcpManager: this.mcpManager,
+        onScheduleChange: () => this.reloadAll(),
       },
       (run) => {
         this.emit('taskUpdate', run)

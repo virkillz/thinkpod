@@ -1018,6 +1018,7 @@ export function setupIpcHandlers(
         persona,
         toolsConfig: toolsConfig ?? DEFAULT_TOOLS_CONFIG,
         mcpManager,
+        onScheduleChange: () => scheduler?.reloadAll(),
       },
       (run) => {
         // Task updates logged to database

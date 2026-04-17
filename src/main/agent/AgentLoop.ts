@@ -33,6 +33,7 @@ export interface TaskConfig {
   persona: string
   toolsConfig?: ToolsConfig
   mcpManager?: MCPManager
+  onScheduleChange?: () => void
 }
 
 export interface TaskRun {
@@ -70,6 +71,7 @@ export class AgentLoop {
       dbManager: config.dbManager,
       toolsConfig: config.toolsConfig ?? DEFAULT_TOOLS_CONFIG,
       mcpManager: config.mcpManager,
+      onScheduleChange: config.onScheduleChange,
     }
     this.executor = new ToolExecutor(this.context)
     
