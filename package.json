@@ -1,6 +1,6 @@
 {
   "name": "thinkpod",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "description": "A local-first, AI-powered personal knowledge operating system",
   "main": "dist/main/index.js",
   "type": "module",
